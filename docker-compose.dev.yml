@@ -1,0 +1,38 @@
+# Development environment overrides with hot reload
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      target: build  # Use build stage for hot reload
+    volumes:
+      - ./backend/src:/app/src
+      - ./backend/pom.xml:/app/pom.xml
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+      - SPRING_DEVTOOLS_RESTART_ENABLED=true
+      - LOGGING_LEVEL_ROOT=DEBUG
+      - LOGGING_LEVEL_COM_VIRTPLC=DEBUG
+    command: mvn spring-boot:run
+
+  frontend:
+    build:
+      context: ./frontend
+      target: build
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
+      - ./frontend/index.html:/app/index.html
+      - ./frontend/package.json:/app/package.json
+    environment:
+      - NODE_ENV=development
+    command: npm run dev
+
+  ai-service:
+    volumes:
+      - ./ai-service/src:/app/src
+      - ./ai-service/package.json:/app/package.json
+    environment:
+      - NODE_ENV=development
+    command: npm run dev
