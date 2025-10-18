@@ -29,10 +29,14 @@ services:
       - NODE_ENV=development
     command: npm run dev
 
+  ollama:
+    # No changes needed for development
+
   ai-service:
     volumes:
       - ./ai-service/src:/app/src
       - ./ai-service/package.json:/app/package.json
     environment:
       - NODE_ENV=development
+      - OLLAMA_MODEL=llama3:8b
     command: npm run dev

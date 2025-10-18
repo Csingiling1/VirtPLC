@@ -2,7 +2,7 @@
 
 **Branch:** `feature/AI` | **Subteam:** AI Analysis | **Accenture Challenge**
 
-AI-powered predictive analysis service using Ollama for factory monitoring, anomaly detection, and maintenance prediction.
+AI-powered predictive analysis service using Ollama with Llama3 (8B-17B) for factory monitoring, anomaly detection, and maintenance prediction.
 
 ## 🧠 Features
 
@@ -54,10 +54,14 @@ ai-service/
 ### Prerequisites
 
 - **Node.js 20+**
-- **Ollama** (optional, fallback mode available)
+- **Ollama with Llama3** (runs in Docker Compose, or install manually)
   ```bash
-  # Install Ollama: https://ollama.ai/download
-  ollama pull llama2
+  # With Docker Compose (recommended):
+  docker-compose up -d ollama
+  docker exec -it virtplc-ollama ollama pull llama3:8b
+  
+  # OR install manually: https://ollama.ai/download
+  ollama pull llama3:8b
   ollama serve
   ```
 - **Backend API** running on port 8080
@@ -76,8 +80,8 @@ cp .env.example .env
 PORT=3001
 NODE_ENV=development
 BACKEND_API_URL=http://localhost:8080
-OLLAMA_HOST=http://localhost:11434
-OLLAMA_MODEL=llama2
+OLLAMA_HOST=http://ollama:11434
+OLLAMA_MODEL=llama3:8b
 WS_PORT=3002
 ANALYSIS_INTERVAL=5000
 ```

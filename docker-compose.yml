@@ -49,6 +49,32 @@ services:
       retries: 3
     restart: unless-stopped
 
+  # Ollama LLM Service
+  ollama:
+    image: ollama/ollama:latest
+    container_name: virtplc-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    networks:
+      - virtplc-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    # Note: Remove the GPU section above if you don't have NVIDIA GPU
+
   # AI Analysis Service
   ai-service:
     build:
@@ -63,15 +89,16 @@ services:
       - PORT=3001
       - WS_PORT=3002
       - BACKEND_API_URL=http://backend:8080
-      - OLLAMA_HOST=http://host.docker.internal:11434
-      - OLLAMA_MODEL=llama2
+      - OLLAMA_HOST=http://ollama:11434
+      - OLLAMA_MODEL=llama3:8b
       - ANALYSIS_INTERVAL=5000
     depends_on:
-      - backend
+      ollama:
+        condition: service_healthy
+      backend:
+        condition: service_started
     networks:
       - virtplc-network
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:3001/health"]
       interval: 30s
@@ -104,7 +131,9 @@ networks:
     driver: bridge
     name: virtplc-network
 
-# Uncomment if using TimeBase
-# volumes:
-#   timebase-data:
-#     name: virtplc-timebase-data
+volumes:
+  ollama-data:
+    name: virtplc-ollama-data
+  # Uncomment if using TimeBase
+  # timebase-data:
+  #   name: virtplc-timebase-data
