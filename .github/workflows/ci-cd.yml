@@ -2,7 +2,7 @@ name: VirtPLC CI/CD Pipeline
 
 on:
   push:
-    branches: [develop, release, 'feature/**']
+    branches: [develop, release, "feature/**"]
   pull_request:
     branches: [develop, release]
 
@@ -11,26 +11,26 @@ jobs:
   backend:
     name: Backend (Spring Boot)
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
-          java-version: '21'
-          distribution: 'temurin'
+          java-version: "21"
+          distribution: "temurin"
           cache: maven
-      
+
       - name: Build with Maven
         working-directory: ./backend
         run: mvn clean package -DskipTests
-      
+
       - name: Run tests
         working-directory: ./backend
         run: mvn test
-      
+
       - name: Upload backend artifact
         uses: actions/upload-artifact@v3
         with:
@@ -41,26 +41,26 @@ jobs:
   frontend:
     name: Frontend (React)
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: "20"
+          cache: "npm"
           cache-dependency-path: frontend/package-lock.json
-      
+
       - name: Install dependencies
         working-directory: ./frontend
         run: npm ci
-      
+
       - name: Build frontend
         working-directory: ./frontend
         run: npm run build
-      
+
       - name: Upload frontend artifact
         uses: actions/upload-artifact@v3
         with:
@@ -71,22 +71,22 @@ jobs:
   ai-service:
     name: AI Service (Node.js)
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: "20"
+          cache: "npm"
           cache-dependency-path: ai-service/package-lock.json
-      
+
       - name: Install dependencies
         working-directory: ./ai-service
         run: npm ci
-      
+
       - name: Upload AI service artifact
         uses: actions/upload-artifact@v3
         with:
@@ -99,14 +99,14 @@ jobs:
     runs-on: ubuntu-latest
     needs: [backend, frontend, ai-service]
     if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/release'
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-      
+
       - name: Build backend image
         uses: docker/build-push-action@v5
         with:
@@ -115,7 +115,7 @@ jobs:
           tags: virtplc-backend:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
-      
+
       - name: Build frontend image
         uses: docker/build-push-action@v5
         with:
@@ -124,7 +124,7 @@ jobs:
           tags: virtplc-frontend:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
-      
+
       - name: Build AI service image
         uses: docker/build-push-action@v5
         with:
@@ -140,45 +140,45 @@ jobs:
     runs-on: ubuntu-latest
     needs: [docker-build]
     if: github.ref == 'refs/heads/develop'
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Create .env file
         run: cp .env.example .env
-      
+
       - name: Start services
         run: docker-compose up -d
-      
+
       - name: Wait for services to be healthy
         run: |
           echo "Waiting for services to start..."
           sleep 60
-      
+
       - name: Check backend health
         run: curl --fail http://localhost:8080/api/data/health || exit 1
-      
+
       - name: Check frontend
         run: curl --fail http://localhost:3000 || exit 1
-      
+
       - name: Check AI service health
         run: curl --fail http://localhost:3001/health || exit 1
-      
+
       - name: Run integration tests
         run: |
           # Test backend API
           curl -X POST http://localhost:8080/auth/login \
             -H "Content-Type: application/json" \
             -d '{"username":"test","password":"test"}' || exit 1
-          
+
           # Test latest data endpoint
           curl --fail http://localhost:8080/api/data/latest || exit 1
-      
+
       - name: Show logs on failure
         if: failure()
         run: docker-compose logs
-      
+
       - name: Stop services
         if: always()
         run: docker-compose down -v
@@ -189,11 +189,11 @@ jobs:
     runs-on: ubuntu-latest
     needs: [integration-tests]
     if: github.ref == 'refs/heads/release' && github.event_name == 'push'
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Deploy notification
         run: |
           echo "🚀 Deploying VirtPLC to production..."
