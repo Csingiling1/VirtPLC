@@ -1,404 +1,462 @@
 # VirtPLC AI Service
 
-**Branch:** `feature/AI` | **Subteam:** AI Analysis | **Accenture Challenge**
+**Technology Stack:** Python 3.11 + FastAPI + Ollama + MCP + TimeBase
+---
 
-AI-powered predictive analysis service using Ollama for factory monitoring, anomaly detection, and maintenance prediction.
-
-## 🧠 Features
-
-- **Real-time Analysis**: Continuous monitoring and analysis of sensor data
-- **Predictive Maintenance**: AI-powered predictions for equipment maintenance needs
-- **Anomaly Detection**: Identify unusual patterns in factory operations
-- **WebSocket Streaming**: Real-time push notifications for alerts and predictions
-- **Ollama Integration**: Local LLM for intelligent analysis
-- **Fallback Mode**: Rule-based analysis when AI is unavailable
-
-## 🏗️ Architecture
+## Architecture
 
 ```
-AI Service (Node.js + Express)
-├── REST API (port 3001)
-│   ├── POST /api/analysis/analyze
-│   ├── GET /api/analysis/predict-maintenance
-│   ├── GET /api/analysis/anomalies
-│   └── GET /api/analysis/status
-├── WebSocket Server (port 3002)
-│   └── Real-time broadcasts
-└── Ollama Client
-    └── Local LLM inference
+┌─────────────────────────────────────────────────────────────┐
+│               AI Service (Python + FastAPI)                 │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  ┌──────────────┐     ┌──────────────┐    ┌─────────────┐   │
+│  │   FastAPI    │     │     MCP      │    │   Ollama    │   │
+│  │  REST API    │────►│    Client    │───►│   Llama3    │   │
+│  │  Port: 3001  │     │  (Backend)   │    │  Port:11434 │   │
+│  └──────────────┘     └──────────────┘    └─────────────┘   │
+│         │                                                   │
+│         │                                                   │
+│  ┌──────▼──────┐     ┌──────────────┐    ┌─────────────┐    │
+│  │  WebSocket  │     │   TimeBase   │    │  PostgreSQL │    │
+│  │  Port: 3002 │     │  Time Series │    │  Relational │    │
+│  └─────────────┘     │  Port: 8011  │    │  Port: 5432 │    │
+│                      └──────────────┘    └─────────────┘    │
+│                                                             │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │                   Redis Cache                       │    │
+│  │         Sessions & Caching (Port: 6379)             │    │
+│  └─────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-## 📁 Project Structure
+---
 
-```
-ai-service/
-├── src/
-│   ├── server.js              # Main Express server
-│   ├── routes/
-│   │   └── analysis.js        # API route handlers
-│   ├── services/
-│   │   ├── backendClient.js   # HTTP client for backend API
-│   │   ├── ollamaClient.js    # Ollama LLM client
-│   │   └── analysisService.js # Core analysis logic
-│   ├── websocket/
-│   │   └── wsServer.js        # WebSocket server
-│   └── models/                # (Reserved for data models)
-├── package.json
-├── .env.example
-├── Dockerfile
-└── README.md
-```
+## Data Architecture
 
-## 🚀 Quick Start
+### **TimeBase (Time Series)**
+- Factory sensor metrics (temperature, vibration, speed, pressure)
+- Equipment state history
+- AI predictions and anomalies
+- Aggregated metrics (1min, 5min, 1hour)
+
+### **PostgreSQL (Relational)**
+- User accounts and roles
+- Chat sessions and messages (30-day retention)
+- User dashboards and components
+- Metric definitions catalog
+- AI analysis logs
+
+### **Redis (Caching)**
+- Session management
+- Real-time data caching
+- WebSocket connection tracking
+
+---
+
+## Quick Start
 
 ### Prerequisites
 
-- **Node.js 20+**
-- **Ollama** (optional, fallback mode available)
-  ```bash
-  # Install Ollama: https://ollama.ai/download
-  ollama pull llama2
-  ollama serve
-  ```
-- **Backend API** running on port 8080
+```bash
+# Required services
+docker-compose up -d postgres redis timebase ollama
+
+# Pull Ollama model
+docker exec -it virtplc-ollama ollama pull llama3:8b
+```
 
 ### Installation
 
 ```bash
 cd ai-service
-npm install
+
+# Create virtual environment
+python3.11 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Configure environment
 cp .env.example .env
-```
-
-### Configuration (.env)
-
-```env
-PORT=3001
-NODE_ENV=development
-BACKEND_API_URL=http://localhost:8080
-OLLAMA_HOST=http://localhost:11434
-OLLAMA_MODEL=llama2
-WS_PORT=3002
-ANALYSIS_INTERVAL=5000
+# Edit .env with your settings
 ```
 
 ### Run Development Server
 
 ```bash
-npm run dev
+# Start FastAPI with hot reload
+uvicorn src.main:app --reload --host 0.0.0.0 --port 3001
 ```
 
 Service starts on:
 - **REST API**: http://localhost:3001
+- **API Docs**: http://localhost:3001/docs (Swagger UI)
 - **WebSocket**: ws://localhost:3002
+- **Metrics**: http://localhost:9090/metrics (Prometheus)
 
-### Run Production Server
+---
+
+## Testing Endpoints
+
+### Health Check
 
 ```bash
-npm start
+curl http://localhost:3001/health
 ```
 
-## 🐳 Docker
+### Test Endpoint (Comprehensive Service Status)
 
-**Build:**
 ```bash
-docker build -t virtplc-ai-service .
+curl http://localhost:3001/test
 ```
 
-**Run:**
-```bash
-docker run -p 3001:3001 -p 3002:3002 \
-  -e BACKEND_API_URL=http://backend:8080 \
-  -e OLLAMA_HOST=http://host.docker.internal:11434 \
-  virtplc-ai-service
-```
-
-## 📡 API Endpoints
-
-### POST /api/analysis/analyze
-
-Analyze sensor data using AI or rule-based approach.
-
-**Request:**
+**Returns:**
 ```json
 {
-  "sensorData": {
-    "motor1Speed": 75.3,
-    "motor1Temp": 42.1,
-    "motor2Speed": 68.9,
-    "motor2Temp": 38.5,
-    "conveyor1Speed": 25.6,
-    "sensor1Value": 54.2,
-    "sensor2Value": true
-  }
+  "status": "ok",
+  "timestamp": "2025-10-21T10:30:00Z",
+  "mcp": {
+    "enabled": true,
+    "tools_available": 5,
+    "tools": ["get_sensor_data", "get_equipment_status", "trigger_alert"]
+  },
+  "timebase": {
+    "connected": true,
+    "sample_data_points": 60
+  },
+  "ollama": {
+    "host": "http://ollama:11434",
+    "model": "llama3:8b"
+  },
+  "sample_data": [...]
 }
 ```
 
-**Response:**
-```json
-{
-  "timestamp": "2025-10-19T12:00:00.000Z",
-  "data": { ... },
-  "analysis": {
-    "method": "AI",
-    "model": "llama2",
-    "insights": "System health is good. Motor temperatures within normal range...",
-    "metrics": {
-      "avgMotorTemp": "40.3",
-      "avgMotorSpeed": "72.1",
-      "conveyorEfficiency": "51.2%"
-    }
-  }
-}
+### AI Analysis
+
+```bash
+# Analyze current factory status
+curl -X POST http://localhost:3001/api/analysis/analyze \
+  -H "Content-Type: application/json" \
+  -d '{"symbols": ["Motor1", "Motor2"]}'
+
+# Get maintenance predictions
+curl http://localhost:3001/api/analysis/predict-maintenance
+
+# Detect anomalies
+curl http://localhost:3001/api/analysis/anomalies
 ```
 
-### GET /api/analysis/predict-maintenance
+### Chat with AI
 
-Predict maintenance needs based on current readings.
+```bash
+# Start chat session
+curl -X POST http://localhost:3001/api/chat/session \
+  -H "Content-Type: application/json" \
+  -d '{"user_id": 1}'
 
-**Response:**
-```json
-{
-  "timestamp": "2025-10-19T12:00:00.000Z",
-  "prediction": {
-    "maintenanceNeeded": true,
-    "predictions": [
+# Send message
+curl -X POST http://localhost:3001/api/chat/message \
+  -H "Content-Type: application/json" \
+  -d '{
+    "session_id": "abc123",
+    "message": "What is the current status of Motor1?"
+  }'
+```
+
+### Dashboard Management
+
+```bash
+# Create custom dashboard
+curl -X POST http://localhost:3001/api/dashboard/create \
+  -H "Content-Type: application/json" \
+  -d '{
+    "user_id": 1,
+    "dashboard_name": "My Factory View",
+    "components": [
       {
-        "component": "Motor 1",
-        "priority": "Medium",
-        "estimatedDays": 14,
-        "reason": "High temperature and speed indicate increased wear",
-        "confidence": 0.75
-      }
-    ],
-    "nextScheduledCheck": "2025-10-26T12:00:00.000Z"
-  }
-}
-```
-
-### GET /api/analysis/anomalies
-
-Detect anomalies in current sensor readings.
-
-**Response:**
-```json
-{
-  "timestamp": "2025-10-19T12:00:00.000Z",
-  "anomalies": {
-    "anomaliesDetected": true,
-    "count": 1,
-    "anomalies": [
-      {
-        "type": "Temperature Imbalance",
-        "severity": "Medium",
-        "description": "Motor temperature difference is 25.3°C (normal: <20°C)",
-        "affectedComponents": ["Motor 1", "Motor 2"]
+        "type": "line_chart",
+        "name": "Motor Temperature",
+        "config": {
+          "metrics": ["motor1_temperature", "motor2_temperature"],
+          "timeRange": "1h"
+        }
       }
     ]
-  }
-}
+  }'
 ```
 
-### GET /api/analysis/status
+---
 
-Get service status and configuration.
+## MCP Integration
 
-**Response:**
-```json
-{
-  "status": "operational",
-  "ollama": {
-    "host": "http://localhost:11434",
-    "model": "llama2"
-  },
-  "backend": "http://localhost:8080",
-  "uptime": 1234.56,
-  "timestamp": "2025-10-19T12:00:00.000Z"
-}
+### What is MCP?
+
+**Model Context Protocol** enables structured communication between AI models and data sources.
+
+### MCP Flow
+
+```
+FastAPI AI Service
+      ↓
+   MCP Client
+      ↓ (HTTP/WebSocket)
+Spring Backend (MCP Server)
+      ↓
+OPC-UA / TimeBase / PostgreSQL
 ```
 
-### GET /health
+### Available MCP Tools
 
-Health check endpoint.
+| Tool Name | Description | Example |
+|-----------|-------------|---------|
+| `get_sensor_data` | Get current sensor readings | Motor temps, vibrations |
+| `get_equipment_status` | Equipment operational state | running, stopped, error |
+| `get_historical_data` | Query time series data | Last 24h temperature |
+| `trigger_alert` | Create maintenance alert | Predict failure in 48h |
+| `get_context_for_llm` | Format context for AI | Full factory status |
 
-**Response:**
-```json
-{
-  "status": "healthy",
-  "service": "VirtPLC AI Service",
-  "timestamp": "2025-10-19T12:00:00.000Z",
-  "ollama": "http://localhost:11434",
-  "model": "llama2"
-}
+### Usage Example
+
+```python
+from src.services.mcp_client import mcp_client
+
+# Get sensor data via MCP
+data = await mcp_client.get_sensor_data(
+    symbols=["Motor1", "Motor2"],
+    metrics=["temperature", "vibration"]
+)
+
+# Get formatted context for LLM
+context = await mcp_client.get_context_for_llm(
+    symbols=["Motor1"],
+    include_historical=True,
+    time_range_hours=24
+)
+
+# Use context in Ollama prompt
+response = await ollama.generate(
+    model="llama3:8b",
+    prompt=f"Factory Context:\n{context}\n\nAnalyze this data:"
+)
 ```
 
-## 🔌 WebSocket API
+---
 
-Connect to `ws://localhost:3002` for real-time updates.
+## Database Schemas
 
-**Message Types:**
+### TimeBase Streams
 
-1. **Connected** (server → client on connect)
-```json
-{
-  "type": "connected",
-  "message": "Connected to VirtPLC AI Service",
-  "timestamp": "2025-10-19T12:00:00.000Z"
-}
-```
+- **`factory_metrics`** - Real-time sensor data
+- **`ai_predictions`** - ML predictions and anomalies
+- **`aggregated_metrics`** - Pre-computed aggregations
+- **`user_interactions`** - Dashboard usage tracking
 
-2. **Analysis Broadcast** (server → client every 5s)
-```json
-{
-  "type": "analysis",
-  "timestamp": "2025-10-19T12:00:00.000Z",
-  "data": { /* sensor data */ },
-  "analysis": { /* AI insights */ },
-  "anomalies": { /* detected anomalies */ }
-}
-```
+### PostgreSQL Tables
 
-3. **Acknowledgment** (server → client)
-```json
-{
-  "type": "ack",
-  "received": { /* echoed message */ },
-  "timestamp": "2025-10-19T12:00:00.000Z"
-}
-```
+- **`users`** - User accounts
+- **`chat_sessions`** - Chat session metadata
+- **`chat_messages`** - Message history (30-day retention)
+- **`user_dashboards`** - Custom dashboard configs
+- **`dashboard_components`** - React components (AI-generated)
+- **`ai_analysis_logs`** - Analysis audit log
+- **`metric_definitions`** - Available metrics catalog
 
-## 🤖 Ollama Integration
+---
 
-### Setup Ollama
+## AI Features
 
-1. **Install Ollama**: https://ollama.ai/download
-2. **Pull Model**:
-   ```bash
-   ollama pull llama2
-   # or for smaller model:
-   ollama pull llama2:7b
-   ```
-3. **Start Ollama**:
-   ```bash
-   ollama serve
-   ```
+### 1. **Predictive Maintenance**
+- Analyzes sensor trends
+- Predicts equipment failures
+- Recommends maintenance windows
+- Uses Llama3 + rule-based algorithms
 
-### Supported Models
+### 2. **Anomaly Detection**
+- Real-time deviation detection
+- Statistical thresholds
+- Pattern recognition
+- Severity classification
 
-- `llama2` (default)
-- `llama2:7b` (smaller, faster)
-- `mistral`
-- `codellama`
+### 3. **Conversational AI**
+- Natural language queries
+- Factory status summaries
+- Historical trend analysis
+- Maintenance recommendations
 
-Change model in `.env`:
-```env
-OLLAMA_MODEL=mistral
-```
+### 4. **AI-Generated Dashboards**
+- Users prompt: "Show me motor temperatures"
+- AI generates React component config
+- Saves to `dashboard_components` table
+- Frontend renders dynamically
 
-### Fallback Mode
+---
 
-If Ollama is unavailable, the service automatically falls back to rule-based analysis:
-- Temperature thresholds
-- Speed limits
-- Sensor value ranges
-- Component health rules
+## Docker Deployment
 
-## 🔗 Integration
+### Build and Run
 
-### Frontend Integration
-
-```javascript
-// REST API call
-const response = await fetch('http://localhost:3001/api/analysis/analyze', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ sensorData })
-});
-const analysis = await response.json();
-
-// WebSocket connection
-const ws = new WebSocket('ws://localhost:3002');
-ws.onmessage = (event) => {
-  const message = JSON.parse(event.data);
-  if (message.type === 'analysis') {
-    console.log('Real-time analysis:', message.analysis);
-  }
-};
-```
-
-### Backend Integration
-
-The AI service automatically polls backend at `/api/data/latest` every 5 seconds.
-
-Ensure backend is running:
 ```bash
-cd backend
-mvn spring-boot:run
+# Build AI service
+docker-compose build ai-service
+
+# Start all services
+docker-compose up -d
+
+# Pull Ollama model
+docker exec -it virtplc-ollama ollama pull llama3:8b
+
+# Check logs
+docker logs -f virtplc-ai
 ```
-
-## 📊 Analysis Methods
-
-### AI-Based (Ollama)
-
-- Natural language insights
-- Context-aware recommendations
-- Adaptive learning (future)
-- Confidence scoring
-
-### Rule-Based (Fallback)
-
-- **Motor Health**:
-  - Temp > 70°C: Critical
-  - Temp > 60°C: Warning
-  - Speed > 90 RPM: High load
-  
-- **Conveyor Health**:
-  - Speed < 15 cm/s: Suboptimal
-  
-- **Sensors**:
-  - Value > 90: Near maximum
-  - Value < 10: Anomaly
-
-## 🛠️ Development
-
-### Add New Analysis Type
-
-1. Create function in `services/analysisService.js`
-2. Add route in `routes/analysis.js`
-3. Update WebSocket broadcast if needed
 
 ### Environment Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PORT` | 3001 | REST API port |
-| `WS_PORT` | 3002 | WebSocket port |
-| `BACKEND_API_URL` | http://localhost:8080 | Backend endpoint |
-| `OLLAMA_HOST` | http://localhost:11434 | Ollama server |
-| `OLLAMA_MODEL` | llama2 | LLM model name |
-| `ANALYSIS_INTERVAL` | 5000 | Polling interval (ms) |
-| `PREDICTION_THRESHOLD` | 0.7 | Confidence threshold |
+See `.env.example` for all configuration options.
 
-## 📝 TODO
+Key variables:
+- `MCP_ENABLED=true` - Enable MCP integration
+- `MCP_SERVER_URL=http://backend:8000` - Backend MCP endpoint
+- `OLLAMA_MODEL=llama3:8b` - LLM model to use
+- `CHAT_HISTORY_RETENTION_DAYS=30` - Message retention
 
-- [ ] Add historical trend analysis
-- [ ] Implement model fine-tuning
-- [ ] Add alert severity levels
-- [ ] Integrate with notification system
-- [ ] Add authentication for WebSocket
-- [ ] Store analysis results in database
-- [ ] Add performance metrics tracking
-- [ ] Implement rate limiting
+---
 
-## 📚 Technologies
+## Monitoring
 
-- **Node.js 20**: Runtime
-- **Express 4**: REST API framework
-- **ws**: WebSocket library
-- **Axios**: HTTP client
-- **Ollama**: Local LLM inference
-- **Docker**: Containerization
+### Prometheus Metrics
 
-## 📄 License
+```bash
+# Scrape metrics
+curl http://localhost:9090/metrics
+```
 
-Part of VirtPLC project for Accenture internship.
+Metrics include:
+- Request counts and latencies
+- AI analysis execution times
+- Ollama token usage
+- Database query performance
+- WebSocket connections
+
+---
+
+## 🔧 Development
+
+### Project Structure
+
+```
+ai-service/
+├── src/
+│   ├── main.py                 # FastAPI app
+│   ├── config.py               # Settings
+│   ├── database/
+│   │   ├── __init__.py        # DB connection
+│   │   ├── models.py          # SQLAlchemy models
+│   │   └── timebase_schema.py # TimeBase schemas
+│   ├── routes/
+│   │   ├── analysis.py        # Analysis endpoints
+│   │   ├── chat.py            # Chat endpoints
+│   │   └── dashboard.py       # Dashboard endpoints
+│   └── services/
+│       ├── mcp_client.py      # MCP integration
+│       ├── timebase_client.py # TimeBase client
+│       └── ollama_service.py  # Ollama integration
+├── requirements.txt
+├── Dockerfile
+├── .env.example
+└── README.md
+```
+
+### Adding New Features
+
+1. **New API Endpoint**: Add to `src/routes/`
+2. **New Database Table**: Update `src/database/models.py`
+3. **New MCP Tool**: Extend `src/services/mcp_client.py`
+4. **New TimeBase Stream**: Update `src/database/timebase_schema.py`
+
+---
+
+## Troubleshooting
+
+### Ollama Connection Fails
+
+```bash
+# Check Ollama is running
+docker ps | grep ollama
+
+# Test Ollama directly
+curl http://localhost:11434/api/tags
+```
+
+### MCP Connection Fails
+
+```bash
+# Check backend MCP endpoint
+curl http://localhost:8000/mcp/tools
+
+# Verify MCP_ENABLED=true in .env
+```
+
+### TimeBase Connection Fails
+
+```bash
+# Check TimeBase is running
+docker logs virtplc-timebase
+
+# Verify credentials in .env
+```
+
+### PostgreSQL Connection Fails
+
+```bash
+# Check PostgreSQL is healthy
+docker exec -it virtplc-postgres pg_isready -U virtplc
+
+# Reset database (⚠️ deletes all data)
+docker-compose down -v
+docker-compose up -d postgres
+```
+
+---
+
+## dditional Resources
+
+- **FastAPI Docs**: https://fastapi.tiangolo.com
+- **Ollama**: https://ollama.ai
+- **TimeBase**: https://timebase.info
+- **MCP Spec**: https://modelcontextprotocol.io
+- **LangChain**: https://python.langchain.com
+
+---
+
+## Sprint 1 Tasks (for Nándi)
+
+### Setup Checklist
+
+- [ ] Ollama running with Llama3 8B model
+- [ ] PostgreSQL initialized with schema
+- [ ] Redis cache running
+- [ ] TimeBase connected (or mock mode)
+- [ ] MCP client initialized (or disabled for testing)
+- [ ] `/health` endpoint returns 200
+- [ ] `/test` endpoint shows service status
+
+### Testing Tasks
+
+```bash
+# 1. Health check
+curl http://localhost:3001/health
+
+# 2. Comprehensive test
+curl http://localhost:3001/test
+
+# 3. Test Ollama directly
+curl http://localhost:11434/api/tags
+
+# 4. Test AI analysis (mock data)
+curl -X POST http://localhost:3001/api/analysis/analyze
+```
+
+---
