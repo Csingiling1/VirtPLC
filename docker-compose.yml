@@ -1,0 +1,216 @@
+version: '3.8'
+
+services:
+  # Spring Boot Backend with OPC-UA Server
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: virtplc-backend
+    ports:
+      - "8080:8080"   # REST API
+      - "4840:4840"   # OPC-UA Server
+      - "8000:8000"   # MCP Server
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - SERVER_PORT=8080
+      - OPCUA_SERVER_PORT=4840
+      - OPCUA_SERVER_ENDPOINT=opc.tcp://0.0.0.0:4840
+      - TIMEBASE_URL=dts://timebase:8011
+      - TIMEBASE_ENABLED=true
+      - MCP_ENABLED=true
+      - MCP_PORT=8000
+      - JWT_SECRET=${JWT_SECRET:-your-secret-key-change-in-production}
+      - POSTGRES_URL=jdbc:postgresql://postgres:5432/virtplc
+      - POSTGRES_USER=virtplc
+      - POSTGRES_PASSWORD=changeme
+    depends_on:
+      postgres:
+        condition: service_healthy
+      timebase:
+        condition: service_started
+    networks:
+      - virtplc-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/data/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+  # React Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: virtplc-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_API_URL=http://backend:8080
+      - VITE_WS_URL=ws://ai-service:3002
+    depends_on:
+      - backend
+    networks:
+      - virtplc-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # Ollama LLM Service
+  ollama:
+    image: ollama/ollama:latest
+    container_name: virtplc-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    networks:
+      - virtplc-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    # Remove GPU section above if you don't have NVIDIA GPU
+
+  # AI Analysis Service (Python + FastAPI)
+  ai-service:
+    build:
+      context: ./ai-service
+      dockerfile: Dockerfile
+    container_name: virtplc-ai
+    ports:
+      - "3001:3001"   # REST API
+      - "3002:3002"   # WebSocket
+      - "9090:9090"   # Prometheus metrics
+    environment:
+      - ENVIRONMENT=production
+      - PORT=3001
+      - WS_PORT=3002
+      - BACKEND_API_URL=http://backend:8080
+      - MCP_ENABLED=true
+      - MCP_SERVER_URL=http://backend:8000
+      - OLLAMA_HOST=http://ollama:11434
+      - OLLAMA_MODEL=llama3:8b
+      - TIMEBASE_URL=dts://timebase:8011
+      - TIMEBASE_USER=admin
+      - TIMEBASE_PASSWORD=${TIMEBASE_PASSWORD:-changeme}
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=virtplc
+      - POSTGRES_USER=virtplc
+      - POSTGRES_PASSWORD=changeme
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - ANALYSIS_INTERVAL=5000
+    depends_on:
+      ollama:
+        condition: service_healthy
+      backend:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      timebase:
+        condition: service_started
+    networks:
+      - virtplc-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # PostgreSQL (Relational Data)
+  postgres:
+    image: postgres:16-alpine
+    container_name: virtplc-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=virtplc
+      - POSTGRES_USER=virtplc
+      - POSTGRES_PASSWORD=changeme
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./ai-service/init-db.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - virtplc-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U virtplc -d virtplc"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Redis (Caching & Sessions)
+  redis:
+    image: redis:7-alpine
+    container_name: virtplc-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    networks:
+      - virtplc-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # TimeBase Database (Time Series)
+  timebase:
+    image: finos/timebase-ce-server:6.0
+    container_name: virtplc-timebase
+    ports:
+      - "8011:8011"  # TimeBase port
+      - "8099:8099"  # Web Admin
+    environment:
+      - TIMEBASE_OPTS=-Xmx4g
+      - ADMIN_PASSWORD=${TIMEBASE_PASSWORD:-changeme}
+    volumes:
+      - timebase-data:/timebase/data
+    networks:
+      - virtplc-network
+    restart: unless-stopped
+
+  # Ignition Gateway (HMI) - Reference only
+  # Users should run Ignition Edge separately and configure OPC-UA connection
+  # to opc.tcp://backend:4840
+  # Ignition Web UI: http://localhost:8088
+  # See feature/HMI branch for configuration files
+
+networks:
+  virtplc-network:
+    driver: bridge
+    name: virtplc-network
+
+volumes:
+  ollama-data:
+    name: virtplc-ollama-data
+  postgres-data:
+    name: virtplc-postgres-data
+  redis-data:
+    name: virtplc-redis-data
+  timebase-data:
+    name: virtplc-timebase-data
