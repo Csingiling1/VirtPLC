@@ -208,3 +208,4 @@ __marimo__/
 
 # Node_Modules
 node_modules
+package-lock.json
