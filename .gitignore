@@ -206,6 +206,28 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
+# ========================================
+# Ignition / HMI Branch
+# ========================================
+
+# Ignition runtime files
+IgnitionEdge/.ignition/
+IgnitionEdge/logs/
+IgnitionEdge/temp/
+IgnitionEdge/user-lib/backups/
+
+# Ignition project backups
+*.zip.bak
+*_backup_*.zip
+
+# TimeBaseDB data
+TimeBaseDB/data/
+TimeBaseDB/logs/
+
+# Temporary PLC files
+PLCLogic/**/*.tmp
+PLCLogic/**/*.bak
+
 # Node_Modules
 node_modules
 package-lock.json
