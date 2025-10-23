@@ -1,0 +1,203 @@
+version: '3.8'
+
+services:
+  # Ignition Edge HMI Gateway
+  ignition-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: virtplc-hmi-gateway
+    hostname: ignition-gateway
+    ports:
+      - "8088:8088"   # HTTP
+      - "8043:8043"   # HTTPS
+      - "8060:8060"   # Gateway Network
+    environment:
+      - IGNITION_EDITION=edge
+      - GATEWAY_ADMIN_USERNAME=admin
+      - GATEWAY_ADMIN_PASSWORD=${GATEWAY_PASSWORD:-password}
+      - ACCEPT_IGNITION_EULA=Y
+      - TZ=UTC
+    volumes:
+      - ignition-data:/usr/local/bin/ignition/data
+      - ./IgnitionEdge/config:/config:ro
+      - ./backup:/backup
+    networks:
+      - virtplc-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8088/StatusPing"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    depends_on:
+      - timebase
+      - postgres
+      - backend-opcua
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '1.0'
+          memory: 1G
+
+  # TimeBase Time-Series Database
+  timebase:
+    image: finos/timebase-ce:latest
+    container_name: virtplc-timebase
+    hostname: timebase
+    ports:
+      - "8011:8011"   # TimeBase port
+      - "9090:9090"   # Metrics port
+    environment:
+      - TIMEBASE_HOME=/timebase
+      - JAVA_OPTS=-Xmx1g -Xms512m
+    volumes:
+      - timebase-data:/timebase/data
+      - ./TimeBaseDB/config:/timebase/config:ro
+    networks:
+      - virtplc-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "netstat -an | grep 8011 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 1536M
+        reservations:
+          cpus: '0.5'
+          memory: 768M
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: virtplc-postgres
+    hostname: postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=virtplc
+      - POSTGRES_USER=virtplc
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-virtplc}
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./database/init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - virtplc-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U virtplc"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: virtplc-redis
+    hostname: redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-data:/data
+    networks:
+      - virtplc-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
+  # Mock Backend OPC-UA Server (for development/testing)
+  backend-opcua:
+    image: open62541/open62541:latest
+    container_name: virtplc-backend-opcua
+    hostname: backend
+    ports:
+      - "4840:4840"
+    networks:
+      - virtplc-network
+    restart: unless-stopped
+    command: /bin/sh -c "echo 'Mock OPC-UA Server Running' && sleep infinity"
+
+  # Grafana for Monitoring (optional)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: virtplc-grafana
+    hostname: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_INSTALL_PLUGINS=grafana-clock-panel
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    networks:
+      - virtplc-network
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+
+  # Prometheus for Metrics Collection (optional)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: virtplc-prometheus
+    hostname: prometheus
+    ports:
+      - "9091:9090"
+    volumes:
+      - prometheus-data:/prometheus
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    networks:
+      - virtplc-network
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'
+
+networks:
+  virtplc-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  ignition-data:
+    driver: local
+  timebase-data:
+    driver: local
+  postgres-data:
+    driver: local
+  redis-data:
+    driver: local
+  grafana-data:
+    driver: local
+  prometheus-data:
+    driver: local

@@ -1,0 +1,98 @@
+server:
+  host: 0.0.0.0
+  port: 8011
+  
+security:
+  enabled: false  # Enable for production with proper certificates
+  
+storage:
+  location: /timebase/data
+  cache:
+    size: 512MB
+  compression: true
+  
+# Stream Definitions
+streams:
+  - name: factory_metrics
+    key: SYMBOL
+    description: "Real-time factory equipment metrics"
+    periodicity: IRREGULAR
+    highAvailability: false
+    polymorphic: false
+    schema: motor_telemetry
+    bufferOptions:
+      lossless: false
+      maxBufferSize: 100MB
+    
+  - name: motor_telemetry
+    key: SYMBOL
+    description: "Motor speed, temperature, and status data"
+    periodicity: IRREGULAR
+    schema: motor_data
+    distributionFactor: 1
+    
+  - name: conveyor_data
+    key: SYMBOL
+    description: "Conveyor speed and item count tracking"
+    periodicity: IRREGULAR
+    schema: conveyor_schema
+    
+  - name: alarms_events
+    key: SYMBOL
+    description: "System alarms and events log"
+    periodicity: IRREGULAR
+    schema: alarm_schema
+    
+  - name: ai_predictions
+    key: SYMBOL
+    description: "AI-generated predictions and anomaly detection results"
+    periodicity: IRREGULAR
+    schema: prediction_schema
+
+# Retention Policies
+retention:
+  - stream: factory_metrics
+    policy: TIME
+    duration: 30d
+    
+  - stream: motor_telemetry
+    policy: TIME
+    duration: 90d
+    
+  - stream: conveyor_data
+    policy: TIME
+    duration: 30d
+    
+  - stream: alarms_events
+    policy: TIME
+    duration: 180d  # 6 months for compliance
+    
+  - stream: ai_predictions
+    policy: TIME
+    duration: 90d
+
+# Performance Settings
+performance:
+  threads:
+    readers: 4
+    writers: 2
+  cache:
+    enabled: true
+    size: 512MB
+  compression:
+    enabled: true
+    algorithm: LZ4
+    
+# Monitoring
+monitoring:
+  enabled: true
+  metricsPort: 9090
+  healthCheckInterval: 30s
+  
+# Backup Configuration  
+backup:
+  enabled: true
+  schedule: "0 2 * * *"  # Daily at 2 AM
+  location: /backup/timebase
+  retention: 7  # Keep 7 days of backups
+  compression: true
