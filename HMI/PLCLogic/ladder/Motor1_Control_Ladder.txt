@@ -1,0 +1,93 @@
+(* Ladder Logic Representation for Motor1 Control *)
+(* This file provides a textual representation of the ladder logic *)
+
+(*
+================================================================================
+MOTOR 1 CONTROL LADDER LOGIC
+================================================================================
+
+NETWORK 1: Motor Start with Safety Interlocks
+    |                                                                          |
+    |  Start_Button    NOT Fault    NOT E_Stop                   Motor1_Run   |
+    +------] [----------]/[-----------]/[------------------------( )----------+
+    |                                                                          |
+    |  Motor1_Run                                                             |
+    +------] [-----------------------------------------------------------+    |
+                                                                          |    |
+                                                                    (Seal-in)  |
+                                                                               
+NETWORK 2: Motor Stop
+    |                                                                          |
+    |  Stop_Button                                            (Reset)         |
+    +------] [--------------------------------------------------( R )---------+
+    |                                                      Motor1_Run          |
+    |                                                                          |
+    |  E_Stop                                             (Reset)             |
+    +------] [--------------------------------------------------( R )---------+
+    |                                                      Motor1_Run          |
+
+NETWORK 3: Emergency Stop
+    |                                                                          |
+    |  E_Stop                                             (Reset)             |
+    +------] [--------------------------------------------------( R )---------+
+    |                                                      Motor1_Run          |
+
+NETWORK 4: Speed Control
+    |                                                                          |
+    |  Motor1_Run                              [MOVE]                         |
+    +------] [------------------------------[TargetSpeed -> Motor1_Speed]-----+
+    |                                                                          |
+
+NETWORK 5: Overspeed Protection
+    |                                                                          |
+    |  Motor1_Speed > 2200                                    Motor1_Fault    |
+    +------] [--------------------------------------------------( S )---------+
+    |                                                                          |
+    |                                                    (Reset)               |
+    +---------------------------------------------------( R )---------+       |
+    |                                               Motor1_Run                |
+
+NETWORK 6: Temperature Monitoring
+    |                                                                          |
+    |  Motor1_Temp > 85                                       Motor1_Fault    |
+    +------] [--------------------------------------------------( S )---------+
+    |                                                                          |
+    |                                                    (Reset)               |
+    +---------------------------------------------------( R )---------+       |
+    |                                               Motor1_Run                |
+
+NETWORK 7: Fault Reset Conditions
+    |                                                                          |
+    |  NOT Motor1_Run   Motor1_Speed<10   Motor1_Temp<80   Reset_Button      |
+    +-------]/[------------] [--------------] [--------------] [-------+      |
+    |                                                                   |      |
+    |                                                    (Reset)        |      |
+    +-------------------------------------------------------------------( R )-+
+                                                                  Motor1_Fault
+
+================================================================================
+NOTES:
+- ] [ = Normally Open Contact
+- ]/[ = Normally Closed Contact  
+- ( ) = Output Coil
+- ( S ) = Set Coil
+- ( R ) = Reset Coil
+- [MOVE] = Move instruction
+================================================================================
+*)
+
+(* 
+Ladder logic is typically programmed using graphical editors in PLC software
+such as Rockwell Studio 5000, Siemens TIA Portal, or Schneider Unity Pro.
+
+For this project, the structured text version (Motor1_Control.st) provides
+the same logic in IEC 61131-3 structured text format, which is easier to
+version control and test.
+
+To implement in actual ladder logic:
+1. Open your PLC programming software
+2. Create a new ladder logic program
+3. Translate the networks above into graphical ladder rungs
+4. Download to PLC
+5. Test each network individually before full system integration
+*)

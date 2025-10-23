@@ -1,0 +1,356 @@
+{
+  "custom": {},
+  "params": {},
+  "props": {
+    "defaultSize": {
+      "height": 1000,
+      "width": 1670
+    }
+  },
+  "root": {
+    "children": [
+      {
+        "meta": {
+          "name": "ConveyorCard"
+        },
+        "position": {
+          "height": 600,
+          "width": 1630,
+          "x": 20,
+          "y": 20
+        },
+        "props": {
+          "style": {
+            "backgroundColor": "#ffffff",
+            "borderRadius": "8px",
+            "boxShadow": "0 2px 8px rgba(0,0,0,0.1)"
+          }
+        },
+        "type": "ia.container.coord",
+        "children": [
+          {
+            "meta": {
+              "name": "ConveyorTitle"
+            },
+            "position": {
+              "height": 40,
+              "width": 1590,
+              "x": 20,
+              "y": 10
+            },
+            "props": {
+              "text": "Conveyor 1 Control",
+              "style": {
+                "fontSize": "24px",
+                "fontWeight": "bold",
+                "color": "#1e3a5f"
+              }
+            },
+            "type": "ia.display.label"
+          },
+          {
+            "meta": {
+              "name": "ConveyorSpeed"
+            },
+            "position": {
+              "height": 100,
+              "width": 400,
+              "x": 20,
+              "y": 70
+            },
+            "propConfig": {
+              "props.value": {
+                "binding": {
+                  "type": "tag",
+                  "config": {
+                    "tagPath": "[default]Conveyor1/Speed"
+                  }
+                }
+              }
+            },
+            "props": {
+              "label": "Speed (m/min)",
+              "value": 0,
+              "min": 0,
+              "max": 100,
+              "style": {
+                "fontSize": "18px"
+              }
+            },
+            "type": "ia.display.gauge"
+          },
+          {
+            "meta": {
+              "name": "ConveyorItemCount"
+            },
+            "position": {
+              "height": 100,
+              "width": 400,
+              "x": 450,
+              "y": 70
+            },
+            "propConfig": {
+              "props.text": {
+                "binding": {
+                  "type": "tag",
+                  "config": {
+                    "tagPath": "[default]Conveyor1/ItemCount"
+                  },
+                  "transforms": [
+                    {
+                      "type": "script",
+                      "config": {
+                        "script": "return str(value) + ' items'"
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            "props": {
+              "text": "0 items",
+              "style": {
+                "fontSize": "48px",
+                "fontWeight": "bold",
+                "color": "#1e3a5f",
+                "textAlign": "center"
+              }
+            },
+            "type": "ia.display.label"
+          },
+          {
+            "meta": {
+              "name": "ConveyorRunningStatus"
+            },
+            "position": {
+              "height": 100,
+              "width": 700,
+              "x": 880,
+              "y": 70
+            },
+            "propConfig": {
+              "props.text": {
+                "binding": {
+                  "type": "tag",
+                  "config": {
+                    "tagPath": "[default]Conveyor1/Running"
+                  },
+                  "transforms": [
+                    {
+                      "type": "script",
+                      "config": {
+                        "script": "return 'CONVEYOR RUNNING' if value else 'CONVEYOR STOPPED'"
+                      }
+                    }
+                  ]
+                }
+              },
+              "props.style.backgroundColor": {
+                "binding": {
+                  "type": "tag",
+                  "config": {
+                    "tagPath": "[default]Conveyor1/Running"
+                  },
+                  "transforms": [
+                    {
+                      "type": "script",
+                      "config": {
+                        "script": "return '#28a745' if value else '#6c757d'"
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            "props": {
+              "text": "CONVEYOR STOPPED",
+              "style": {
+                "fontSize": "24px",
+                "fontWeight": "bold",
+                "color": "#ffffff",
+                "textAlign": "center",
+                "padding": "30px",
+                "borderRadius": "8px"
+              }
+            },
+            "type": "ia.display.label"
+          },
+          {
+            "meta": {
+              "name": "ConveyorVisualization"
+            },
+            "position": {
+              "height": 200,
+              "width": 1590,
+              "x": 20,
+              "y": 200
+            },
+            "props": {
+              "style": {
+                "backgroundColor": "#ecf0f1",
+                "borderRadius": "4px",
+                "border": "2px solid #95a5a6"
+              }
+            },
+            "type": "ia.container.coord",
+            "children": [
+              {
+                "meta": {
+                  "name": "ConveyorBelt"
+                },
+                "position": {
+                  "height": 80,
+                  "width": 1500,
+                  "x": 45,
+                  "y": 60
+                },
+                "propConfig": {
+                  "props.style.backgroundColor": {
+                    "binding": {
+                      "type": "tag",
+                      "config": {
+                        "tagPath": "[default]Conveyor1/Running"
+                      },
+                      "transforms": [
+                        {
+                          "type": "script",
+                          "config": {
+                            "script": "return '#34495e' if value else '#7f8c8d'"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                },
+                "props": {
+                  "style": {
+                    "backgroundColor": "#7f8c8d",
+                    "borderRadius": "8px"
+                  }
+                },
+                "type": "ia.container.coord"
+              }
+            ]
+          },
+          {
+            "meta": {
+              "name": "ConveyorStartButton"
+            },
+            "position": {
+              "height": 80,
+              "width": 250,
+              "x": 20,
+              "y": 480
+            },
+            "props": {
+              "text": "START CONVEYOR",
+              "style": {
+                "backgroundColor": "#28a745",
+                "color": "#ffffff",
+                "fontSize": "20px",
+                "fontWeight": "bold"
+              }
+            },
+            "events": {
+              "component": {
+                "onActionPerformed": {
+                  "script": "system.tag.writeBlocking(['[default]Conveyor1/Running'], [True])"
+                }
+              }
+            },
+            "type": "ia.input.button"
+          },
+          {
+            "meta": {
+              "name": "ConveyorStopButton"
+            },
+            "position": {
+              "height": 80,
+              "width": 250,
+              "x": 290,
+              "y": 480
+            },
+            "props": {
+              "text": "STOP CONVEYOR",
+              "style": {
+                "backgroundColor": "#dc3545",
+                "color": "#ffffff",
+                "fontSize": "20px",
+                "fontWeight": "bold"
+              }
+            },
+            "events": {
+              "component": {
+                "onActionPerformed": {
+                  "script": "system.tag.writeBlocking(['[default]Conveyor1/Running'], [False])"
+                }
+              }
+            },
+            "type": "ia.input.button"
+          },
+          {
+            "meta": {
+              "name": "ConveyorResetCountButton"
+            },
+            "position": {
+              "height": 80,
+              "width": 250,
+              "x": 560,
+              "y": 480
+            },
+            "props": {
+              "text": "RESET COUNT",
+              "style": {
+                "backgroundColor": "#ffc107",
+                "color": "#000000",
+                "fontSize": "20px",
+                "fontWeight": "bold"
+              }
+            },
+            "events": {
+              "component": {
+                "onActionPerformed": {
+                  "script": "system.tag.writeBlocking(['[default]Conveyor1/ItemCount'], [0])"
+                }
+              }
+            },
+            "type": "ia.input.button"
+          },
+          {
+            "meta": {
+              "name": "EmergencyStopButton"
+            },
+            "position": {
+              "height": 80,
+              "width": 250,
+              "x": 1330,
+              "y": 480
+            },
+            "props": {
+              "text": "⚠ EMERGENCY",
+              "style": {
+                "backgroundColor": "#dc3545",
+                "color": "#ffffff",
+                "fontSize": "20px",
+                "fontWeight": "bold",
+                "border": "4px solid #a71d2a"
+              }
+            },
+            "events": {
+              "component": {
+                "onActionPerformed": {
+                  "script": "system.tag.writeBlocking(['[default]Conveyor1/Emergency', '[default]System/EmergencyStop'], [True, True])"
+                }
+              }
+            },
+            "type": "ia.input.button"
+          }
+        ]
+      }
+    ],
+    "meta": {
+      "name": "root"
+    },
+    "type": "ia.container.coord"
+  }
+}
