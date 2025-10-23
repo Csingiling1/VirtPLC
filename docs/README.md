@@ -7,8 +7,9 @@
 This project documentation is organized into the following files:
 
 - **[concept.md](./concept.md)** - Main concept, hardware requirements, system flow, and MVP features
-- **[user-stories.md](./user-stories.md)** - User stories for all system actors with acceptance criteria
-- **[use-case-diagram.md](./use-case-diagram.md)** - PlantUML use case diagram with actor and use case descriptions
+- **[use-case-diagram.md](./use-cases.md)** - Use cases
+- **[sprint1-summary.md](./sprints/sprint1-summary.md)** - Summary of Sprint 1 achievements, metrics, and retrospectives
+- **[sprint2-backlog.md](./sprints/sprint2-backlog.md)** - Sprint 2 backlog with tasks, use cases, and team assignments
 
 ---
 
