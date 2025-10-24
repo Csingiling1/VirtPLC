@@ -15,13 +15,34 @@ This project documentation is organized into the following files:
 
 ## Quick Summary
 
-The project is a unified AI-enhanced Digital Twin platform designed for industrial and retail environments (warehouses, depots, shopping aisles). It scans and reconstructs physical spaces into virtual 3D environments using advanced sensors and creates a real-time data bridge between the physical layer (sensors, PLCs) and the virtual space (Unreal Engine).
+VirtPLC is a comprehensive **industrial automation platform** that creates a virtual PLC (Programmable Logic Controller) ecosystem for factory automation. It provides a complete microservices-based solution for monitoring, controlling, and optimizing industrial processes through AI-enhanced predictive maintenance and real-time data analytics.
 
 The system integrates:
 
-- Object and environment scanning
-- Live telemetry and PLC integration
-- Predictive AI analysis
-- Interactive dashboards and natural language querying
+- **HMI/SCADA Interface** (Ignition Edge) - Real-time operator dashboards
+- **AI-Powered Analytics** (FastAPI + Ollama LLM) - Predictive maintenance and anomaly detection
+- **Enterprise Backend** (Java Spring Boot) - REST APIs, OPC-UA server, JWT authentication
+- **Time-Series Database** (InfluxDB) - High-performance sensor data storage
+- **Relational Database** (PostgreSQL) - Business data and configuration
+- **PLC Simulation** - Virtual PLC for testing and development
+- **Monitoring Stack** (Grafana + Prometheus) - System observability and alerting
 
-This creates a digital twin that allows managers and technicians to monitor, simulate, and optimize operations in real time, all within an immersive virtual environment.
+This creates a **production-ready industrial IoT platform** that enables manufacturers to monitor equipment health, predict failures, optimize maintenance schedules, and make data-driven decisions - all within a scalable, containerized microservices architecture.
+
+### Key Features
+
+- **Real-time PLC Data**: OPC-UA communication with industrial equipment
+- **AI-Powered Insights**: LLM-based analysis of sensor data and equipment behavior
+- **Predictive Maintenance**: Machine learning models for failure prediction
+- **Scalable Architecture**: Docker Compose orchestration with Kubernetes-ready design
+- **Production Monitoring**: Comprehensive observability with Grafana dashboards
+- **Multi-tenant Ready**: JWT authentication and role-based access control
+
+### Technology Stack
+
+- **Frontend**: React + Vite + TypeScript
+- **Backend**: Java Spring Boot + PostgreSQL + InfluxDB
+- **AI Service**: FastAPI + Ollama (LLaMA 3.2 models)
+- **HMI**: Ignition Edge Gateway
+- **Infrastructure**: Docker + Docker Compose + Nginx
+- **Monitoring**: Grafana + Prometheus + Loki
