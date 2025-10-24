@@ -1,0 +1,242 @@
+version: '3.8'
+
+# JAVA BACKEND STACK - Spring Boot + PostgreSQL + Redis + InfluxDB + Monitoring
+# Deploy in: /backend directory
+
+services:
+  java-backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: virtplc/backend:latest
+    container_name: java-backend
+    hostname: java-backend
+    ports:
+      - "8080:8080"   # HTTP API
+      - "8081:8081"   # Actuator
+    volumes:
+      - ./src:/app/src:ro
+      - backend-logs:/logs
+    environment:
+      # Spring Boot
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-production}
+      - SERVER_PORT=8080
+      - MANAGEMENT_SERVER_PORT=8081
+      # PostgreSQL
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/${POSTGRES_DB:-virtplc}
+      - SPRING_DATASOURCE_USERNAME=${POSTGRES_USER:-virtplc}
+      - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD:-changeme}
+      # Redis
+      - SPRING_REDIS_HOST=redis-backend
+      - SPRING_REDIS_PORT=6379
+      - SPRING_REDIS_DATABASE=0
+      # InfluxDB
+      - INFLUXDB_URL=http://influxdb:8086
+      - INFLUXDB_TOKEN=${INFLUXDB_TOKEN:-my-super-secret-auth-token}
+      - INFLUXDB_ORG=${INFLUXDB_ORG:-virtplc}
+      - INFLUXDB_BUCKET=${INFLUXDB_BUCKET:-factory_data}
+      # OPC-UA
+      - OPCUA_ENABLED=true
+      - OPCUA_SERVER_PORT=4841
+      # Security
+      - JWT_SECRET=${JWT_SECRET:-your-secret-key-change-in-production}
+      - JWT_EXPIRATION=${JWT_EXPIRATION:-86400000}
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 4G
+        reservations:
+          cpus: '2'
+          memory: 2G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+    networks:
+      - backend-network
+      - virtplc-shared
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis-backend:
+        condition: service_healthy
+      influxdb:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: postgres
+    hostname: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-virtplc}
+      - POSTGRES_USER=${POSTGRES_USER:-virtplc}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-changeme}
+      - POSTGRES_INITDB_ARGS=--encoding=UTF8
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 4G
+        reservations:
+          cpus: '2'
+          memory: 2G
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-virtplc}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - backend-network
+      - virtplc-shared
+
+  redis-backend:
+    image: redis:7-alpine
+    container_name: redis-backend
+    hostname: redis-backend
+    ports:
+      - "6382:6379"
+    command: >
+      redis-server
+      --maxmemory 1gb
+      --maxmemory-policy allkeys-lru
+      --appendonly yes
+      --save 900 1
+      --save 300 10
+      --loglevel notice
+    volumes:
+      - redis-backend-data:/data
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - backend-network
+      - virtplc-shared
+
+  influxdb:
+    image: influxdb:2.7-alpine
+    container_name: influxdb
+    hostname: influxdb
+    ports:
+      - "8086:8086"
+    volumes:
+      - influxdb-data:/var/lib/influxdb2
+      - influxdb-config:/etc/influxdb2
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=${INFLUXDB_USER:-admin}
+      - DOCKER_INFLUXDB_INIT_PASSWORD=${INFLUXDB_PASSWORD:-changeme123}
+      - DOCKER_INFLUXDB_INIT_ORG=${INFLUXDB_ORG:-virtplc}
+      - DOCKER_INFLUXDB_INIT_BUCKET=${INFLUXDB_BUCKET:-factory_data}
+      - DOCKER_INFLUXDB_INIT_RETENTION=30d
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${INFLUXDB_TOKEN:-my-super-secret-auth-token}
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+    healthcheck:
+      test: ["CMD", "influx", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - backend-network
+      - virtplc-shared
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    hostname: grafana
+    ports:
+      - "3001:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - backend-network
+    depends_on:
+      - influxdb
+      - postgres
+
+  plc-simulator:
+    build:
+      context: ../HMI/simulator
+      dockerfile: Dockerfile
+    image: virtplc/plc-simulator:latest
+    container_name: plc-simulator
+    hostname: plc-simulator
+    ports:
+      - "4840:4840"   # OPC-UA
+      - "8085:8080"   # Web UI
+    volumes:
+      - ../HMI/simulator/config.yaml:/app/config.yaml:ro
+    environment:
+      - OPCUA_PORT=4840
+      - WEB_PORT=8080
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - SIMULATION_SPEED=${SIMULATION_SPEED:-1.0}
+      # Backend connection
+      - BACKEND_HOST=java-backend
+      - BACKEND_PORT=8080
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - backend-network
+      - virtplc-shared
+
+volumes:
+  postgres-data:
+  redis-backend-data:
+  influxdb-data:
+  influxdb-config:
+  grafana-data:
+  backend-logs:
+
+networks:
+  backend-network:
+    driver: bridge
+  virtplc-shared:
+    external: true
