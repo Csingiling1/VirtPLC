@@ -52,7 +52,7 @@ public class NodeManager {
                 // Read values from PLC simulator via OPC UA
                 updateValuesFromOpcUa();
                 log.debug("Updated values from OPC UA - M1 Speed: {}, M1 Temp: {}, Sensor1: {}",
-                         motor1Speed, motor1Temp, sensor1Value);
+                        motor1Speed, motor1Temp, sensor1Value);
 
             } catch (Exception e) {
                 log.error("Error reading from OPC UA server", e);
@@ -103,11 +103,31 @@ public class NodeManager {
     }
 
     // Getter methods for values read from OPC UA
-    public double getMotor1Speed() { return motor1Speed; }
-    public double getMotor1Temp() { return motor1Temp; }
-    public double getMotor2Speed() { return motor2Speed; }
-    public double getMotor2Temp() { return motor2Temp; }
-    public double getConveyor1Speed() { return conveyor1Speed; }
-    public double getSensor1Value() { return sensor1Value; }
-    public boolean getSensor2Value() { return sensor2Value; }
+    public double getMotor1Speed() {
+        return motor1Speed;
+    }
+
+    public double getMotor1Temp() {
+        return motor1Temp;
+    }
+
+    public double getMotor2Speed() {
+        return motor2Speed;
+    }
+
+    public double getMotor2Temp() {
+        return motor2Temp;
+    }
+
+    public double getConveyor1Speed() {
+        return conveyor1Speed;
+    }
+
+    public double getSensor1Value() {
+        return sensor1Value;
+    }
+
+    public boolean getSensor2Value() {
+        return sensor2Value;
+    }
 }

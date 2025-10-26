@@ -16,7 +16,8 @@ import java.util.stream.Collectors;
 
 /**
  * Service for retrieving and managing sensor data.
- * Persists data to TimescaleDB and provides real-time and historical data access.
+ * Persists data to TimescaleDB and provides real-time and historical data
+ * access.
  */
 @Slf4j
 @Service
@@ -71,8 +72,7 @@ public class DataService {
         try {
             List<SensorDataEntity> entities = sensorDataRepository.findByTimestampBetween(
                     LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(startTime), ZoneOffset.UTC),
-                    LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(endTime), ZoneOffset.UTC)
-            );
+                    LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(endTime), ZoneOffset.UTC));
 
             return entities.stream()
                     .map(this::convertToSensorData)
@@ -95,8 +95,7 @@ public class DataService {
             List<SensorDataEntity> entities = sensorDataRepository.findByDeviceIdAndTimestampBetween(
                     deviceId,
                     LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(startTime), ZoneOffset.UTC),
-                    LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(endTime), ZoneOffset.UTC)
-            );
+                    LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(endTime), ZoneOffset.UTC));
 
             return entities.stream()
                     .map(this::convertToSensorData)
@@ -110,7 +109,8 @@ public class DataService {
 
     private SensorDataEntity convertToEntity(SensorData sensorData) {
         return SensorDataEntity.builder()
-                .timestamp(LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(sensorData.getTimestamp()), ZoneOffset.UTC))
+                .timestamp(LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(sensorData.getTimestamp()),
+                        ZoneOffset.UTC))
                 .deviceId("factory1") // Default device ID
                 .motor1Speed(sensorData.getMotor1Speed())
                 .motor1Temp(sensorData.getMotor1Temp())

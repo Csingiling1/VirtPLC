@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # Spring Boot Backend with OPC-UA Server
   backend:
@@ -16,8 +14,10 @@ services:
       - SERVER_PORT=8080
       - OPCUA_SERVER_PORT=4840
       - OPCUA_SERVER_ENDPOINT=opc.tcp://0.0.0.0:4840
-      - TIMEBASE_URL=dts://timebase:8011
-      - TIMEBASE_ENABLED=true
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://timescale:5432/virtplc_ts
+      - SPRING_DATASOURCE_USERNAME=virtplc
+      - SPRING_DATASOURCE_PASSWORD=changeme
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
       - MCP_ENABLED=true
       - MCP_PORT=8000
       - JWT_SECRET=${JWT_SECRET:-your-secret-key-change-in-production}
@@ -27,8 +27,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      timebase:
-        condition: service_started
+      timescale:
+        condition: service_healthy
     networks:
       - virtplc-network
     healthcheck:
@@ -106,9 +106,11 @@ services:
       - MCP_SERVER_URL=http://backend:8000
       - OLLAMA_HOST=http://ollama:11434
       - OLLAMA_MODEL=llama3:8b
-      - TIMEBASE_URL=dts://timebase:8011
-      - TIMEBASE_USER=admin
-      - TIMEBASE_PASSWORD=${TIMEBASE_PASSWORD:-changeme}
+      - TIMESCALE_HOST=timescale
+      - TIMESCALE_PORT=5432
+      - TIMESCALE_DB=virtplc_ts
+      - TIMESCALE_USER=virtplc
+      - TIMESCALE_PASSWORD=changeme
       - POSTGRES_HOST=postgres
       - POSTGRES_PORT=5432
       - POSTGRES_DB=virtplc
@@ -126,8 +128,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
-      timebase:
-        condition: service_started
+      timescale:
+        condition: service_healthy
     networks:
       - virtplc-network
     healthcheck:
@@ -178,20 +180,27 @@ services:
       retries: 5
     restart: unless-stopped
 
-  # TimeBase Database (Time Series)
-  timebase:
-    image: finos/timebase-ce-server:6.0
-    container_name: virtplc-timebase
+  # TimescaleDB (Time Series Database)
+  timescale:
+    image: timescale/timescaledb:latest-pg16
+    container_name: virtplc-timescale
     ports:
-      - "8011:8011"  # TimeBase port
-      - "8099:8099"  # Web Admin
+      - "5433:5432"  # Use port 5433 to avoid conflict with postgres
     environment:
-      - TIMEBASE_OPTS=-Xmx4g
-      - ADMIN_PASSWORD=${TIMEBASE_PASSWORD:-changeme}
+      - POSTGRES_DB=virtplc_ts
+      - POSTGRES_USER=virtplc
+      - POSTGRES_PASSWORD=changeme
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8
     volumes:
-      - timebase-data:/timebase/data
+      - timescale-data:/var/lib/postgresql/data
+      - ./backend/src/main/resources/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
     networks:
       - virtplc-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U virtplc -d virtplc_ts"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     restart: unless-stopped
 
   # Ignition Gateway (HMI) - Reference only
@@ -212,5 +221,5 @@ volumes:
     name: virtplc-postgres-data
   redis-data:
     name: virtplc-redis-data
-  timebase-data:
-    name: virtplc-timebase-data
+  timescale-data:
+    name: virtplc-timescale-data

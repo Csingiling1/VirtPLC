@@ -7,7 +7,8 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 /**
- * Service for collecting sensor data from OPC UA server and storing in TimescaleDB.
+ * Service for collecting sensor data from OPC UA server and storing in
+ * TimescaleDB.
  * Runs periodically to ensure continuous data collection.
  */
 @Slf4j

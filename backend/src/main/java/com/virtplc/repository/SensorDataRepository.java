@@ -24,7 +24,8 @@ public interface SensorDataRepository extends JpaRepository<SensorDataEntity, Lo
     /**
      * Find sensor data for a specific device within a timestamp range.
      */
-    List<SensorDataEntity> findByDeviceIdAndTimestampBetween(String deviceId, LocalDateTime startTime, LocalDateTime endTime);
+    List<SensorDataEntity> findByDeviceIdAndTimestampBetween(String deviceId, LocalDateTime startTime,
+            LocalDateTime endTime);
 
     /**
      * Find the latest sensor data for a device.
@@ -36,11 +37,13 @@ public interface SensorDataRepository extends JpaRepository<SensorDataEntity, Lo
      * Get average motor speeds over time range.
      */
     @Query("SELECT AVG(s.motor1Speed), AVG(s.motor2Speed) FROM SensorDataEntity s WHERE s.timestamp BETWEEN :startTime AND :endTime")
-    Object[] getAverageMotorSpeeds(@Param("startTime") LocalDateTime startTime, @Param("endTime") LocalDateTime endTime);
+    Object[] getAverageMotorSpeeds(@Param("startTime") LocalDateTime startTime,
+            @Param("endTime") LocalDateTime endTime);
 
     /**
      * Get temperature statistics over time range.
      */
     @Query("SELECT MIN(s.motor1Temp), MAX(s.motor1Temp), AVG(s.motor1Temp) FROM SensorDataEntity s WHERE s.timestamp BETWEEN :startTime AND :endTime")
-    Object[] getMotor1TemperatureStats(@Param("startTime") LocalDateTime startTime, @Param("endTime") LocalDateTime endTime);
+    Object[] getMotor1TemperatureStats(@Param("startTime") LocalDateTime startTime,
+            @Param("endTime") LocalDateTime endTime);
 }
