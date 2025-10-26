@@ -17,11 +17,21 @@ security:
     secret: ${JWT_SECRET:your-secret-key-change-in-production-min-256-bits}
     expiration: 86400000  # 24 hours in milliseconds
     
-timebase:
-  url: dts://localhost:8011
-  username: admin
+timescaledb:
+  url: jdbc:postgresql://timescale:5432/timescaledb
+  username: timescale
   password: changeme
-  enabled: false  # Enable when TimeBase is configured
+  driver-class-name: org.postgresql.Driver
+  enabled: true
+
+opcua:
+  client:
+    enabled: true
+    endpoint: opc.tcp://plc-simulator:4840
+    security-policy: None
+    message-security: None
+    request-timeout: 5000
+    session-timeout: 60000
 
 cors:
   allowed-origins:
