@@ -1,14 +1,8 @@
-version: '3.8'
-
-# FRONTEND STACK - React + Redis + Nginx
-# Deploy in: /frontend directory
-
 services:
   frontend:
     build:
       context: .
       dockerfile: Dockerfile
-      target: production
     image: virtplc/frontend:latest
     container_name: frontend
     hostname: frontend

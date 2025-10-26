@@ -27,4 +27,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "import socket; s=socket.socket(); s.connect(('localhost', 4840)); s.close()" || exit 1
 
 # Run simulator
-CMD ["python", "simulator.py"]
+CMD ["python", "main.py", "--mode", "server", "--host", "0.0.0.0", "--port", "8080", "--opcua-endpoint", "opc.tcp://0.0.0.0:4840/virtplc/"]

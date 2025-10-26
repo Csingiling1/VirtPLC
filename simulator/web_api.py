@@ -13,8 +13,8 @@ import asyncio
 import json
 from datetime import datetime
 
-from .database import DeviceDatabase
-from .models import FactoryDevice, SignalConfig, SignalGenerator
+from database import DeviceDatabase
+from models import FactoryDevice, SignalConfig, SignalGenerator
 
 
 # Pydantic models for API

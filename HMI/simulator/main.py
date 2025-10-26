@@ -307,9 +307,6 @@ def main():
         # Run in specified mode
         if args.mode == "cli":
             print("Use --help to see available commands")
-        elif args.mode == "interactive":
-            cli = InteractiveCLI(args.db)
-            cli.cmdloop()
         else:
             # Run async modes
             async def run_async():
@@ -320,13 +317,17 @@ def main():
                     elif args.mode == "web":
                         await app.start_web_server(args.host, args.port)
                         await app.run_simulation(args.update_interval)
-                    elif args.mode == "server":
-                        # Start both OPC-UA and web servers
-                        await app.start_opcua_server(args.opcua_endpoint)
-                        await app.start_web_server(args.host, args.port)
-                        await app.run_simulation(args.update_interval)
                     elif args.mode == "simulate":
                         await app.run_simulation(args.update_interval)
+                    elif args.mode == "server":
+                        # Run both web API and OPC UA servers
+                        await app.start_web_server(args.host, args.port)
+                        await app.start_opcua_server(args.opcua_endpoint)
+                        await app.run_simulation(args.update_interval)
+                    elif args.mode == "interactive":
+                        # Run interactive CLI that connects to running simulator
+                        cli = InteractiveCLI()
+                        cli.cmdloop()
                 except KeyboardInterrupt:
                     pass
                 finally:

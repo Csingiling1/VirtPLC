@@ -58,25 +58,24 @@ class OPCUAServer:
 
         # Create devices
         for device in self.db.get_all_devices():
-            # Create signal nodes directly under VirtPLC with device.signal format
+            device_folder = await virplc_folder.add_folder(namespace_idx, device.name)
+            self.device_nodes[device.id] = {}
+
+            # Create signal nodes
             for signal in device.signals:
                 try:
-                    node_name = f"{device.name}.{signal.name}"
-                    node = await virplc_folder.add_variable(
+                    node = await device_folder.add_variable(
                         namespace_idx,
-                        node_name,
+                        signal.name,
                         signal.value,
                         ua.VariantType.Float
                     )
                     # Make node writable
                     await node.set_writable()
-                    # Store node reference for updates
-                    if device.id not in self.device_nodes:
-                        self.device_nodes[device.id] = {}
                     self.device_nodes[device.id][signal.name] = node
-                    logger.debug(f"Created OPC-UA node for {node_name}")
+                    logger.debug(f"Created OPC-UA node for {device.id}.{signal.name}")
                 except Exception as e:
-                    logger.error(f"Error creating node for {device.name}.{signal.name}: {e}")
+                    logger.error(f"Error creating node for {device.id}.{signal.name}: {e}")
 
     async def update_values(self):
         """Update OPC-UA node values from database"""

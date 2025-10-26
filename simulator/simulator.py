@@ -341,6 +341,31 @@ class ConveyorSimulation:
                     logger.debug(f"{self.name}: Item detected (count: {self.item_count})")
 
 
+@dataclass
+class SensorSimulation:
+    """Simple sensor simulation"""
+    name: str
+    value: float = 0.0
+    unit: str = ""
+    
+    # Configuration
+    min_value: float = 0.0
+    max_value: float = 100.0
+    noise_level: float = 1.0  # Standard deviation of noise
+    
+    async def update(self, dt: float):
+        """Update sensor value with some noise"""
+        # Generate base value (could be connected to motor/conveyor state in future)
+        base_value = (self.min_value + self.max_value) / 2.0
+        
+        # Add noise
+        noise = random.gauss(0, self.noise_level)
+        self.value = base_value + noise
+        
+        # Clamp to range
+        self.value = max(self.min_value, min(self.max_value, self.value))
+
+
 class FactorySimulator:
     """Main factory simulator with OPC-UA server"""
     
@@ -357,6 +382,11 @@ class FactorySimulator:
         
         self.conveyors: List[ConveyorSimulation] = [
             ConveyorSimulation(name="Conveyor1", target_speed=30.0),
+        ]
+        
+        self.sensors: List[SensorSimulation] = [
+            SensorSimulation(name="Sensor1", unit="units", min_value=0.0, max_value=100.0),
+            SensorSimulation(name="Sensor2", unit="boolean", min_value=0.0, max_value=1.0),
         ]
         
         # OPC-UA server
@@ -474,6 +504,14 @@ class FactorySimulator:
             )
             await self.opcua_nodes[f'Conveyor{i}.StopCommand'].set_writable()
         
+        # Sensor nodes
+        for i, sensor in enumerate(self.sensors, 1):
+            sensor_node = await factory.add_object(idx, f"Sensor{i}")
+            
+            self.opcua_nodes[f'Sensor{i}.Value'] = await sensor_node.add_variable(
+                idx, "Value", sensor.value
+            )
+        
         logger.info("OPC-UA server initialized")
     
     async def start(self):
@@ -508,6 +546,10 @@ class FactorySimulator:
                 # Conveyor interlock with Motor1
                 motor_running = self.motors[0].state == MotorState.RUNNING
                 await conveyor.update(dt, motor_running)
+            
+            # Update sensors
+            for i, sensor in enumerate(self.sensors):
+                await sensor.update(dt)
             
             # Write values to OPC-UA
             await self._write_opcua_values()
@@ -555,6 +597,10 @@ class FactorySimulator:
             await self.opcua_nodes[f'Conveyor{i}.Speed'].write_value(conveyor.speed)
             await self.opcua_nodes[f'Conveyor{i}.Running'].write_value(conveyor.running)
             await self.opcua_nodes[f'Conveyor{i}.ItemCount'].write_value(conveyor.item_count)
+        
+        # Sensor values
+        for i, sensor in enumerate(self.sensors, 1):
+            await self.opcua_nodes[f'Sensor{i}.Value'].write_value(sensor.value)
     
     async def stop(self):
         """Stop the simulator"""

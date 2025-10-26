@@ -137,6 +137,33 @@ class FactoryDevice:
                 signal.last_update = datetime.now().timestamp()
                 break
 
+    def add_signal(self, name: str, unit: str, generator: str = SignalGenerator.CONSTANT.value, **params) -> bool:
+        """Add a new signal to the device"""
+        # Check if signal already exists
+        for signal in self.signals:
+            if signal.name == name:
+                return False  # Signal already exists
+
+        # Create new signal
+        signal = SignalConfig(
+            name=name,
+            unit=unit,
+            generator=generator,
+            **params
+        )
+        self.signals.append(signal)
+        self.updated_at = datetime.now().timestamp()
+        return True
+
+    def remove_signal(self, signal_name: str) -> bool:
+        """Remove a signal from the device"""
+        for i, signal in enumerate(self.signals):
+            if signal.name == signal_name:
+                self.signals.pop(i)
+                self.updated_at = datetime.now().timestamp()
+                return True
+        return False
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization"""
         return {

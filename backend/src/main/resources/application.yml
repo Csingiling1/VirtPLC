@@ -1,37 +1,37 @@
 spring:
   application:
     name: virtplc-backend
+  datasource:
+    url: jdbc:postgresql://localhost:5433/timescaledb
+    username: timescale
+    password: changeme
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql
 
 server:
   port: 8080
-  
-opcua:
-  server:
-    enabled: true
-    port: 4840
-    endpoint: opc.tcp://0.0.0.0:4840
-    namespace: http://virtplc.accenture.com/factory
-    
+
 security:
   jwt:
     secret: ${JWT_SECRET:your-secret-key-change-in-production-min-256-bits}
-    expiration: 86400000  # 24 hours in milliseconds
-    
+    expiration: 86400000 # 24 hours in milliseconds
+
 timescaledb:
-  url: jdbc:postgresql://timescale:5432/timescaledb
+  url: jdbc:postgresql://localhost:5433/timescaledb
   username: timescale
   password: changeme
   driver-class-name: org.postgresql.Driver
   enabled: true
-
-opcua:
-  client:
-    enabled: true
-    endpoint: opc.tcp://plc-simulator:4840
-    security-policy: None
-    message-security: None
-    request-timeout: 5000
-    session-timeout: 60000
 
 cors:
   allowed-origins:

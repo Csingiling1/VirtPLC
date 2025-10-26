@@ -111,27 +111,3 @@ class DeviceDatabase:
         for device in self.get_active_devices():
             device.update_signals()
         self._save_devices()
-
-    def add_signal(self, device_id: str, signal_name: str, unit: str, generator: str = "constant", **params) -> bool:
-        """Add a signal to a device"""
-        device = self.devices.get(device_id)
-        if not device:
-            return False
-
-        if device.add_signal(signal_name, unit, generator, **params):
-            self._save_devices()
-            logger.info(f"Added signal {signal_name} to device {device_id}")
-            return True
-        return False
-
-    def remove_signal(self, device_id: str, signal_name: str) -> bool:
-        """Remove a signal from a device"""
-        device = self.devices.get(device_id)
-        if not device:
-            return False
-
-        if device.remove_signal(signal_name):
-            self._save_devices()
-            logger.info(f"Removed signal {signal_name} from device {device_id}")
-            return True
-        return False
