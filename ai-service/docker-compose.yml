@@ -29,12 +29,10 @@ services:
       - POSTGRES_DB=${POSTGRES_DB:-virtplc}
       - POSTGRES_USER=${POSTGRES_USER:-virtplc}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-changeme}
-      # TimeBase/InfluxDB
-      - INFLUXDB_HOST=${INFLUXDB_HOST:-influxdb}
-      - INFLUXDB_PORT=8086
-      - INFLUXDB_TOKEN=${INFLUXDB_TOKEN:-}
-      - INFLUXDB_ORG=${INFLUXDB_ORG:-virtplc}
-      - INFLUXDB_BUCKET=${INFLUXDB_BUCKET:-factory_data}
+      # TimescaleDB
+      - TIMESCALE_URL=${TIMESCALE_URL:-postgresql://timescale:5432/timescaledb}
+      - TIMESCALE_USER=${TIMESCALE_USER:-timescale}
+      - TIMESCALE_PASSWORD=${TIMESCALE_PASSWORD:-changeme}
       # MCP
       - MCP_ENABLED=${MCP_ENABLED:-true}
       - MCP_SERVER_URL=${MCP_SERVER_URL:-}

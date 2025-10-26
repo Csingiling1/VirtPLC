@@ -39,7 +39,7 @@ This guide covers deploying VirtPLC to production environments.
 - 8000 (AI Service)
 - 8088 (Ignition HMI)
 - 5432 (PostgreSQL)
-- 8086 (InfluxDB)
+- 8011 (TimebaseDB)
 - 11434 (Ollama)
 
 ### Security Checklist
@@ -71,12 +71,11 @@ POSTGRES_DB=virtplc_prod
 POSTGRES_USER=virtplc_prod
 POSTGRES_PASSWORD=<STRONG_PASSWORD_HERE>
 
-# InfluxDB
-INFLUXDB_USER=admin
-INFLUXDB_PASSWORD=<STRONG_PASSWORD_HERE>
-INFLUXDB_TOKEN=<GENERATE_SECURE_TOKEN>
-INFLUXDB_ORG=virtplc
-INFLUXDB_BUCKET=factory_data
+# TimebaseDB
+TIMEBASE_USER=admin
+TIMEBASE_PASSWORD=<STRONG_PASSWORD_HERE>
+TIMEBASE_URL=dts://timebase:8011
+TIMEBASE_STREAM=factory_metrics
 
 # Security
 JWT_SECRET=<GENERATE_STRONG_SECRET_256_BIT>
@@ -91,8 +90,8 @@ GRAFANA_PASSWORD=<STRONG_PASSWORD_HERE>
 # JWT Secret (256-bit)
 openssl rand -base64 32
 
-# InfluxDB Token
-openssl rand -hex 32
+# TimebaseDB Password
+openssl rand -base64 24
 
 # Passwords
 openssl rand -base64 24
@@ -110,12 +109,10 @@ POSTGRES_DB=virtplc_prod
 POSTGRES_USER=virtplc_prod
 POSTGRES_PASSWORD=<SAME_AS_BACKEND>
 
-# InfluxDB
-INFLUXDB_HOST=influxdb
-INFLUXDB_PORT=8086
-INFLUXDB_TOKEN=<SAME_AS_BACKEND>
-INFLUXDB_ORG=virtplc
-INFLUXDB_BUCKET=factory_data
+# TimescaleDB
+TIMESCALE_URL=postgresql://timescale:5432/timescaledb
+TIMESCALE_USER=timescale
+TIMESCALE_PASSWORD=<SAME_AS_BACKEND>
 
 # Ollama
 OLLAMA_HOST=ollama
@@ -294,20 +291,21 @@ find "$BACKUP_DIR" -name "backup_*.sql.gz" -mtime +$RETENTION_DAYS -delete
 echo "Backup completed: backup_$TIMESTAMP.sql.gz"
 ```
 
-#### InfluxDB Backup Script
+#### TimescaleDB Backup Script
 
-Create `scripts/backup-influxdb.sh`:
+Create `scripts/backup-timescale.sh`:
 ```bash
 #!/bin/bash
 
-BACKUP_DIR="/var/backups/virtplc/influxdb"
+BACKUP_DIR="/var/backups/virtplc/timescale"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 
 mkdir -p "$BACKUP_DIR"
 
-docker exec influxdb influx backup -t <YOUR_TOKEN> "$BACKUP_DIR/backup_$TIMESTAMP"
+# TimescaleDB backup using pg_dump
+docker exec timescale pg_dump -U timescale -h localhost timescaledb > "$BACKUP_DIR/backup_$TIMESTAMP.sql"
 
-echo "InfluxDB backup completed: backup_$TIMESTAMP"
+echo "TimescaleDB backup completed: backup_$TIMESTAMP.sql"
 ```
 
 #### Automated Backups with Cron
@@ -318,7 +316,7 @@ crontab -e
 
 # Add backup jobs
 0 2 * * * /opt/virtplc/scripts/backup-postgres.sh >> /var/log/virtplc-backup.log 2>&1
-0 3 * * * /opt/virtplc/scripts/backup-influxdb.sh >> /var/log/virtplc-backup.log 2>&1
+0 3 * * * /opt/virtplc/scripts/backup-timescale.sh >> /var/log/virtplc-backup.log 2>&1
 ```
 
 ### 4. Monitoring & Alerting
@@ -344,9 +342,9 @@ scrape_configs:
     static_configs:
       - targets: ['postgres-exporter:9187']
     
-  - job_name: 'influxdb'
+  - job_name: 'timescale'
     static_configs:
-      - targets: ['influxdb:8086']
+      - targets: ['timescale:5432']
 ```
 
 #### Grafana Dashboards
@@ -354,7 +352,7 @@ scrape_configs:
 Access Grafana at `https://yourcompany.com:3001`:
 1. Import dashboard 11074 (Spring Boot)
 2. Import dashboard 12708 (PostgreSQL)
-3. Import dashboard 11074 (InfluxDB)
+3. Import dashboard 11074 (TimescaleDB)
 4. Create custom VirtPLC dashboard
 
 ### 5. Logging
@@ -587,7 +585,7 @@ Run full integration tests as per `TEST.md`
 ```bash
 # Backup first!
 ./scripts/backup-postgres.sh
-./scripts/backup-influxdb.sh
+./scripts/backup-timescale.sh
 
 # Pull latest code
 git pull origin release

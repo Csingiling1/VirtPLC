@@ -7,7 +7,7 @@ This guide explains how to test VirtPLC services locally before deployment.
 - Docker & Docker Compose installed
 - At least 16GB RAM (for full stack with Ollama)
 - 50GB free disk space
-- Ports available: 3000, 8000, 8080, 8088, 5432, 6379-6382, 8086, 11434
+- Ports available: 3000, 8000, 8080, 8088, 5432, 5433, 6379-6382, 11434
 
 ## Quick Test - Individual Services
 
@@ -24,12 +24,12 @@ docker compose ps
 # Test endpoints
 curl http://localhost:8080/actuator/health
 curl http://localhost:5432  # PostgreSQL
-curl http://localhost:8086/health  # InfluxDB
+curl http://localhost:5433  # TimescaleDB
 ```
 
 **Expected Services:**
 - ✅ PostgreSQL on 5432
-- ✅ InfluxDB on 8086
+- ✅ TimescaleDB on 5433
 - ✅ Redis on 6382
 - ✅ Java Backend on 8080
 - ✅ PLC Simulator on 4840 (OPC-UA)
@@ -141,8 +141,8 @@ Health Check
 ✓ Frontend is healthy
 ℹ Checking PostgreSQL (port 5432)...
 ✓ PostgreSQL is running
-ℹ Checking InfluxDB (port 8086)...
-✓ InfluxDB is healthy
+ℹ Checking TimebaseDB (port 8011)...
+✓ TimebaseDB is healthy
 ```
 
 ### Verify Service Communication
@@ -154,8 +154,8 @@ docker exec ai-backend curl -f http://java-backend:8080/actuator/health
 # Test AI → PostgreSQL
 docker exec ai-backend nc -zv postgres 5432
 
-# Test AI → InfluxDB
-docker exec ai-backend curl -f http://influxdb:8086/health
+# Test AI → TimebaseDB
+docker exec ai-backend curl -f http://timebase:8011/health
 
 # Test AI → Ollama
 docker exec ai-backend curl -f http://ollama:11434/api/tags
@@ -284,19 +284,16 @@ SELECT COUNT(*) FROM users;  # Count records
 \q                           # Quit
 ```
 
-### InfluxDB
+### TimebaseDB
 
 ```bash
-# Access InfluxDB CLI
-docker exec -it influxdb influx
+# Access TimebaseDB Admin
+docker exec -it timebase /opt/timebase/bin/tb.sh
 
-# Auth with token from .env
-# Setup: Visit http://localhost:8086 and login
-# Username: admin
-# Password: changeme123
+# Check TimebaseDB streams
+curl http://localhost:8011/streams
 
-# Query data
-# Use the InfluxDB UI at http://localhost:8086
+# Use the TimebaseDB Admin UI at http://localhost:8011
 ```
 
 ### Redis

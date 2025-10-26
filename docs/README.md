@@ -22,7 +22,7 @@ The system integrates:
 - **HMI/SCADA Interface** (Ignition Edge) - Real-time operator dashboards
 - **AI-Powered Analytics** (FastAPI + Ollama LLM) - Predictive maintenance and anomaly detection
 - **Enterprise Backend** (Java Spring Boot) - REST APIs, OPC-UA server, JWT authentication
-- **Time-Series Database** (InfluxDB) - High-performance sensor data storage
+- **Time-Series Database** (TimescaleDB) - High-performance sensor data storage
 - **Relational Database** (PostgreSQL) - Business data and configuration
 - **PLC Simulation** - Virtual PLC for testing and development
 - **Monitoring Stack** (Grafana + Prometheus) - System observability and alerting
@@ -41,7 +41,7 @@ This creates a **production-ready industrial IoT platform** that enables manufac
 ### Technology Stack
 
 - **Frontend**: React + Vite + TypeScript
-- **Backend**: Java Spring Boot + PostgreSQL + InfluxDB
+- **Backend**: Java Spring Boot + PostgreSQL + TimescaleDB
 - **AI Service**: FastAPI + Ollama (LLaMA 3.2 models)
 - **HMI**: Ignition Edge Gateway
 - **Infrastructure**: Docker + Docker Compose + Nginx

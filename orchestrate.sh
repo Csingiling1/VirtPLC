@@ -73,7 +73,7 @@ start_all() {
     create_network
     
     # Start backend first (has databases)
-    print_info "Starting Backend Stack (PostgreSQL, Redis, InfluxDB, Java Backend)..."
+    print_info "Starting Backend Stack (PostgreSQL, Redis, TimescaleDB, Java Backend)..."
     cd "$BACKEND_DIR"
     docker compose up -d
     print_success "Backend stack started"
@@ -297,11 +297,11 @@ health_check() {
         print_error "PostgreSQL is not running"
     fi
     
-    print_info "Checking InfluxDB (port 8086)..."
-    if curl -sf http://localhost:8086/health > /dev/null 2>&1; then
-        print_success "InfluxDB is healthy"
+    print_info "Checking TimescaleDB (port 5433)..."
+    if nc -z localhost 5433 2>/dev/null; then
+        print_success "TimescaleDB is running"
     else
-        print_error "InfluxDB is not responding"
+        print_error "TimescaleDB is not running"
     fi
 }
 
@@ -338,7 +338,7 @@ ${YELLOW}Service URLs:${NC}
   AI Service:     http://localhost:8000
   Ignition HMI:   http://localhost:8088
   PostgreSQL:     localhost:5432
-  InfluxDB:       http://localhost:8086
+  TimescaleDB:    localhost:5433
   Grafana:        http://localhost:3001
 
 ${YELLOW}Redis Instances:${NC}

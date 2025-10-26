@@ -18,7 +18,7 @@
 ├── ai-service/ (AI/MCP Stack)
 │   └── FastAPI + Redis
 └── backend/ (Backend Stack)
-    └── Java + PostgreSQL + InfluxDB + Redis + PLC Simulator + Grafana
+    └── Java + PostgreSQL + TimescaleDB + Redis + PLC Simulator + Grafana
 ```
 
 ## When to Consider Kubernetes
