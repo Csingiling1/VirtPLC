@@ -41,11 +41,14 @@ class DeviceDatabase:
             data = {
                 "devices": [device.to_dict() for device in self.devices.values()]
             }
+            logger.info(f"Saving {len(self.devices)} devices to {self.db_path}")
             with open(self.db_path, 'w') as f:
                 json.dump(data, f, indent=2)
             logger.info(f"Saved {len(self.devices)} devices to {self.db_path}")
         except Exception as e:
             logger.error(f"Error saving devices: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
 
     def create_device(self, device: FactoryDevice) -> FactoryDevice:
         """Create a new device"""
