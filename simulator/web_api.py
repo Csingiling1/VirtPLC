@@ -1,20 +1,23 @@
 """
 Enhanced Web API for Factory Simulator
 
-Provides REST API for device management and monitoring
+Provides REST API for device management and monitoring with real-time streaming
 """
 
-from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import HTMLResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 import asyncio
-import json
+import time
 from datetime import datetime
+import logging
 
 from database import DeviceDatabase
 from models import FactoryDevice, SignalConfig, SignalGenerator
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 
 # Pydantic models for API
@@ -74,14 +77,101 @@ class SignalCreateModel(BaseModel):
     step_size: Optional[float] = None
 
 
+class TimeSeriesDataPoint(BaseModel):
+    timestamp: int
+    device_id: str
+    signal_name: str
+    value: float
+    unit: str
+
+
+class TimeSeriesData(BaseModel):
+    data_points: List[TimeSeriesDataPoint]
+    total_count: int
+    start_time: int
+    end_time: int
+
+
+class WebSocketMessage(BaseModel):
+    type: str  # "data", "status", "error"
+    data: Dict[str, Any]
+    timestamp: int
+
+
+class ConnectionManager:
+    """Manages WebSocket connections for real-time data streaming"""
+    
+    def __init__(self):
+        self.active_connections: List[WebSocket] = []
+        self.data_subscribers: List[WebSocket] = []
+    
+    async def connect(self, websocket: WebSocket, subscribe_to_data: bool = False):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+        if subscribe_to_data:
+            self.data_subscribers.append(websocket)
+        logger.info(f"WebSocket connected. Total connections: {len(self.active_connections)}")
+    
+    def disconnect(self, websocket: WebSocket):
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
+        if websocket in self.data_subscribers:
+            self.data_subscribers.remove(websocket)
+        logger.info(f"WebSocket disconnected. Total connections: {len(self.active_connections)}")
+    
+    async def send_personal_message(self, message: str, websocket: WebSocket):
+        try:
+            await websocket.send_text(message)
+        except Exception as e:
+            logger.error(f"Error sending personal message: {e}")
+            self.disconnect(websocket)
+    
+    async def broadcast_data(self, data: Dict[str, Any]):
+        """Broadcast data to all subscribers"""
+        if not self.data_subscribers:
+            return
+        
+        message = WebSocketMessage(
+            type="data",
+            data=data,
+            timestamp=int(time.time() * 1000)
+        )
+        
+        message_json = message.json()
+        disconnected = []
+        
+        for connection in self.data_subscribers:
+            try:
+                await connection.send_text(message_json)
+            except Exception as e:
+                logger.error(f"Error broadcasting to subscriber: {e}")
+                disconnected.append(connection)
+        
+        # Remove disconnected clients
+        for connection in disconnected:
+            self.disconnect(connection)
+
+
 def create_app(database: DeviceDatabase) -> FastAPI:
     """Create FastAPI application"""
 
     app = FastAPI(
         title="VirtPLC Enhanced Simulator API",
-        description="REST API for factory device management and monitoring",
+        description="REST API for factory device management and monitoring with real-time streaming",
         version="2.0.0"
     )
+
+    # Add CORS middleware
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],  # Configure appropriately for production
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    # Global connection manager
+    manager = ConnectionManager()
 
     @app.get("/")
     async def root():
@@ -259,6 +349,155 @@ def create_app(database: DeviceDatabase) -> FastAPI:
             "total_signals": total_signals,
             "timestamp": datetime.now().isoformat()
         }
+
+    # Real-time data streaming endpoints
+    @app.get("/api/stream/latest")
+    async def get_latest_data():
+        """Get latest data from all devices - compatible with Spring backend"""
+        devices = database.get_all_devices()
+        current_time = int(time.time() * 1000)
+        
+        # Format data similar to Spring backend's SensorData model
+        data = {
+            "timestamp": current_time,
+            "motor1Speed": 0.0,
+            "motor1Temp": 0.0,
+            "motor1Run": False,
+            "motor1Fault": False,
+            "motor2Speed": 0.0,
+            "motor2Temp": 0.0,
+            "motor2Run": False,
+            "motor2Fault": False,
+            "conveyor1Speed": 0.0,
+            "conveyor1Run": False,
+            "sensor1Value": 0.0,
+            "sensor2Value": False,
+            "systemStatus": "Running"
+        }
+        
+        # Map device signals to the expected format
+        for device in devices:
+            if not device.is_active:
+                continue
+                
+            for signal in device.signals:
+                if device.device_type == "motor":
+                    if "Motor1" in device.id or "motor1" in device.id.lower():
+                        if signal.name.lower() in ["speed", "rpm"]:
+                            data["motor1Speed"] = signal.value
+                        elif signal.name.lower() in ["temperature", "temp"]:
+                            data["motor1Temp"] = signal.value
+                        elif signal.name.lower() in ["running", "run"]:
+                            data["motor1Run"] = bool(signal.value)
+                        elif signal.name.lower() in ["fault", "error"]:
+                            data["motor1Fault"] = bool(signal.value)
+                    elif "Motor2" in device.id or "motor2" in device.id.lower():
+                        if signal.name.lower() in ["speed", "rpm"]:
+                            data["motor2Speed"] = signal.value
+                        elif signal.name.lower() in ["temperature", "temp"]:
+                            data["motor2Temp"] = signal.value
+                        elif signal.name.lower() in ["running", "run"]:
+                            data["motor2Run"] = bool(signal.value)
+                        elif signal.name.lower() in ["fault", "error"]:
+                            data["motor2Fault"] = bool(signal.value)
+                elif device.device_type == "conveyor":
+                    if signal.name.lower() in ["speed"]:
+                        data["conveyor1Speed"] = signal.value
+                    elif signal.name.lower() in ["running", "run"]:
+                        data["conveyor1Run"] = bool(signal.value)
+                elif device.device_type == "sensor":
+                    if "Sensor1" in device.id or "sensor1" in device.id.lower():
+                        data["sensor1Value"] = signal.value
+                    elif "Sensor2" in device.id or "sensor2" in device.id.lower():
+                        data["sensor2Value"] = bool(signal.value)
+        
+        return data
+
+    @app.get("/api/stream/timeseries", response_model=TimeSeriesData)
+    async def get_timeseries_data(
+        start_time: Optional[int] = Query(None, description="Start timestamp in milliseconds"),
+        end_time: Optional[int] = Query(None, description="End timestamp in milliseconds"),
+        device_id: Optional[str] = Query(None, description="Filter by device ID"),
+        signal_name: Optional[str] = Query(None, description="Filter by signal name")
+    ):
+        """Get time-series data for analysis and storage in TimescaleDB"""
+        current_time = int(time.time() * 1000)
+        start = start_time or (current_time - 3600000)  # Default to last hour
+        end = end_time or current_time
+        
+        devices = database.get_all_devices()
+        data_points = []
+        
+        for device in devices:
+            if device_id and device.id != device_id:
+                continue
+                
+            if not device.is_active:
+                continue
+                
+            for signal in device.signals:
+                if signal_name and signal.name != signal_name:
+                    continue
+                    
+                # Generate historical data points (simplified - in real implementation, 
+                # this would come from a time-series database)
+                points_count = min(1000, (end - start) // 1000)  # Max 1000 points, 1 per second
+                for i in range(points_count):
+                    point_time = start + (i * ((end - start) // points_count))
+                    data_points.append(TimeSeriesDataPoint(
+                        timestamp=point_time,
+                        device_id=device.id,
+                        signal_name=signal.name,
+                        value=signal.value + (i * 0.1),  # Simulate some variation
+                        unit=signal.unit
+                    ))
+        
+        return TimeSeriesData(
+            data_points=data_points,
+            total_count=len(data_points),
+            start_time=start,
+            end_time=end
+        )
+
+    @app.websocket("/ws/data")
+    async def websocket_data_endpoint(websocket: WebSocket):
+        """WebSocket endpoint for real-time data streaming"""
+        await manager.connect(websocket, subscribe_to_data=True)
+        try:
+            while True:
+                # Keep connection alive
+                await websocket.receive_text()
+        except WebSocketDisconnect:
+            manager.disconnect(websocket)
+
+    @app.websocket("/ws/control")
+    async def websocket_control_endpoint(websocket: WebSocket):
+        """WebSocket endpoint for device control commands"""
+        await manager.connect(websocket)
+        try:
+            while True:
+                data = await websocket.receive_text()
+                # Process control commands here
+                # For now, just echo back
+                await manager.send_personal_message(f"Echo: {data}", websocket)
+        except WebSocketDisconnect:
+            manager.disconnect(websocket)
+
+    # Background task for broadcasting data
+    async def broadcast_simulation_data():
+        """Background task to broadcast simulation data to WebSocket subscribers"""
+        while True:
+            try:
+                if manager.data_subscribers:
+                    latest_data = await get_latest_data()
+                    await manager.broadcast_data(latest_data)
+                await asyncio.sleep(1.0)  # Broadcast every second
+            except Exception as e:
+                logger.error(f"Error in broadcast task: {e}")
+                await asyncio.sleep(5.0)
+
+    # Start background task
+    asyncio.create_task(broadcast_simulation_data())
 
     return app
 

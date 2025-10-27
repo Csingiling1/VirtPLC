@@ -24,6 +24,15 @@ class DeviceDatabase:
         """Load devices from file"""
         if self.db_path.exists():
             try:
+                # Check if it's a directory instead of a file
+                if self.db_path.is_dir():
+                    logger.warning(f"Database path {self.db_path} is a directory, removing it and creating a new file")
+                    import shutil
+                    shutil.rmtree(self.db_path)
+                    self.db_path.touch()  # Create empty file
+                    logger.info(f"Created new empty database file at {self.db_path}")
+                    return
+                
                 with open(self.db_path, 'r') as f:
                     data = json.load(f)
                     for device_data in data.get("devices", []):

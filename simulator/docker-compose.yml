@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  virtplc-simulator:
+    build: .
+    container_name: virtplc-simulator
+    ports:
+      - "8080:8080"  # Web API
+      - "4840:4840"  # OPC-UA Server
+    volumes:
+      - ./data:/app/data
+      - ./devices.json:/app/devices.json
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/simulation/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - virtplc-network
+
+  # Optional: Add a simple monitoring dashboard
+  virtplc-monitor:
+    image: nginx:alpine
+    container_name: virtplc-monitor
+    ports:
+      - "8081:80"
+    volumes:
+      - ./monitor.html:/usr/share/nginx/html/index.html
+    depends_on:
+      - virtplc-simulator
+    networks:
+      - virtplc-network
+
+networks:
+  virtplc-network:
+    driver: bridge
+
+volumes:
+  simulator-data:
+    driver: local

@@ -3,10 +3,11 @@
 # OPC-UA server
 asyncua==1.0.5
 
-# Web framework for monitoring UI
+# Web framework for monitoring UI and real-time streaming
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
 pydantic==2.5.0
+websockets==12.0
 
 # HTTP client for interactive CLI
 requests==2.31.0

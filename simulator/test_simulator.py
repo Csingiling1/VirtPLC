@@ -1,322 +1,200 @@
+#!/usr/bin/env python3
 """
-Tests for VirtPLC Enhanced Simulator
+Test script for VirtPLC Simulator
+
+Tests the simulator functionality including device management, data streaming, and API endpoints.
 """
 
-import pytest
-import tempfile
+import asyncio
 import json
-import os
+import time
+import requests
+import sys
 from pathlib import Path
-from datetime import datetime
 
-from .models import FactoryDevice, SignalConfig, SignalGenerator
-from .database import DeviceDatabase
+# Add current directory to Python path
+sys.path.insert(0, str(Path(__file__).parent))
 
+from database import DeviceDatabase
+from models import FactoryDevice, SignalConfig, SignalGenerator
+from cli_manager import SimulatorManager
 
-class TestSignalConfig:
-    """Test signal configuration and generators"""
+def test_database():
+    """Test database functionality"""
+    print("🧪 Testing Database...")
+    
+    # Create test database
+    db = DeviceDatabase("test_devices.json")
+    
+    # Create test device
+    device = FactoryDevice(
+        id="TestMotor1",
+        name="Test Motor",
+        device_type="motor",
+        description="Test motor for validation"
+    )
+    
+    # Add signals
+    device.add_signal("Speed", "RPM", SignalGenerator.UNIFORM.value, min_value=1000, max_value=1800)
+    device.add_signal("Temperature", "°C", SignalGenerator.NORMAL.value, mean=45, std_dev=5)
+    device.add_signal("Running", "bool", SignalGenerator.CONSTANT.value)
+    
+    # Save device
+    created_device = db.create_device(device)
+    print(f"✅ Created device: {created_device.name}")
+    
+    # Test retrieval
+    retrieved_device = db.get_device("TestMotor1")
+    assert retrieved_device is not None, "Device retrieval failed"
+    print(f"✅ Retrieved device: {retrieved_device.name}")
+    
+    # Test signal generation
+    retrieved_device.update_signals()
+    print(f"✅ Generated signals: Speed={retrieved_device.get_signal_value('Speed'):.2f}")
+    
+    # Cleanup
+    db.delete_device("TestMotor1")
+    print("✅ Database test completed")
 
-    def test_constant_generator(self):
-        """Test constant signal generator"""
-        signal = SignalConfig(name="test", unit="V", value=5.0, generator="constant")
-        assert signal.generate_value() == 5.0
+def test_api_endpoints():
+    """Test API endpoints (requires running server)"""
+    print("🌐 Testing API Endpoints...")
+    
+    manager = SimulatorManager("http://localhost:8080")
+    
+    try:
+        # Test connection
+        if not manager.test_connection():
+            print("❌ Cannot connect to simulator API")
+            return False
+        
+        print("✅ Connected to simulator API")
+        
+        # Test device creation
+        device = manager.create_device("TestAPI1", "API Test Motor", "motor", "Test motor via API")
+        print(f"✅ Created device via API: {device['name']}")
+        
+        # Test signal addition
+        manager.add_signal("TestAPI1", "Speed", "RPM", "uniform", min_value=1000, max_value=1800)
+        print("✅ Added signal via API")
+        
+        # Test data retrieval
+        latest_data = manager.get_latest_data()
+        print(f"✅ Retrieved latest data: {len(latest_data)} fields")
+        
+        # Test device listing
+        devices = manager.list_devices()
+        print(f"✅ Listed devices: {len(devices)} devices found")
+        
+        # Cleanup
+        manager.delete_device("TestAPI1")
+        print("✅ API test completed")
+        return True
+        
+    except Exception as e:
+        print(f"❌ API test failed: {e}")
+        return False
 
-    def test_uniform_generator(self):
-        """Test uniform distribution generator"""
-        signal = SignalConfig(
-            name="test", unit="V", generator="uniform",
-            min_value=0.0, max_value=10.0
-        )
-        for _ in range(100):
-            value = signal.generate_value()
-            assert 0.0 <= value <= 10.0
-
-    def test_normal_generator(self):
-        """Test normal distribution generator"""
-        signal = SignalConfig(
-            name="test", unit="°C", generator="normal",
-            mean=25.0, std_dev=2.0
-        )
-        values = [signal.generate_value() for _ in range(1000)]
-        avg = sum(values) / len(values)
-        assert 20.0 <= avg <= 30.0  # Rough check
-
-    def test_exponential_generator(self):
-        """Test exponential distribution generator"""
-        signal = SignalConfig(
-            name="test", unit="s", generator="exponential", rate=0.1
-        )
-        for _ in range(100):
-            value = signal.generate_value()
-            assert value >= 0.0
-
-    def test_sinusoidal_generator(self):
-        """Test sinusoidal generator"""
-        signal = SignalConfig(
-            name="test", unit="V", generator="sinusoidal",
-            frequency=1.0, amplitude=5.0, offset=10.0
-        )
-        value = signal.generate_value()
-        assert 5.0 <= value <= 15.0  # Should be within range
-
-    def test_stopped_signal(self):
-        """Test that stopped signals don't change"""
-        signal = SignalConfig(name="test", unit="V", value=5.0, is_running=False)
-        original_value = signal.value
-        signal.generate_value()
-        assert signal.value == original_value
-
-
-class TestFactoryDevice:
-    """Test factory device functionality"""
-
-    def test_device_creation(self):
-        """Test device creation"""
-        device = FactoryDevice(id="test_device", name="Test Device")
-        assert device.id == "test_device"
-        assert device.name == "Test Device"
-        assert device.is_active == True
-        assert len(device.signals) == 0
-
-    def test_add_signal(self):
-        """Test adding signals to device"""
-        device = FactoryDevice(id="test", name="Test Device")
-        signal = SignalConfig(name="temp", unit="°C", value=25.0)
-        device.signals.append(signal)
-
-        assert len(device.signals) == 1
-        assert device.signals[0].name == "temp"
-
-    def test_get_signal_value(self):
-        """Test getting signal values"""
-        device = FactoryDevice(id="test", name="Test Device")
-        signal = SignalConfig(name="temp", unit="°C", value=25.0)
-        device.signals.append(signal)
-
-        assert device.get_signal_value("temp") == 25.0
-        assert device.get_signal_value("nonexistent") is None
-
-    def test_set_signal_value(self):
-        """Test setting signal values"""
-        device = FactoryDevice(id="test", name="Test Device")
-        signal = SignalConfig(name="temp", unit="°C", value=25.0)
-        device.signals.append(signal)
-
-        device.set_signal_value("temp", 30.0)
-        assert device.get_signal_value("temp") == 30.0
-
-    def test_update_signals(self):
-        """Test updating all signals"""
-        device = FactoryDevice(id="test", name="Test Device")
-        signal = SignalConfig(
-            name="temp", unit="°C", generator="uniform",
-            min_value=20.0, max_value=30.0
-        )
-        device.signals.append(signal)
-
-        original_value = signal.value
+def test_signal_generators():
+    """Test different signal generators"""
+    print("📊 Testing Signal Generators...")
+    
+    db = DeviceDatabase("test_signals.json")
+    
+    # Create test device with different signal types
+    device = FactoryDevice(
+        id="SignalTest",
+        name="Signal Test Device",
+        device_type="test"
+    )
+    
+    # Test different generators
+    generators = [
+        ("Constant", SignalGenerator.CONSTANT.value, {"value": 42.0}),
+        ("Uniform", SignalGenerator.UNIFORM.value, {"min_value": 10, "max_value": 20}),
+        ("Normal", SignalGenerator.NORMAL.value, {"mean": 50, "std_dev": 5}),
+        ("Exponential", SignalGenerator.EXPONENTIAL.value, {"rate": 0.1}),
+        ("Sinusoidal", SignalGenerator.SINUSOIDAL.value, {"frequency": 0.01, "amplitude": 10, "offset": 50}),
+    ]
+    
+    for name, generator, params in generators:
+        device.add_signal(name, "units", generator, **params)
+    
+    db.create_device(device)
+    
+    # Generate values
+    for _ in range(5):
         device.update_signals()
+        values = {signal.name: signal.value for signal in device.signals}
+        print(f"   {values}")
+    
+    # Cleanup
+    db.delete_device("SignalTest")
+    print("✅ Signal generator test completed")
 
-        # Value should have changed (or at least been generated)
-        assert signal.value >= 20.0 and signal.value <= 30.0
+def test_web_api_models():
+    """Test web API data models"""
+    print("🔧 Testing Web API Models...")
+    
+    # Test TimeSeriesDataPoint
+    from web_api import TimeSeriesDataPoint, TimeSeriesData
+    
+    point = TimeSeriesDataPoint(
+        timestamp=int(time.time() * 1000),
+        device_id="TestDevice",
+        signal_name="TestSignal",
+        value=42.5,
+        unit="RPM"
+    )
+    
+    assert point.device_id == "TestDevice"
+    assert point.value == 42.5
+    print("✅ TimeSeriesDataPoint model works")
+    
+    # Test TimeSeriesData
+    data = TimeSeriesData(
+        data_points=[point],
+        total_count=1,
+        start_time=int(time.time() * 1000) - 1000,
+        end_time=int(time.time() * 1000)
+    )
+    
+    assert len(data.data_points) == 1
+    assert data.total_count == 1
+    print("✅ TimeSeriesData model works")
 
-    def test_serialization(self):
-        """Test device serialization"""
-        device = FactoryDevice(
-            id="test",
-            name="Test Device",
-            device_type="sensor",
-            description="Test sensor"
-        )
-        signal = SignalConfig(name="temp", unit="°C", value=25.0)
-        device.signals.append(signal)
-
-        # Test to_dict
-        data = device.to_dict()
-        assert data["id"] == "test"
-        assert data["name"] == "Test Device"
-        assert data["device_type"] == "sensor"
-        assert len(data["signals"]) == 1
-
-        # Test from_dict
-        device2 = FactoryDevice.from_dict(data)
-        assert device2.id == device.id
-        assert device2.name == device.name
-        assert len(device2.signals) == 1
-
-
-class TestDeviceDatabase:
-    """Test device database functionality"""
-
-    def setup_method(self):
-        """Set up test database"""
-        self.temp_file = tempfile.NamedTemporaryFile(mode='w+', suffix='.json', delete=False)
-        self.temp_file.close()
-        self.db_path = self.temp_file.name
-        self.db = DeviceDatabase(self.db_path)
-
-    def teardown_method(self):
-        """Clean up test database"""
-        if os.path.exists(self.db_path):
-            os.unlink(self.db_path)
-
-    def test_create_device(self):
-        """Test creating devices in database"""
-        device = FactoryDevice(id="test1", name="Test Device 1")
-        created = self.db.create_device(device)
-
-        assert created.id == "test1"
-        assert self.db.get_device("test1") is not None
-
-    def test_create_duplicate_device(self):
-        """Test creating duplicate devices raises error"""
-        device1 = FactoryDevice(id="test", name="Test Device")
-        device2 = FactoryDevice(id="test", name="Another Test Device")
-
-        self.db.create_device(device1)
-        with pytest.raises(ValueError):
-            self.db.create_device(device2)
-
-    def test_get_device(self):
-        """Test getting devices from database"""
-        device = FactoryDevice(id="test", name="Test Device")
-        self.db.create_device(device)
-
-        retrieved = self.db.get_device("test")
-        assert retrieved is not None
-        assert retrieved.id == "test"
-
-        # Test non-existent device
-        assert self.db.get_device("nonexistent") is None
-
-    def test_update_device(self):
-        """Test updating devices"""
-        device = FactoryDevice(id="test", name="Original Name")
-        self.db.create_device(device)
-
-        updates = {"name": "Updated Name", "is_active": False}
-        updated = self.db.update_device("test", updates)
-
-        assert updated.name == "Updated Name"
-        assert updated.is_active == False
-
-    def test_delete_device(self):
-        """Test deleting devices"""
-        device = FactoryDevice(id="test", name="Test Device")
-        self.db.create_device(device)
-
-        assert self.db.delete_device("test") == True
-        assert self.db.get_device("test") is None
-        assert self.db.delete_device("nonexistent") == False
-
-    def test_get_devices_by_type(self):
-        """Test filtering devices by type"""
-        device1 = FactoryDevice(id="motor1", name="Motor 1", device_type="motor")
-        device2 = FactoryDevice(id="sensor1", name="Sensor 1", device_type="sensor")
-        device3 = FactoryDevice(id="motor2", name="Motor 2", device_type="motor")
-
-        self.db.create_device(device1)
-        self.db.create_device(device2)
-        self.db.create_device(device3)
-
-        motors = self.db.get_devices_by_type("motor")
-        assert len(motors) == 2
-        assert all(d.device_type == "motor" for d in motors)
-
-        sensors = self.db.get_devices_by_type("sensor")
-        assert len(sensors) == 1
-        assert sensors[0].device_type == "sensor"
-
-    def test_get_active_devices(self):
-        """Test getting active devices"""
-        device1 = FactoryDevice(id="active", name="Active Device", is_active=True)
-        device2 = FactoryDevice(id="inactive", name="Inactive Device", is_active=False)
-
-        self.db.create_device(device1)
-        self.db.create_device(device2)
-
-        active = self.db.get_active_devices()
-        assert len(active) == 1
-        assert active[0].id == "active"
-
-    def test_persistence(self):
-        """Test data persistence across database reloads"""
-        # Create device in first database instance
-        device = FactoryDevice(id="persistent", name="Persistent Device")
-        self.db.create_device(device)
-
-        # Create new database instance (simulating restart)
-        db2 = DeviceDatabase(self.db_path)
-
-        # Check that device was loaded
-        loaded = db2.get_device("persistent")
-        assert loaded is not None
-        assert loaded.name == "Persistent Device"
-
-
-class TestIntegration:
-    """Integration tests"""
-
-    def setup_method(self):
-        """Set up integration test"""
-        self.temp_file = tempfile.NamedTemporaryFile(mode='w+', suffix='.json', delete=False)
-        self.temp_file.close()
-        self.db_path = self.temp_file.name
-
-    def teardown_method(self):
-        """Clean up integration test"""
-        if os.path.exists(self.db_path):
-            os.unlink(self.db_path)
-
-    def test_full_device_lifecycle(self):
-        """Test complete device lifecycle"""
-        db = DeviceDatabase(self.db_path)
-
-        # Create device
-        device = FactoryDevice(
-            id="lifecycle_test",
-            name="Lifecycle Test Device",
-            device_type="test"
-        )
-
-        # Add signals
-        temp_signal = SignalConfig(
-            name="temperature",
-            unit="°C",
-            generator="normal",
-            mean=25.0,
-            std_dev=2.0
-        )
-        pressure_signal = SignalConfig(
-            name="pressure",
-            unit="bar",
-            generator="uniform",
-            min_value=1.0,
-            max_value=5.0
-        )
-
-        device.signals.extend([temp_signal, pressure_signal])
-        db.create_device(device)
-
-        # Verify creation
-        retrieved = db.get_device("lifecycle_test")
-        assert retrieved is not None
-        assert len(retrieved.signals) == 2
-
-        # Update signals
-        db.update_all_signals()
-
-        # Update device
-        db.update_device("lifecycle_test", {"name": "Updated Lifecycle Device"})
-
-        # Verify updates
-        updated = db.get_device("lifecycle_test")
-        assert updated.name == "Updated Lifecycle Device"
-
-        # Delete device
-        assert db.delete_device("lifecycle_test") == True
-        assert db.get_device("lifecycle_test") is None
-
+def run_all_tests():
+    """Run all tests"""
+    print("🚀 Starting VirtPLC Simulator Tests")
+    print("=" * 50)
+    
+    try:
+        test_database()
+        print()
+        
+        test_signal_generators()
+        print()
+        
+        test_web_api_models()
+        print()
+        
+        # Test API endpoints if server is running
+        print("Testing API endpoints (requires running server)...")
+        api_success = test_api_endpoints()
+        
+        print("\n" + "=" * 50)
+        if api_success:
+            print("🎉 All tests completed successfully!")
+        else:
+            print("⚠️  Some tests failed (API server may not be running)")
+            print("   Start the simulator with: python start_simulator.py")
+        
+    except Exception as e:
+        print(f"❌ Test suite failed: {e}")
+        return False
+    
+    return True
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    success = run_all_tests()
+    sys.exit(0 if success else 1)

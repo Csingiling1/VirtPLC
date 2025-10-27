@@ -18,6 +18,8 @@ services:
       - OPCUA_CLIENT_ENDPOINT=opc.tcp://simulator:4840/virtplc/
       - OPCUA_CLIENT_REQUEST_TIMEOUT=5000
       - OPCUA_CLIENT_SESSION_TIMEOUT=60000
+      - SIMULATOR_API_URL=http://simulator:8080
+      - SIMULATOR_WS_URL=ws://simulator:8080/ws/data
       - SPRING_DATASOURCE_URL=jdbc:postgresql://timescale:5432/virtplc_ts
       - SPRING_DATASOURCE_USERNAME=virtplc
       - SPRING_DATASOURCE_PASSWORD=changeme
@@ -33,6 +35,8 @@ services:
         condition: service_healthy
       timescale:
         condition: service_healthy
+      simulator:
+        condition: service_healthy
     networks:
       - virtplc-network
     healthcheck:
@@ -43,7 +47,7 @@ services:
       start_period: 40s
     restart: unless-stopped
 
-  # PLC Simulator (Python)
+  # Enhanced PLC Simulator (Python) - PLC Replacement Server
   simulator:
     build:
       context: ./simulator
@@ -51,21 +55,42 @@ services:
     container_name: virtplc-simulator
     ports:
       - "24840:4840"   # OPC-UA Server
-      - "5000:8080"   # REST API
+      - "5000:8080"    # REST API & WebSocket
     environment:
-      - SIMULATOR_MODE=server
+      - PYTHONUNBUFFERED=1
+      - SIMULATOR_MODE=plc-server
+      - SIMULATOR_HOST=0.0.0.0
+      - SIMULATOR_PORT=8080
       - OPCUA_ENDPOINT=opc.tcp://0.0.0.0:4840/virtplc/
-      - REST_API_PORT=8080
+      - UPDATE_INTERVAL=1.0
     volumes:
-      - simulator-data:/app
+      - simulator-data:/app/data
     networks:
       - virtplc-network
     healthcheck:
-      test: ["CMD", "python", "-c", "import socket; s=socket.socket(); s.connect(('localhost', 4840)); s.close()"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/simulation/status"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 10s
+      start_period: 40s
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.simulator.rule=Host(`simulator.localhost`)"
+      - "traefik.http.services.simulator.loadbalancer.server.port=8080"
+
+  # Simulator Monitoring Dashboard
+  simulator-monitor:
+    image: nginx:alpine
+    container_name: virtplc-simulator-monitor
+    ports:
+      - "5002:80"
+    volumes:
+      - ./simulator/monitor.html:/usr/share/nginx/html/index.html
+    depends_on:
+      - simulator
+    networks:
+      - virtplc-network
     restart: unless-stopped
 
   # React Frontend

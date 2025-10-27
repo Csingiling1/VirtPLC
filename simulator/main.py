@@ -28,6 +28,7 @@ from models import FactoryDevice, SignalConfig, SignalGenerator
 from web_api import create_app
 from opcua_server import OPCUAServer
 from interactive_cli import InteractiveCLI
+from cli_manager import DeviceCLI
 
 # Configure logging
 logging.basicConfig(
@@ -176,12 +177,12 @@ class SimulatorApp:
         return True
 
 
-def create_sample_devices(app: SimulatorApp):
+async def create_sample_devices(app: SimulatorApp):
     """Create sample devices for testing"""
     logger.info("Starting to create sample devices")
     
     # Motor 1
-    motor1 = app.create_device("Motor1", "Main Drive Motor", "motor", "Primary conveyor motor")
+    motor1 = await app.create_device("Motor1", "Main Drive Motor", "motor", "Primary conveyor motor")
     logger.info(f"Created Motor1: {motor1}")
     app.add_signal("Motor1", "Speed", "RPM", "uniform", min_value=1000, max_value=1800)
     app.add_signal("Motor1", "Temperature", "°C", "normal", mean=45, std_dev=5)
@@ -189,26 +190,26 @@ def create_sample_devices(app: SimulatorApp):
     app.add_signal("Motor1", "Vibration", "mm/s", "exponential", rate=0.1)
 
     # Motor 2
-    motor2 = app.create_device("Motor2", "Secondary Motor", "motor", "Backup motor system")
+    motor2 = await app.create_device("Motor2", "Secondary Motor", "motor", "Backup motor system")
     logger.info(f"Created Motor2: {motor2}")
     app.add_signal("Motor2", "Speed", "RPM", "uniform", min_value=800, max_value=1500)
     app.add_signal("Motor2", "Temperature", "°C", "normal", mean=40, std_dev=3)
     app.add_signal("Motor2", "Power", "kW", "uniform", min_value=2.5, max_value=4.2)
 
     # Conveyor
-    conveyor = app.create_device("Conveyor1", "Main Conveyor", "conveyor", "Production line conveyor")
+    conveyor = await app.create_device("Conveyor1", "Main Conveyor", "conveyor", "Production line conveyor")
     logger.info(f"Created Conveyor1: {conveyor}")
     app.add_signal("Conveyor1", "Speed", "m/min", "uniform", min_value=20, max_value=50)
     app.add_signal("Conveyor1", "Load", "%", "normal", mean=75, std_dev=10)
     app.add_signal("Conveyor1", "Items_per_minute", "items/min", "poisson", rate=30)
 
     # Temperature Sensor
-    temp_sensor = app.create_device("Sensor1", "Oven Temperature", "sensor", "Oven temperature monitoring")
+    temp_sensor = await app.create_device("Sensor1", "Oven Temperature", "sensor", "Oven temperature monitoring")
     logger.info(f"Created Sensor1: {temp_sensor}")
     app.add_signal("Sensor1", "Value", "°C", "sinusoidal", frequency=0.001, amplitude=50, offset=200)
 
     # Pressure Sensor
-    pressure_sensor = app.create_device("Sensor2", "Hydraulic Pressure", "sensor", "Hydraulic system pressure")
+    pressure_sensor = await app.create_device("Sensor2", "Hydraulic Pressure", "sensor", "Hydraulic system pressure")
     logger.info(f"Created Sensor2: {pressure_sensor}")
     app.add_signal("Sensor2", "Value", "bar", "normal", mean=120, std_dev=5)
 
@@ -224,7 +225,7 @@ async def main():
     """Main CLI entry point"""
     parser = argparse.ArgumentParser(description="VirtPLC Enhanced Simulator")
     parser.add_argument("--db", default="devices.json", help="Database file path")
-    parser.add_argument("--mode", choices=["cli", "web", "opcua", "simulate", "interactive", "server"],
+    parser.add_argument("--mode", choices=["cli", "web", "opcua", "simulate", "interactive", "server", "plc-server"],
                        default="cli", help="Operation mode")
     parser.add_argument("--host", default="0.0.0.0", help="Web server host")
     parser.add_argument("--port", type=int, default=8080, help="Web server port")
@@ -346,7 +347,7 @@ async def main():
                         devices = app.list_devices()
                         if not devices:
                             logger.info("No devices found, creating sample devices...")
-                            create_sample_devices(app)
+                            await create_sample_devices(app)
                         
                         # Start OPC-UA server
                         await app.start_opcua_server(args.opcua_endpoint)
@@ -356,19 +357,40 @@ async def main():
                         
                         # Run simulation loop
                         await app.run_simulation(args.update_interval)
+                    elif args.mode == "plc-server":
+                        # PLC replacement server mode - optimized for Spring backend integration
+                        logger.info("Starting VirtPLC as PLC replacement server...")
+                        
+                        # Create sample devices if none exist
+                        devices = app.list_devices()
+                        if not devices:
+                            logger.info("No devices found, creating sample devices...")
+                            await create_sample_devices(app)
+                        
+                        # Start OPC-UA server for industrial protocols
+                        await app.start_opcua_server(args.opcua_endpoint)
+                        
+                        # Start web server with real-time streaming
+                        await app.start_web_server(args.host, args.port)
+                        
+                        logger.info("VirtPLC PLC Server started successfully!")
+                        logger.info(f"  - Web API: http://{args.host}:{args.port}")
+                        logger.info(f"  - OPC-UA: {args.opcua_endpoint}")
+                        logger.info(f"  - Real-time data: http://{args.host}:{args.port}/api/stream/latest")
+                        logger.info(f"  - WebSocket: ws://{args.host}:{args.port}/ws/data")
+                        logger.info("  - Use 'python cli_manager.py' for device management")
+                        
+                        # Run simulation loop
+                        await app.run_simulation(args.update_interval)
                     elif args.mode == "simulate":
                         await app.run_simulation(args.update_interval)
                 except KeyboardInterrupt:
                     pass
                 finally:
                     await app.stop()
-
-    # Run mode
-    print(f"Mode: {args.mode}")
-    if args.mode == "server":
-        await app.start_opcua_server()
-        await app.start_web_server(args.host, args.port)
-        await app.run_simulation(args.update_interval)
+            
+            # Actually run the async function
+            await run_async()
 
 
 if __name__ == "__main__":

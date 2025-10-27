@@ -1,0 +1,65 @@
+# VirtPLC Simulator Configuration
+
+# Server Configuration
+server:
+  host: "0.0.0.0"
+  port: 8080
+  update_interval: 1.0 # seconds
+
+# OPC-UA Configuration
+opcua:
+  enabled: true
+  endpoint: "opc.tcp://0.0.0.0:4840/virtplc/"
+  namespace: "http://virtplc.simulator"
+
+# Database Configuration
+database:
+  path: "devices.json"
+  auto_save: true
+  save_interval: 5.0 # seconds
+
+# Logging Configuration
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "simulator.log"
+
+# Device Configuration
+devices:
+  auto_create_samples: true
+  default_types:
+    - "motor"
+    - "conveyor"
+    - "sensor"
+    - "valve"
+    - "pump"
+
+# Signal Generators Configuration
+signals:
+  default_generators:
+    - "constant"
+    - "uniform"
+    - "normal"
+    - "exponential"
+    - "sinusoidal"
+    - "triangular"
+    - "step"
+
+# Real-time Streaming Configuration
+streaming:
+  websocket_enabled: true
+  broadcast_interval: 1.0 # seconds
+  max_connections: 100
+
+# Spring Backend Integration
+backend_integration:
+  enabled: true
+  data_format: "sensor_data" # Compatible with Spring backend SensorData model
+  endpoint: "/api/stream/latest"
+  timeseries_endpoint: "/api/stream/timeseries"
+
+# Monitoring Configuration
+monitoring:
+  health_check_interval: 30.0 # seconds
+  metrics_enabled: true
+  performance_tracking: true
