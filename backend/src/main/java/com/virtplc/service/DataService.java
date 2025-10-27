@@ -12,44 +12,83 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
  * Service for retrieving and managing sensor data.
  * Persists data to TimescaleDB and provides real-time and historical data
  * access.
+ * Now uses flexible data collection from simulator API as primary source.
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class DataService {
 
-    private final NodeManager nodeManager;
     private final SensorDataRepository sensorDataRepository;
+    private final DataSourceService dataSourceService;
+    private final FlexibleDataMapper dataMapper;
+    private final Optional<NodeManager> nodeManager;
 
     /**
-     * Get the latest sensor data from OPC-UA nodes and persist to TimescaleDB.
+     * Get the latest sensor data from the configured data source and persist to TimescaleDB.
+     * Data source is determined by the 'data.source' property (simulator or plc).
      */
     @Transactional
     public SensorData getLatestData() {
-        log.debug("Fetching latest sensor data");
+        log.debug("Fetching latest sensor data from: {}", dataSourceService.getDataSourceName());
 
-        SensorData sensorData = SensorData.builder()
-                .timestamp(System.currentTimeMillis())
-                .motor1Speed(nodeManager.getMotor1Speed())
-                .motor1Temp(nodeManager.getMotor1Temp())
-                .motor1Run(true)
-                .motor1Fault(false)
-                .motor2Speed(nodeManager.getMotor2Speed())
-                .motor2Temp(nodeManager.getMotor2Temp())
-                .motor2Run(true)
-                .motor2Fault(false)
-                .conveyor1Speed(nodeManager.getConveyor1Speed())
-                .conveyor1Run(true)
-                .sensor1Value(nodeManager.getSensor1Value())
-                .sensor2Value(nodeManager.getSensor2Value())
-                .systemStatus("Running")
-                .build();
+        SensorData sensorData;
+
+        // Use the configured data source (simulator or PLC)
+        if (dataSourceService.isAvailable()) {
+            log.debug("Using {} as data source", dataSourceService.getDataSourceName());
+            Map<String, Object> sourceData = dataSourceService.getLatestSensorData();
+            sensorData = dataMapper.mapToSensorData(sourceData);
+            log.debug("Successfully fetched data from {}", dataSourceService.getDataSourceName());
+        } else {
+            // Fallback to OPC-UA if available, otherwise hardcoded values
+            if (nodeManager.isPresent()) {
+                log.warn("Data source {} not available, falling back to OPC-UA", dataSourceService.getDataSourceName());
+                NodeManager nm = nodeManager.get();
+                sensorData = SensorData.builder()
+                        .timestamp(System.currentTimeMillis())
+                        .motor1Speed(nm.getMotor1Speed())
+                        .motor1Temp(nm.getMotor1Temp())
+                        .motor1Run(true)
+                        .motor1Fault(false)
+                        .motor2Speed(nm.getMotor2Speed())
+                        .motor2Temp(nm.getMotor2Temp())
+                        .motor2Run(true)
+                        .motor2Fault(false)
+                        .conveyor1Speed(nm.getConveyor1Speed())
+                        .conveyor1Run(true)
+                        .sensor1Value(nm.getSensor1Value())
+                        .sensor2Value(nm.getSensor2Value())
+                        .systemStatus("Running - OPC-UA Fallback")
+                        .build();
+            } else {
+                log.warn("Data source {} not available and no OPC-UA fallback, using hardcoded values", dataSourceService.getDataSourceName());
+                sensorData = SensorData.builder()
+                        .timestamp(System.currentTimeMillis())
+                        .motor1Speed(0.0)
+                        .motor1Temp(25.0)
+                        .motor1Run(false)
+                        .motor1Fault(true)
+                        .motor2Speed(0.0)
+                        .motor2Temp(25.0)
+                        .motor2Run(false)
+                        .motor2Fault(true)
+                        .conveyor1Speed(0.0)
+                        .conveyor1Run(false)
+                        .sensor1Value(0.0)
+                        .sensor2Value(false)
+                        .systemStatus("Error - Data Source Unavailable")
+                        .build();
+            }
+        }
 
         // Persist to TimescaleDB
         try {

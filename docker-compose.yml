@@ -12,7 +12,7 @@ services:
     environment:
       - SPRING_PROFILES_ACTIVE=docker
       - SERVER_PORT=8080
-      - OPCUA_SERVER_ENABLED=true
+      - OPCUA_SERVER_ENABLED=false
       - OPCUA_SERVER_NAMESPACE=http://virtplc.simulator
       - OPCUA_CLIENT_ENABLED=true
       - OPCUA_CLIENT_ENDPOINT=opc.tcp://simulator:4840/virtplc/
@@ -20,6 +20,8 @@ services:
       - OPCUA_CLIENT_SESSION_TIMEOUT=60000
       - SIMULATOR_API_URL=http://simulator:8080
       - SIMULATOR_WS_URL=ws://simulator:8080/ws/data
+      - DATA_SOURCE=simulator
+      - SIMULATOR_NAME=VirtPLC Simulator
       - SPRING_DATASOURCE_URL=jdbc:postgresql://timescale:5432/virtplc_ts
       - SPRING_DATASOURCE_USERNAME=virtplc
       - SPRING_DATASOURCE_PASSWORD=changeme
