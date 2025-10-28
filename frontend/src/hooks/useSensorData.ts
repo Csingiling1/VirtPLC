@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { getLatestData, SensorData } from '../services/api';
+import { dataApi } from '../services/api';
+import { SensorData } from '../types';
 
 export function useSensorData(refreshInterval: number = 2000) {
   const [data, setData] = useState<SensorData | null>(null);
@@ -9,7 +10,7 @@ export function useSensorData(refreshInterval: number = 2000) {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const result = await getLatestData();
+        const result = await dataApi.getLatest();
         setData(result);
         setError(null);
       } catch (err) {

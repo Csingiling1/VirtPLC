@@ -1,5 +1,5 @@
 import { useState, FormEvent } from 'react';
-import { login } from '../services/api';
+import { authApi } from '../services/api';
 
 interface LoginProps {
   onLogin: (token: string) => void;
@@ -17,7 +17,7 @@ function Login({ onLogin }: LoginProps) {
     setLoading(true);
 
     try {
-      const response = await login(username, password);
+      const response = await authApi.login({ username, password });
       onLogin(response.token);
     } catch (err) {
       setError('Login failed. Please check your credentials.');
@@ -31,7 +31,7 @@ function Login({ onLogin }: LoginProps) {
     <div className="container">
       <div className="card" style={{ maxWidth: '400px', margin: '4rem auto' }}>
         <h1 style={{ marginBottom: '2rem', textAlign: 'center' }}>VirtPLC Login</h1>
-        
+
         <form onSubmit={handleSubmit}>
           <div style={{ marginBottom: '1rem' }}>
             <label style={{ display: 'block', marginBottom: '0.5rem' }}>Username</label>
