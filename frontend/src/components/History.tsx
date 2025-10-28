@@ -6,7 +6,7 @@ import { Calendar } from './ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { CalendarIcon, Download } from 'lucide-react';
 import { format } from 'date-fns';
-import { cn } from '../utils';
+import { cn } from '@/lib/utils';
 
 const History = () => {
   const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({

@@ -10,7 +10,7 @@ import {
   Settings,
   LogOut,
 } from 'lucide-react';
-import { cn } from '../utils';
+import { cn } from '@/lib/utils';
 
 interface LayoutProps {
   children: React.ReactNode;
