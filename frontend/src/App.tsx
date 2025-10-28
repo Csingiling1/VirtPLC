@@ -1,7 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
 import LiveMetrics from './pages/LiveMetrics';
-import HMIEmbed from './pages/HMIEmbed';
+import AIAssistant from './pages/AIAssistant';
 import { useState, useEffect } from 'react';
 
 function App() {
@@ -31,35 +31,35 @@ function App() {
         {isAuthenticated && (
           <nav style={{ padding: '1rem', background: '#1a1a1a', marginBottom: '1rem' }}>
             <a href="/metrics" style={{ marginRight: '1rem', color: '#646cff' }}>Live Metrics</a>
-            <a href="/hmi" style={{ marginRight: '1rem', color: '#646cff' }}>HMI Interface</a>
+            <a href="/ai" style={{ marginRight: '1rem', color: '#646cff' }}>AI Assistant</a>
             <button onClick={handleLogout}>Logout</button>
           </nav>
         )}
-        
+
         <Routes>
-          <Route 
-            path="/login" 
+          <Route
+            path="/login"
             element={
-              isAuthenticated ? 
-              <Navigate to="/metrics" /> : 
-              <Login onLogin={handleLogin} />
-            } 
+              isAuthenticated ?
+                <Navigate to="/metrics" /> :
+                <Login onLogin={handleLogin} />
+            }
           />
-          <Route 
-            path="/metrics" 
+          <Route
+            path="/metrics"
             element={
-              isAuthenticated ? 
-              <LiveMetrics /> : 
-              <Navigate to="/login" />
-            } 
+              isAuthenticated ?
+                <LiveMetrics /> :
+                <Navigate to="/login" />
+            }
           />
-          <Route 
-            path="/hmi" 
+          <Route
+            path="/ai"
             element={
-              isAuthenticated ? 
-              <HMIEmbed /> : 
-              <Navigate to="/login" />
-            } 
+              isAuthenticated ?
+                <AIAssistant /> :
+                <Navigate to="/login" />
+            }
           />
           <Route path="/" element={<Navigate to="/metrics" />} />
         </Routes>

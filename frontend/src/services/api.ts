@@ -12,7 +12,7 @@ import type {
   SimulationStatus
 } from '../types';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
@@ -113,6 +113,18 @@ export const simulatorApi = {
   },
   triggerUpdate: async (): Promise<void> => {
     const response = await api.post('/api/simulator/update');
+    return response.data;
+  },
+};
+
+// AI API
+export const aiApi = {
+  chat: async (message: string, context?: string): Promise<{ response: string }> => {
+    const response = await api.post('/ai/chat', { message, context });
+    return response.data;
+  },
+  getChatHistory: async (): Promise<any[]> => {
+    const response = await api.get('/ai/chat/history');
     return response.data;
   },
 };

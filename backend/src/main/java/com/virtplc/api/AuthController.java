@@ -33,10 +33,9 @@ public class AuthController {
         if (userService.validateCredentials(request.getUsername(), request.getPassword())) {
             String token = jwtUtil.generateToken(request.getUsername());
             AuthResponse response = new AuthResponse(
-                token,
-                request.getUsername(),
-                "Login successful"
-            );
+                    token,
+                    request.getUsername(),
+                    "Login successful");
 
             log.info("Login successful for user: {}", request.getUsername());
             return ResponseEntity.ok(response);
@@ -56,7 +55,7 @@ public class AuthController {
             if (authHeader != null && authHeader.startsWith("Bearer ")) {
                 String token = authHeader.substring(7);
                 String username = jwtUtil.extractUsername(token);
-                
+
                 if (username != null && !jwtUtil.isTokenExpired(token)) {
                     return ResponseEntity.ok("Token is valid for user: " + username);
                 }

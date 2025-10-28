@@ -100,12 +100,12 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        - VITE_API_BASE_URL=
+        - VITE_WS_URL=ws://ai-service:3002
     container_name: virtplc-frontend
     ports:
       - "3000:3000"
-    environment:
-      - VITE_API_URL=http://backend:8080
-      - VITE_WS_URL=ws://ai-service:3002
     depends_on:
       - backend
     networks:
@@ -259,11 +259,41 @@ services:
       retries: 5
     restart: unless-stopped
 
-  # Ignition Gateway (HMI) - Reference only
-  # Users should run Ignition Edge separately and configure OPC-UA connection
-  # to opc.tcp://backend:4840
-  # Ignition Web UI: http://localhost:8088
-  # See feature/HMI branch for configuration files
+  # Ignition Gateway (HMI) - Integrated
+  ignition-edge:
+    build:
+      context: ./HMI
+      dockerfile: Dockerfile
+    image: virtplc/ignition-edge:latest
+    container_name: virtplc-ignition-edge
+    hostname: ignition-edge
+    ports:
+      - "8088:8088"   # HTTP
+      - "8043:8043"   # HTTPS
+      - "8060:8060"   # Gateway Network
+    volumes:
+      - ignition-data:/usr/local/bin/ignition/data
+      - ./HMI/IgnitionEdge/projects:/projects:ro
+      - ./HMI/IgnitionEdge/config:/config:ro
+      - ./HMI/IgnitionEdge/tags:/tags:ro
+    environment:
+      - GATEWAY_ADMIN_USERNAME=${GATEWAY_ADMIN_USERNAME:-admin}
+      - GATEWAY_ADMIN_PASSWORD=${GATEWAY_ADMIN_PASSWORD:-password}
+      - IGNITION_EDITION=edge
+      - JAVA_OPTS=-Xmx1g -Xms512m
+      - REDIS_HOST=redis
+    depends_on:
+      - redis
+      - simulator
+    networks:
+      - virtplc-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8088/StatusPing"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+    restart: unless-stopped
 
 networks:
   virtplc-network:
@@ -281,3 +311,5 @@ volumes:
     name: virtplc-timescale-data
   simulator-data:
     name: virtplc-simulator-data
+  ignition-data:
+    name: virtplc-ignition-data
