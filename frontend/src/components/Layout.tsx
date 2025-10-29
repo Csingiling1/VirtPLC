@@ -1,5 +1,4 @@
-import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
+import { Link, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import {
   LayoutDashboard,
@@ -8,7 +7,7 @@ import {
   History,
   Radio,
   Settings,
-  LogOut,
+  Bot,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -18,13 +17,6 @@ interface LayoutProps {
 
 const Layout = ({ children }: LayoutProps) => {
   const location = useLocation();
-  const navigate = useNavigate();
-  const { logout } = useAuth();
-
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
-  };
 
   const navItems = [
     { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -33,6 +25,7 @@ const Layout = ({ children }: LayoutProps) => {
     { path: '/history', icon: History, label: 'History' },
     { path: '/signals', icon: Radio, label: 'Signals' },
     { path: '/status', icon: Settings, label: 'Status' },
+    { path: '/ai-assistant', icon: Bot, label: 'AI Assistant' },
   ];
 
   return (
@@ -43,12 +36,12 @@ const Layout = ({ children }: LayoutProps) => {
           <h1 className="text-2xl font-bold text-primary">VirtPLC</h1>
           <p className="text-sm text-muted-foreground">Industrial Monitoring</p>
         </div>
-        
+
         <nav className="flex-1 p-4 space-y-2">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.path;
-            
+
             return (
               <Link key={item.path} to={item.path}>
                 <Button
@@ -65,17 +58,6 @@ const Layout = ({ children }: LayoutProps) => {
             );
           })}
         </nav>
-
-        <div className="p-4 border-t border-border">
-          <Button
-            variant="ghost"
-            className="w-full justify-start gap-3 text-destructive hover:text-destructive"
-            onClick={handleLogout}
-          >
-            <LogOut className="h-5 w-5" />
-            Logout
-          </Button>
-        </div>
       </aside>
 
       {/* Main Content */}

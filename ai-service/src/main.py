@@ -81,7 +81,7 @@ async def health_check():
         "version": "1.0.0",
         "services": {
             "mcp": "connected" if mcp_client.enabled else "disabled",
-            "timebase": "connected" if timebase_service.client else "disconnected",
+            "timescale": "connected" if timebase_service.client else "disconnected",
             "ollama": settings.ollama_host
         }
     }
@@ -137,7 +137,7 @@ app.include_router(dashboard.router, prefix="/api/dashboard", tags=["dashboard"]
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
-        "src.main:app",
+        app,
         host=settings.host,
         port=settings.port,
         reload=settings.environment == "development"

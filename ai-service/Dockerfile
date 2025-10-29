@@ -32,4 +32,6 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:3001/health || exit 1
 
 # Start application
-CMD ["python", "-m", "uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "3001"]
+ENV PYTHONPATH=/app
+WORKDIR /app
+CMD ["python", "-m", "src.main"]

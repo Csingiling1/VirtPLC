@@ -1,5 +1,11 @@
 import { useState } from 'react';
-import { aiApi } from '../services/api';
+import { aiApiFunctions } from '../lib/api';
+import Layout from '../components/Layout';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Bot, User, Send } from 'lucide-react';
 
 interface Message {
     id: string;
@@ -29,7 +35,7 @@ function AIAssistant() {
 
         try {
             // Call AI service
-            const response = await aiApi.chat(input, 'VirtPLC system assistance');
+            const response = await aiApiFunctions.chat(input, 'VirtPLC system assistance');
 
             const assistantMessage: Message = {
                 id: (Date.now() + 1).toString(),
@@ -61,131 +67,111 @@ function AIAssistant() {
     };
 
     return (
-        <div className="container">
-            <h1>AI Assistant</h1>
-
-            <div className="card" style={{ height: '70vh', display: 'flex', flexDirection: 'column' }}>
-                {/* Chat Messages */}
-                <div
-                    style={{
-                        flex: 1,
-                        overflowY: 'auto',
-                        padding: '1rem',
-                        background: '#1a1a1a',
-                        borderRadius: '8px',
-                        marginBottom: '1rem',
-                        border: '1px solid #333'
-                    }}
-                >
-                    {messages.length === 0 ? (
-                        <div style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            height: '100%',
-                            color: '#666',
-                            fontStyle: 'italic'
-                        }}>
-                            Start a conversation with the AI assistant...
-                        </div>
-                    ) : (
-                        messages.map((message) => (
-                            <div
-                                key={message.id}
-                                style={{
-                                    marginBottom: '1rem',
-                                    padding: '0.75rem',
-                                    borderRadius: '8px',
-                                    background: message.role === 'user' ? '#2a4a7a' : '#2a2a2a',
-                                    border: `1px solid ${message.role === 'user' ? '#4a6fa5' : '#444'}`,
-                                    marginLeft: message.role === 'user' ? '2rem' : '0',
-                                    marginRight: message.role === 'assistant' ? '2rem' : '0',
-                                }}
-                            >
-                                <div style={{
-                                    fontSize: '0.8rem',
-                                    color: '#888',
-                                    marginBottom: '0.5rem',
-                                    fontWeight: 'bold'
-                                }}>
-                                    {message.role === 'user' ? 'You' : 'AI Assistant'}
-                                </div>
-                                <div style={{ whiteSpace: 'pre-wrap' }}>
-                                    {message.content}
-                                </div>
-                                <div style={{
-                                    fontSize: '0.7rem',
-                                    color: '#666',
-                                    marginTop: '0.5rem'
-                                }}>
-                                    {message.timestamp.toLocaleTimeString()}
-                                </div>
-                            </div>
-                        ))
-                    )}
-                    {isLoading && (
-                        <div style={{
-                            marginBottom: '1rem',
-                            padding: '0.75rem',
-                            borderRadius: '8px',
-                            background: '#2a2a2a',
-                            border: '1px solid #444',
-                            marginLeft: '0',
-                            marginRight: '2rem',
-                        }}>
-                            <div style={{
-                                fontSize: '0.8rem',
-                                color: '#888',
-                                marginBottom: '0.5rem',
-                                fontWeight: 'bold'
-                            }}>
-                                AI Assistant
-                            </div>
-                            <div>Thinking...</div>
-                        </div>
-                    )}
+        <Layout>
+            <div className="space-y-6">
+                <div>
+                    <h1 className="text-3xl font-bold">AI Assistant</h1>
+                    <p className="text-muted-foreground">Get insights and assistance about your VirtPLC system</p>
                 </div>
 
-                {/* Input Area */}
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    <textarea
-                        value={input}
-                        onChange={(e) => setInput(e.target.value)}
-                        onKeyPress={handleKeyPress}
-                        placeholder="Ask me anything about your VirtPLC system..."
-                        style={{
-                            flex: 1,
-                            padding: '0.75rem',
-                            border: '1px solid #444',
-                            borderRadius: '8px',
-                            background: '#1a1a1a',
-                            color: '#fff',
-                            fontSize: '1rem',
-                            resize: 'vertical',
-                            minHeight: '60px',
-                            maxHeight: '120px'
-                        }}
-                        disabled={isLoading}
-                    />
-                    <button
-                        onClick={sendMessage}
-                        disabled={isLoading || !input.trim()}
-                        style={{
-                            padding: '0.75rem 1.5rem',
-                            background: isLoading || !input.trim() ? '#444' : '#646cff',
-                            color: '#fff',
-                            border: 'none',
-                            borderRadius: '8px',
-                            cursor: isLoading || !input.trim() ? 'not-allowed' : 'pointer',
-                            fontSize: '1rem',
-                            whiteSpace: 'nowrap'
-                        }}
-                    >
-                        {isLoading ? 'Sending...' : 'Send'}
-                    </button>
-                </div>
+                <Card className="h-[70vh] flex flex-col">
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            <Bot className="h-5 w-5" />
+                            AI Assistant Chat
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="flex-1 flex flex-col p-0">
+                        {/* Chat Messages */}
+                        <ScrollArea className="flex-1 p-4">
+                            {messages.length === 0 ? (
+                                <div className="flex items-center justify-center h-full text-muted-foreground">
+                                    Start a conversation with the AI assistant...
+                                </div>
+                            ) : (
+                                <div className="space-y-4">
+                                    {messages.map((message) => (
+                                        <div
+                                            key={message.id}
+                                            className={`flex gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'
+                                                }`}
+                                        >
+                                            {message.role === 'assistant' && (
+                                                <div className="flex-shrink-0">
+                                                    <Bot className="h-8 w-8 text-primary" />
+                                                </div>
+                                            )}
+                                            <div
+                                                className={`max-w-[70%] rounded-lg p-3 ${message.role === 'user'
+                                                        ? 'bg-primary text-primary-foreground'
+                                                        : 'bg-muted'
+                                                    }`}
+                                            >
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    {message.role === 'user' ? (
+                                                        <User className="h-4 w-4" />
+                                                    ) : (
+                                                        <Bot className="h-4 w-4" />
+                                                    )}
+                                                    <span className="text-sm font-medium">
+                                                        {message.role === 'user' ? 'You' : 'AI Assistant'}
+                                                    </span>
+                                                </div>
+                                                <div className="whitespace-pre-wrap">{message.content}</div>
+                                                <div className="text-xs opacity-70 mt-2">
+                                                    {message.timestamp.toLocaleTimeString()}
+                                                </div>
+                                            </div>
+                                            {message.role === 'user' && (
+                                                <div className="flex-shrink-0">
+                                                    <User className="h-8 w-8 text-primary" />
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                    {isLoading && (
+                                        <div className="flex gap-3 justify-start">
+                                            <div className="flex-shrink-0">
+                                                <Bot className="h-8 w-8 text-primary" />
+                                            </div>
+                                            <div className="bg-muted rounded-lg p-3 max-w-[70%]">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <Bot className="h-4 w-4" />
+                                                    <span className="text-sm font-medium">AI Assistant</span>
+                                                </div>
+                                                <div>Thinking...</div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </ScrollArea>
+
+                        {/* Input Area */}
+                        <div className="border-t p-4">
+                            <div className="flex gap-2">
+                                <Textarea
+                                    value={input}
+                                    onChange={(e) => setInput(e.target.value)}
+                                    onKeyPress={handleKeyPress}
+                                    placeholder="Ask me anything about your VirtPLC system..."
+                                    className="min-h-[60px] resize-none"
+                                    disabled={isLoading}
+                                />
+                                <Button
+                                    onClick={sendMessage}
+                                    disabled={isLoading || !input.trim()}
+                                    size="icon"
+                                    className="self-end"
+                                >
+                                    <Send className="h-4 w-4" />
+                                </Button>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
             </div>
-        </div>
+        </Layout>
     );
 }
 

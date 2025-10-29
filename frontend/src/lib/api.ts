@@ -1,7 +1,8 @@
 import axios from 'axios';
-import { jwtDecode } from 'jwt-decode';
+import { SimulatorDevice, SignalConfig, SensorData } from '../types';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+const AI_API_BASE_URL = import.meta.env.VITE_AI_API_URL || 'http://localhost:3001';
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
@@ -9,20 +10,6 @@ export const api = axios.create({
     'Content-Type': 'application/json',
   },
 });
-
-// Request interceptor to add auth token
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  }
-);
 
 // Response interceptor for error handling
 api.interceptors.response.use(
@@ -38,27 +25,9 @@ api.interceptors.response.use(
       });
     }
     
-    // Handle 401 Unauthorized
-    if (error.response?.status === 401) {
-      const currentPath = window.location.pathname;
-      // Only redirect if not already on login page
-      if (currentPath !== '/login') {
-        localStorage.removeItem('token');
-        window.location.href = '/login';
-      }
-    }
-    
     return Promise.reject(error);
   }
 );
-
-// Auth API
-export const authApi = {
-  login: async (username: string, password: string) => {
-    const response = await api.post('/auth/login', { username, password });
-    return response.data;
-  },
-};
 
 // Data API
 export const dataApi = {
@@ -88,11 +57,11 @@ export const simulatorApi = {
     const response = await api.get(`/api/simulator/devices/${deviceId}`);
     return response.data;
   },
-  createDevice: async (device: any) => {
+  createDevice: async (device: Omit<SimulatorDevice, 'id' | 'createdAt' | 'updatedAt'>) => {
     const response = await api.post('/api/simulator/devices', device);
     return response.data;
   },
-  updateDevice: async (deviceId: string, device: any) => {
+  updateDevice: async (deviceId: string, device: Partial<SimulatorDevice>) => {
     const response = await api.put(`/api/simulator/devices/${deviceId}`, device);
     return response.data;
   },
@@ -108,7 +77,7 @@ export const simulatorApi = {
     const response = await api.put(`/api/simulator/devices/${deviceId}/signals/${signalName}`, { value });
     return response.data;
   },
-  addSignal: async (deviceId: string, signal: any) => {
+  addSignal: async (deviceId: string, signal: Omit<SignalConfig, 'lastUpdate'>) => {
     const response = await api.post(`/api/simulator/devices/${deviceId}/signals`, signal);
     return response.data;
   },
@@ -122,23 +91,49 @@ export const simulatorApi = {
   },
 };
 
-// AI API
-export const aiApi = {
-  chat: async (message: string, context?: string): Promise<{ response: string }> => {
-    const response = await api.post('/ai/chat', { message, context });
+export const aiApi = axios.create({
+  baseURL: AI_API_BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// Response interceptor for AI API error handling
+aiApi.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    // Handle network errors
+    if (!error.response) {
+      console.error('Network error: AI API is not reachable at', AI_API_BASE_URL);
+      return Promise.reject({
+        message: 'AI API is not reachable. Please ensure the AI service is running.',
+        isNetworkError: true,
+        ...error
+      });
+    }
+    
+    return Promise.reject(error);
+  }
+);
+
+// AI API functions
+export const aiApiFunctions = {
+  chat: async (message: string, context?: string) => {
+    const response = await aiApi.post('/chat', {
+      message,
+      context: context || 'VirtPLC system assistance',
+    });
     return response.data;
   },
-  getChatHistory: async (): Promise<any[]> => {
-    const response = await api.get('/ai/chat/history');
+  getAnalysis: async (data: { sensorData?: SensorData[]; timeRange?: { start: number; end: number } }) => {
+    const response = await aiApi.post('/analyze', data);
+    return response.data;
+  },
+  getInsights: async (timeRange?: { start: number; end: number }) => {
+    const response = await aiApi.get('/insights', {
+      params: timeRange,
+    });
     return response.data;
   },
 };
 
-export const isTokenValid = (token: string): boolean => {
-  try {
-    const decoded: any = jwtDecode(token);
-    return decoded.exp * 1000 > Date.now();
-  } catch {
-    return false;
-  }
-};

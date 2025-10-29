@@ -57,7 +57,7 @@ class ChatMessage(Base):
     timestamp = Column(DateTime, default=datetime.utcnow, index=True)
     tokens_used = Column(Integer)
     model_used = Column(String(50))
-    metadata = Column(JSON)  # Additional context, tool calls, etc.
+    message_metadata = Column(JSON)  # Additional context, tool calls, etc.
     
     # Relationships
     session = relationship("ChatSession", back_populates="messages")
