@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
-import Layout from './Layout';
-import { simulatorApi } from '../services/api';
-import { SimulatorDevice } from '../types';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
-import { Badge } from './ui/badge';
-import { Button } from './ui/button';
+import Layout from '@/components/Layout';
+import { simulatorApi } from '@/lib/api';
+import { SimulatorDevice } from '@/types';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Radio, Play, Pause } from 'lucide-react';
-import { useToast } from '../hooks/use-toast';
+import { useToast } from '@/hooks/use-toast';
 
 const Signals = () => {
   const [devices, setDevices] = useState<SimulatorDevice[]>([]);

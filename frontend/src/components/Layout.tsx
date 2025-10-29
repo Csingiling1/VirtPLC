@@ -1,6 +1,6 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
-import { Button } from './ui/button';
+import { useAuth } from '@/contexts/AuthContext';
+import { Button } from '@/components/ui/button';
 import {
   LayoutDashboard,
   Server,
@@ -10,7 +10,7 @@ import {
   Settings,
   LogOut,
 } from 'lucide-react';
-import { cn } from '../utils';
+import { cn } from '@/lib/utils';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -43,12 +43,12 @@ const Layout = ({ children }: LayoutProps) => {
           <h1 className="text-2xl font-bold text-primary">VirtPLC</h1>
           <p className="text-sm text-muted-foreground">Industrial Monitoring</p>
         </div>
-
+        
         <nav className="flex-1 p-4 space-y-2">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.path;
-
+            
             return (
               <Link key={item.path} to={item.path}>
                 <Button

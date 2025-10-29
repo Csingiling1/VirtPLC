@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import Layout from './Layout';
-import { Button } from './ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
-import { Calendar } from './ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
+import Layout from '@/components/Layout';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { CalendarIcon, Download } from 'lucide-react';
 import { format } from 'date-fns';
-import { cn } from '../utils';
+import { cn } from '@/lib/utils';
 
 const History = () => {
   const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({

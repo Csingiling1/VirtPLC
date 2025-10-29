@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
-import Layout from './Layout';
-import StatusCard from './StatusCard';
-import { dataApi } from '../services/api';
-import { SensorData } from '../types';
+import Layout from '@/components/Layout';
+import StatusCard from '@/components/StatusCard';
+import { dataApi } from '@/lib/api';
+import { SensorData } from '@/types';
 import { Activity, Gauge, ThermometerSun, AlertCircle, CheckCircle } from 'lucide-react';
-import { useToast } from '../hooks/use-toast';
+import { useToast } from '@/hooks/use-toast';
 
 const Dashboard = () => {
   const [sensorData, setSensorData] = useState<SensorData | null>(null);
@@ -17,13 +17,21 @@ const Dashboard = () => {
         const data = await dataApi.getLatest();
         setSensorData(data);
         setIsLoading(false);
-      } catch (error) {
+      } catch (error: any) {
         console.error('Failed to fetch data:', error);
-        toast({
-          title: "Connection Error",
-          description: "Failed to fetch sensor data",
-          variant: "destructive",
-        });
+        
+        const errorMessage = error.isNetworkError 
+          ? "Cannot connect to backend API. Please check the server is running."
+          : "Failed to fetch sensor data. Please try again.";
+        
+        if (isLoading) {
+          // Only show toast on initial load failure
+          toast({
+            title: "Connection Error",
+            description: errorMessage,
+            variant: "destructive",
+          });
+        }
         setIsLoading(false);
       }
     };

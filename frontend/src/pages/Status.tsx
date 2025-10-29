@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
-import Layout from './Layout';
-import StatusCard from './StatusCard';
-import { simulatorApi, dataApi } from '../services/api';
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
+import Layout from '@/components/Layout';
+import StatusCard from '@/components/StatusCard';
+import { simulatorApi, dataApi } from '@/lib/api';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Server, Activity, AlertCircle, CheckCircle } from 'lucide-react';
-import { useToast } from '../hooks/use-toast';
+import { useToast } from '@/hooks/use-toast';
 
 const Status = () => {
   const [systemHealth, setSystemHealth] = useState<any>(null);

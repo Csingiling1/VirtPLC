@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
-import Layout from './Layout';
-import { dataApi } from '../services/api';
-import { SensorData } from '../types';
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
+import Layout from '@/components/Layout';
+import { dataApi } from '@/lib/api';
+import { SensorData } from '@/types';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { useToast } from '../hooks/use-toast';
+import { useToast } from '@/hooks/use-toast';
 
 const Monitoring = () => {
   const [historicalData, setHistoricalData] = useState<SensorData[]>([]);
