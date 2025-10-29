@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Bot, User, Send, BarChart3, TrendingUp } from 'lucide-react';
 import { AIChatResponse, ChartSuggestion } from '../types';
+import AIChart from '../components/AIChart';
 
 interface Message {
     id: string;
@@ -20,6 +21,7 @@ function AIAssistant() {
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [embeddedCharts, setEmbeddedCharts] = useState<{ id: string; suggestion: ChartSuggestion }[]>([]);
     const scrollAreaRef = useRef<HTMLDivElement>(null);
 
     // Auto-scroll to bottom when messages change
@@ -81,11 +83,12 @@ function AIAssistant() {
     };
 
     const handleChartGeneration = (suggestion: ChartSuggestion) => {
-        // For now, just show an alert. In a full implementation, this would:
-        // 1. Navigate to the monitoring page with the chart pre-configured
-        // 2. Open a chart preview modal
-        // 3. Add the chart to a dashboard
-        alert(`Generating chart: ${suggestion.title}\n${suggestion.description}\n\nThis would open a chart preview in the monitoring dashboard.`);
+        const chartId = `chart-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        setEmbeddedCharts(prev => [...prev, { id: chartId, suggestion }]);
+    };
+
+    const handleChartClose = (chartId: string) => {
+        setEmbeddedCharts(prev => prev.filter(chart => chart.id !== chartId));
     };
 
     const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -195,6 +198,20 @@ function AIAssistant() {
                                 </div>
                             )}
                         </ScrollArea>
+
+                        {/* Embedded Charts */}
+                        {embeddedCharts.length > 0 && (
+                            <div className="space-y-4 p-4 border-t">
+                                <h3 className="text-sm font-medium text-primary">Generated Charts</h3>
+                                {embeddedCharts.map((chart) => (
+                                    <AIChart
+                                        key={chart.id}
+                                        suggestion={chart.suggestion}
+                                        onClose={() => handleChartClose(chart.id)}
+                                    />
+                                ))}
+                            </div>
+                        )}
 
                         {/* Input Area */}
                         <div className="border-t p-4">
