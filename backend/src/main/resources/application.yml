@@ -1,6 +1,8 @@
 spring:
   application:
     name: virtplc-backend
+  main:
+    allow-circular-references: true
   datasource:
     url: jdbc:postgresql://localhost:5433/timescaledb
     username: timescale

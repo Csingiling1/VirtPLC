@@ -1,0 +1,81 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: tenant-isolation
+  namespace: { { TENANT_NAMESPACE } }
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow traffic from ingress controller
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 443
+    # Allow traffic between tenant pods
+    - from:
+        - podSelector: {}
+      ports:
+        - protocol: TCP
+  egress:
+    # Allow DNS resolution
+    - to: []
+      ports:
+        - protocol: UDP
+          port: 53
+    # Allow traffic to virtplc-system namespace (shared services)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: virtplc-system
+      ports:
+        - protocol: TCP
+          port: 5432 # PostgreSQL
+        - protocol: TCP
+          port: 6379 # Redis
+        - protocol: TCP
+          port: 11434 # Ollama
+    # Allow HTTPS outbound (for external APIs)
+    - to: []
+      ports:
+        - protocol: TCP
+          port: 443
+    # Allow traffic between tenant pods
+    - to:
+        - podSelector: {}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: deny-cross-tenant
+  namespace: virtplc-tenants
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Only allow traffic from the same tenant namespace
+    - from:
+        - podSelector: {}
+  egress:
+    # Only allow traffic within the same tenant namespace
+    - to:
+        - podSelector: {}
+    # Allow DNS
+    - to: []
+      ports:
+        - protocol: UDP
+          port: 53
+    # Allow traffic to virtplc-system
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: virtplc-system

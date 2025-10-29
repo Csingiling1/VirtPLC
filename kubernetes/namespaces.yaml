@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: virtplc-system
+  labels:
+    name: virtplc-system
+    app: virtplc
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: virtplc-tenants
+  labels:
+    name: virtplc-tenants
+    app: virtplc
+---
+# Template namespace for new tenants (copy this for each company)
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: company-template
+  labels:
+    name: company-template
+    app: virtplc
+    tenant: template
+  annotations:
+    description: "Template namespace for VirtPLC company tenants"
