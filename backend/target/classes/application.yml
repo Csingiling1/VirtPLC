@@ -1,0 +1,54 @@
+spring:
+  application:
+    name: virtplc-backend
+  datasource:
+    url: jdbc:postgresql://localhost:5433/timescaledb
+    username: timescale
+    password: changeme
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql
+
+server:
+  port: 8080
+
+security:
+  jwt:
+    secret: ${JWT_SECRET:your-secret-key-change-in-production-min-256-bits}
+    expiration: 86400000 # 24 hours in milliseconds
+
+timescaledb:
+  url: jdbc:postgresql://localhost:5433/timescaledb
+  username: timescale
+  password: changeme
+  driver-class-name: org.postgresql.Driver
+  enabled: true
+
+cors:
+  allowed-origins:
+    - http://localhost:3000
+    - http://localhost:8088
+  allowed-methods:
+    - GET
+    - POST
+    - PUT
+    - DELETE
+    - OPTIONS
+  allowed-headers:
+    - "*"
+  allow-credentials: true
+
+logging:
+  level:
+    com.virtplc: DEBUG
+    org.eclipse.milo: INFO
+    org.springframework.security: DEBUG

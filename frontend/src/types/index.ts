@@ -1,16 +1,3 @@
-// API Response Types
-export interface AuthResponse {
-  token: string;
-  username: string;
-  message: string;
-}
-
-export interface LoginRequest {
-  username: string;
-  password: string;
-}
-
-// Sensor Data Types
 export interface SensorData {
   timestamp: number;
   motor1Speed: number;
@@ -28,7 +15,6 @@ export interface SensorData {
   systemStatus: string;
 }
 
-// Simulator Device Types
 export interface SignalConfig {
   name: string;
   unit: string;
@@ -58,57 +44,9 @@ export interface SimulatorDevice {
   updatedAt: number;
 }
 
-// API Request Types
-export interface CreateDeviceRequest {
-  name: string;
-  description: string;
-  deviceType: string;
-  signals: SignalConfig[];
-}
-
-export interface UpdateDeviceRequest {
-  name?: string;
-  description?: string;
-  deviceType?: string;
-  signals?: SignalConfig[];
-  isActive?: boolean;
-}
-
-export interface SetSignalRequest {
-  value: number;
-}
-
-// Simulation Status Types
-export interface SimulationStatus {
+export interface SimulatorStatus {
   isRunning: boolean;
-  deviceCount: number;
-  signalCount: number;
+  activeDevices: number;
+  totalSignals: number;
   lastUpdate: number;
-  errors: string[];
-}
-
-// Chart Data Types
-export interface ChartDataPoint {
-  time: string;
-  [key: string]: string | number;
-}
-
-// Component Props Types
-export interface LayoutProps {
-  children: React.ReactNode;
-}
-
-export interface StatusCardProps {
-  title: string;
-  value: string | number;
-  status?: 'success' | 'warning' | 'error' | 'info';
-  icon?: React.ComponentType<any>;
-}
-
-// Context Types
-export interface AuthContextType {
-  isAuthenticated: boolean;
-  user: string | null;
-  login: (token: string, username: string) => void;
-  logout: () => void;
 }

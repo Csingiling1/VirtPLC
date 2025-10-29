@@ -231,3 +231,4 @@ PLCLogic/**/*.bak
 # Node_Modules
 node_modules
 package-lock.json
+*.class

@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { authApi, isTokenValid } from '../services/api';
-import { useToast } from '../hooks/use-toast';
+import { authApi, isTokenValid } from '@/lib/api';
+import { useToast } from '@/hooks/use-toast';
 
 interface AuthContextType {
   isAuthenticated: boolean;
@@ -28,20 +28,28 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const login = async (username: string, password: string) => {
     try {
-      const response = await authApi.login({ username, password });
-      const token = response.token;
-
+      const response = await authApi.login(username, password);
+      const token = response.token || response.accessToken || response;
+      
       localStorage.setItem('token', token);
       setIsAuthenticated(true);
-
+      
       toast({
         title: "Login Successful",
         description: "Welcome to VirtPLC",
       });
     } catch (error: any) {
+      let errorMessage = "Invalid credentials";
+      
+      if (error.isNetworkError) {
+        errorMessage = "Cannot connect to backend server. Please ensure the API is running.";
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      }
+      
       toast({
         title: "Login Failed",
-        description: error.response?.data?.message || "Invalid credentials",
+        description: errorMessage,
         variant: "destructive",
       });
       throw error;

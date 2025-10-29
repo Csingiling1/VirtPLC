@@ -1,4 +1,6 @@
-# Welcome to your Lovable project
+# VirtPLC - Industrial Factory Monitoring System
+
+A modern, real-time industrial monitoring and control system built with React, TypeScript, and Vite.
 
 ## Project info
 
@@ -32,9 +34,25 @@ cd <YOUR_PROJECT_NAME>
 # Step 3: Install the necessary dependencies.
 npm i
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# Step 4: Configure environment variables
+# The .env file is already included with default settings
+# Update VITE_API_BASE_URL in .env if your backend runs on a different URL
+
+# Step 5: Start the development server with auto-reloading and an instant preview.
 npm run dev
 ```
+
+## Backend Requirements
+
+This application requires a backend API server. The backend should provide:
+
+- **Authentication**: POST /auth/login (JWT-based authentication)
+- **Data API**: GET /api/data/latest, GET /api/data/range, GET /api/data/health
+- **Simulator API**: Full CRUD endpoints for device simulation
+
+Default backend URL: `http://localhost:8080`
+
+To configure a different backend URL, update the `VITE_API_BASE_URL` in the `.env` file.
 
 **Edit a file directly in GitHub**
 

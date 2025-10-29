@@ -1,0 +1,69 @@
+# Data Source Configuration
+# Switch between simulator and real PLC by changing the active profile
+
+---
+# Simulator Configuration (Development/Testing)
+spring:
+  profiles: simulator
+  config:
+    activate:
+      on-profile: simulator
+
+data:
+  source: simulator
+
+simulator:
+  api:
+    url: http://simulator:8080
+  name: VirtPLC Simulator
+
+opcua:
+  client:
+    enabled: false  # Disable OPC-UA client when using simulator API
+
+---
+# PLC Configuration (Production)
+spring:
+  profiles: plc
+  config:
+    activate:
+      on-profile: plc
+
+data:
+  source: plc
+
+plc:
+  name: Production PLC
+  endpoint: opc.tcp://plc-server:4840/production
+
+opcua:
+  client:
+    enabled: true
+    endpoint: opc.tcp://plc-server:4840/production
+    request-timeout: 5000
+    session-timeout: 60000
+
+---
+# Hybrid Configuration (Both simulator and PLC)
+spring:
+  profiles: hybrid
+  config:
+    activate:
+      on-profile: hybrid
+
+data:
+  source: simulator  # Primary source
+
+simulator:
+  api:
+    url: http://simulator:8080
+  name: VirtPLC Simulator
+
+plc:
+  name: Production PLC
+  endpoint: opc.tcp://plc-server:4840/production
+
+opcua:
+  client:
+    enabled: true
+    endpoint: opc.tcp://plc-server:4840/production
