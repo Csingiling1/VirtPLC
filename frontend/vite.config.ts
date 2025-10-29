@@ -4,17 +4,7 @@ import path from "path";
 import { componentTagger } from "lovable-tagger";
 
 // https://vitejs.dev/config/
-<<<<<<< HEAD
-export default defineConfig({
-  plugins: [react()],
-  resolve: {
-    alias: {
-      '@': '/src',
-    },
-  },
-=======
 export default defineConfig(({ mode }) => ({
->>>>>>> feature/Web
   server: {
     host: "::",
     port: 8080,

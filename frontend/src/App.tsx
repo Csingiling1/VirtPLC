@@ -1,10 +1,3 @@
-<<<<<<< HEAD
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import Login from './pages/Login';
-import LiveMetrics from './pages/LiveMetrics';
-import AIAssistant from './pages/AIAssistant';
-import { useState, useEffect } from 'react';
-=======
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -20,72 +13,9 @@ import History from "./pages/History";
 import Signals from "./pages/Signals";
 import Status from "./pages/Status";
 import NotFound from "./pages/NotFound";
->>>>>>> feature/Web
 
 const queryClient = new QueryClient();
 
-<<<<<<< HEAD
-  useEffect(() => {
-    // Check if token exists in localStorage
-    const token = localStorage.getItem('token');
-    if (token) {
-      setIsAuthenticated(true);
-    }
-  }, []);
-
-  const handleLogin = (token: string) => {
-    localStorage.setItem('token', token);
-    setIsAuthenticated(true);
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    setIsAuthenticated(false);
-  };
-
-  return (
-    <Router>
-      <div className="app">
-        {isAuthenticated && (
-          <nav style={{ padding: '1rem', background: '#1a1a1a', marginBottom: '1rem' }}>
-            <a href="/metrics" style={{ marginRight: '1rem', color: '#646cff' }}>Live Metrics</a>
-            <a href="/ai" style={{ marginRight: '1rem', color: '#646cff' }}>AI Assistant</a>
-            <button onClick={handleLogout}>Logout</button>
-          </nav>
-        )}
-
-        <Routes>
-          <Route
-            path="/login"
-            element={
-              isAuthenticated ?
-                <Navigate to="/metrics" /> :
-                <Login onLogin={handleLogin} />
-            }
-          />
-          <Route
-            path="/metrics"
-            element={
-              isAuthenticated ?
-                <LiveMetrics /> :
-                <Navigate to="/login" />
-            }
-          />
-          <Route
-            path="/ai"
-            element={
-              isAuthenticated ?
-                <AIAssistant /> :
-                <Navigate to="/login" />
-            }
-          />
-          <Route path="/" element={<Navigate to="/metrics" />} />
-        </Routes>
-      </div>
-    </Router>
-  );
-}
-=======
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -151,6 +81,5 @@ const App = () => (
     </TooltipProvider>
   </QueryClientProvider>
 );
->>>>>>> feature/Web
 
 export default App;
