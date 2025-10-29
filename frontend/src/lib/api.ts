@@ -121,7 +121,7 @@ export const aiApiFunctions = {
   chat: async (message: string, context?: string) => {
     const response = await aiApi.post('/api/chat/message', {
       message,
-      context: context || 'VirtPLC system assistance',
+      context: context ? { description: context } : null,
     });
     return response.data;
   },

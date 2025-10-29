@@ -34,50 +34,43 @@ async def chat_message(request: ChatRequest):
     Send a chat message and get AI response
     """
     try:
-        db = next(get_db())
-
-        # Create or get session
-        if request.session_id:
-            session = db.query(ChatSession).filter(ChatSession.id == request.session_id).first()
-            if not session:
-                raise HTTPException(status_code=404, detail="Session not found")
-        else:
-            session = ChatSession()
-            db.add(session)
-            db.commit()
-            db.refresh(session)
-
-        # Save user message
-        user_message = ChatMessage(
-            session_id=session.id,
-            role="user",
-            content=request.message,
-            message_metadata=request.context or {}
-        )
-        db.add(user_message)
-
-        # Get AI response
-        if mcp_client.enabled:
-            response = await mcp_client.chat(request.message, context=request.context)
-        else:
-            response = f"Mock response to: {request.message}"
-
-        # Save AI response
-        ai_message = ChatMessage(
-            session_id=session.id,
-            role="assistant",
-            content=response,
-            message_metadata={"model": "mock"}
-        )
-        db.add(ai_message)
-        db.commit()
+        # Use Ollama directly (skip database for now)
+        import httpx
+        
+        # Call Ollama API directly
+        async with httpx.AsyncClient() as client:
+            ollama_response = await client.post(
+                "http://ollama:11434/api/generate",
+                json={
+                    "model": "qwen2:0.5b",
+                    "prompt": f"You are a helpful AI assistant for the VirtPLC system. Context: {request.context or 'General assistance'}\n\nUser: {request.message}\n\nAssistant:",
+                    "stream": False,
+                    "options": {
+                        "temperature": 0.7,
+                        "num_predict": 512
+                    }
+                },
+                timeout=30.0
+            )
+            
+            if ollama_response.status_code == 200:
+                result = ollama_response.json()
+                response = result.get("response", "I apologize, but I couldn't generate a response at this time.")
+            else:
+                response = f"I apologize, but the AI service is currently unavailable. You asked: {request.message}"
 
         return ChatResponse(
             response=response,
-            session_id=session.id,
-            metadata={"tokens_used": len(response.split())}
+            session_id=1,  # Mock session ID
+            metadata={"model": "qwen2:0.5b", "tokens_used": len(response.split())}
         )
     except Exception as e:
+        logger.error(f"Chat error: {e}")
+        return ChatResponse(
+            response="I apologize, but I encountered an error. Please try again later.",
+            session_id=1,
+            metadata={"error": str(e)}
+        )
         logger.error(f"Chat message error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 

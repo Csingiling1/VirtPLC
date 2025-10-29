@@ -33,7 +33,7 @@ class ChatSession(Base):
     __tablename__ = "chat_sessions"
     
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)  # Made nullable for demo
     session_id = Column(String(100), unique=True, nullable=False, index=True)
     title = Column(String(200))
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
