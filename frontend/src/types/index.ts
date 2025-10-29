@@ -50,3 +50,30 @@ export interface SimulatorStatus {
   totalSignals: number;
   lastUpdate: number;
 }
+
+export interface AIChatRequest {
+  message: string;
+  context?: { description: string };
+}
+
+export interface ChartSuggestion {
+  type: string;
+  title: string;
+  description: string;
+  data_source?: string;
+  symbols?: string[];
+  metrics?: string[];
+  time_range?: string;
+}
+
+export interface AIChatResponse {
+  response: string;
+  session_id: number;
+  metadata?: {
+    model: string;
+    tokens_used: number;
+    context_symbols: string[];
+    backend_data_accessed: boolean;
+  };
+  chart_suggestions?: ChartSuggestion[];
+}

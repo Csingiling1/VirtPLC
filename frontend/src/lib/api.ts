@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { SimulatorDevice, SignalConfig, SensorData } from '../types';
+import { SimulatorDevice, SignalConfig, SensorData, AIChatResponse } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
 const AI_API_BASE_URL = import.meta.env.VITE_AI_API_URL || 'http://localhost:3001';
@@ -118,7 +118,7 @@ aiApi.interceptors.response.use(
 
 // AI API functions
 export const aiApiFunctions = {
-  chat: async (message: string, context?: string) => {
+  chat: async (message: string, context?: string): Promise<AIChatResponse> => {
     const response = await aiApi.post('/api/chat/message', {
       message,
       context: context ? { description: context } : null,

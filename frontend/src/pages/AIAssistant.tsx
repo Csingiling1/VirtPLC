@@ -1,23 +1,36 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { aiApiFunctions } from '../lib/api';
 import Layout from '../components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Bot, User, Send } from 'lucide-react';
+import { Bot, User, Send, BarChart3, TrendingUp } from 'lucide-react';
+import { AIChatResponse, ChartSuggestion } from '../types';
 
 interface Message {
     id: string;
     role: 'user' | 'assistant';
     content: string;
     timestamp: Date;
+    chartSuggestions?: ChartSuggestion[];
 }
 
 function AIAssistant() {
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const scrollAreaRef = useRef<HTMLDivElement>(null);
+
+    // Auto-scroll to bottom when messages change
+    useEffect(() => {
+        if (scrollAreaRef.current) {
+            const scrollContainer = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
+            if (scrollContainer) {
+                scrollContainer.scrollTop = scrollContainer.scrollHeight;
+            }
+        }
+    }, [messages]);
 
     const sendMessage = async () => {
         if (!input.trim()) return;
@@ -35,13 +48,14 @@ function AIAssistant() {
 
         try {
             // Call AI service
-            const response = await aiApiFunctions.chat(input, 'VirtPLC system assistance');
+            const response: AIChatResponse = await aiApiFunctions.chat(input, 'VirtPLC system assistance');
 
             const assistantMessage: Message = {
                 id: (Date.now() + 1).toString(),
                 role: 'assistant',
                 content: response.response,
                 timestamp: new Date(),
+                chartSuggestions: response.chart_suggestions
             };
 
             setMessages(prev => [...prev, assistantMessage]);
@@ -64,6 +78,14 @@ function AIAssistant() {
         } finally {
             setIsLoading(false);
         }
+    };
+
+    const handleChartGeneration = (suggestion: ChartSuggestion) => {
+        // For now, just show an alert. In a full implementation, this would:
+        // 1. Navigate to the monitoring page with the chart pre-configured
+        // 2. Open a chart preview modal
+        // 3. Add the chart to a dashboard
+        alert(`Generating chart: ${suggestion.title}\n${suggestion.description}\n\nThis would open a chart preview in the monitoring dashboard.`);
     };
 
     const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -90,7 +112,7 @@ function AIAssistant() {
                     </CardHeader>
                     <CardContent className="flex-1 flex flex-col p-0">
                         {/* Chat Messages */}
-                        <ScrollArea className="flex-1 p-4">
+                        <ScrollArea ref={scrollAreaRef} className="flex-1 p-4">
                             {messages.length === 0 ? (
                                 <div className="flex items-center justify-center h-full text-muted-foreground">
                                     Start a conversation with the AI assistant...
@@ -128,6 +150,26 @@ function AIAssistant() {
                                                 <div className="text-xs opacity-70 mt-2">
                                                     {message.timestamp.toLocaleTimeString()}
                                                 </div>
+                                                {message.chartSuggestions && message.chartSuggestions.length > 0 && (
+                                                    <div className="mt-3 space-y-2">
+                                                        <div className="text-sm font-medium text-primary">Suggested Charts:</div>
+                                                        {message.chartSuggestions.map((suggestion, index) => (
+                                                            <Button
+                                                                key={index}
+                                                                variant="outline"
+                                                                size="sm"
+                                                                onClick={() => handleChartGeneration(suggestion)}
+                                                                className="w-full justify-start text-left h-auto p-3"
+                                                            >
+                                                                <BarChart3 className="h-4 w-4 mr-2 flex-shrink-0" />
+                                                                <div>
+                                                                    <div className="font-medium">{suggestion.title}</div>
+                                                                    <div className="text-xs opacity-70">{suggestion.description}</div>
+                                                                </div>
+                                                            </Button>
+                                                        ))}
+                                                    </div>
+                                                )}
                                             </div>
                                             {message.role === 'user' && (
                                                 <div className="flex-shrink-0">
