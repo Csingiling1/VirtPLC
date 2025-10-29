@@ -61,8 +61,8 @@ const Signals = () => {
                     <CardTitle>{device.name}</CardTitle>
                     <CardDescription>{device.description}</CardDescription>
                   </div>
-                  <Badge variant={device.isActive ? "default" : "secondary"}>
-                    {device.isActive ? 'Active' : 'Inactive'}
+                  <Badge variant={device.is_active ? "default" : "secondary"}>
+                    {device.is_active ? 'Active' : 'Inactive'}
                   </Badge>
                 </div>
               </CardHeader>

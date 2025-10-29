@@ -119,7 +119,7 @@ aiApi.interceptors.response.use(
 // AI API functions
 export const aiApiFunctions = {
   chat: async (message: string, context?: string) => {
-    const response = await aiApi.post('/chat', {
+    const response = await aiApi.post('/api/chat/message', {
       message,
       context: context || 'VirtPLC system assistance',
     });

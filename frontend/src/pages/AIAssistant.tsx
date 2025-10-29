@@ -45,12 +45,19 @@ function AIAssistant() {
             };
 
             setMessages(prev => [...prev, assistantMessage]);
-        } catch (error) {
+        } catch (error: unknown) {
             console.error('AI chat error:', error);
+            let errorContent = 'Sorry, I encountered an error. Please try again later.';
+
+            const err = error as { isNetworkError?: boolean; code?: string; status?: number };
+            if (err.isNetworkError || err.code === 'ERR_BAD_REQUEST' || err.status === 404) {
+                errorContent = 'AI service is currently unavailable. Please ensure the AI service is running and try again.';
+            }
+
             const errorMessage: Message = {
                 id: (Date.now() + 1).toString(),
                 role: 'assistant',
-                content: 'Sorry, I encountered an error. Please try again later.',
+                content: errorContent,
                 timestamp: new Date(),
             };
             setMessages(prev => [...prev, errorMessage]);
@@ -103,8 +110,8 @@ function AIAssistant() {
                                             )}
                                             <div
                                                 className={`max-w-[70%] rounded-lg p-3 ${message.role === 'user'
-                                                        ? 'bg-primary text-primary-foreground'
-                                                        : 'bg-muted'
+                                                    ? 'bg-primary text-primary-foreground'
+                                                    : 'bg-muted'
                                                     }`}
                                             >
                                                 <div className="flex items-center gap-2 mb-1">

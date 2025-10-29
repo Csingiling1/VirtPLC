@@ -39,9 +39,9 @@ export interface SimulatorDevice {
   description: string;
   deviceType: string;
   signals: SignalConfig[];
-  isActive: boolean;
-  createdAt: number;
-  updatedAt: number;
+  is_active: boolean;
+  created_at: number;
+  updated_at: number;
 }
 
 export interface SimulatorStatus {

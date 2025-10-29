@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Layout from '@/components/Layout';
 import { simulatorApi } from '@/lib/api';
 import { SimulatorDevice } from '@/types';
@@ -13,7 +13,7 @@ const Devices = () => {
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
-  const fetchDevices = async () => {
+  const fetchDevices = useCallback(async () => {
     try {
       const data = await simulatorApi.getDevices();
       setDevices(Array.isArray(data) ? data : []);
@@ -28,11 +28,11 @@ const Devices = () => {
       setDevices([]);
       setIsLoading(false);
     }
-  };
+  }, [toast]);
 
   useEffect(() => {
     fetchDevices();
-  }, []);
+  }, [fetchDevices]);
 
   const handleDelete = async (deviceId: string) => {
     try {
@@ -89,8 +89,8 @@ const Devices = () => {
                       <CardDescription className="text-xs">{device.deviceType}</CardDescription>
                     </div>
                   </div>
-                  <Badge variant={device.isActive ? "default" : "secondary"}>
-                    {device.isActive ? 'Active' : 'Inactive'}
+                  <Badge variant={device.is_active ? "default" : "secondary"}>
+                    {device.is_active ? 'Active' : 'Inactive'}
                   </Badge>
                 </div>
               </CardHeader>

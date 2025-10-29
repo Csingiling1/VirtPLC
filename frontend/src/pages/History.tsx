@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Layout from '@/components/Layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { CalendarIcon, Download } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, subDays, startOfDay, endOfDay } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { dataApi } from '@/lib/api';
 import { SensorData } from '@/types';
@@ -14,14 +14,14 @@ import { useToast } from '@/hooks/use-toast';
 
 const History = () => {
   const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
-    from: undefined,
-    to: undefined,
+    from: startOfDay(subDays(new Date(), 1)), // Default to last 24 hours
+    to: endOfDay(new Date()),
   });
   const [historicalData, setHistoricalData] = useState<SensorData[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
-  const handleLoadData = async () => {
+  const handleLoadData = useCallback(async () => {
     if (!dateRange.from || !dateRange.to) {
       toast({
         title: "Error",
@@ -53,7 +53,12 @@ const History = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [dateRange.from, dateRange.to, toast]);
+
+  // Auto-load data on component mount
+  useEffect(() => {
+    handleLoadData();
+  }, [handleLoadData]);
 
   const formatChartData = () => {
     return historicalData.map(data => ({
