@@ -27,4 +27,5 @@ public class SensorData {
     private Double sensor1Value;
     private Boolean sensor2Value;
     private String systemStatus;
+    private Integer quality;
 }

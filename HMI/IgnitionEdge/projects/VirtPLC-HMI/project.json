@@ -1,0 +1,23 @@
+{
+  "title": "VirtPLC HMI",
+  "description": "Enterprise factory monitoring and control system",
+  "version": "1.0.0",
+  "enabled": true,
+  "inheritable": false,
+  "resources": {
+    "views": [
+      "Overview",
+      "MotorControl",
+      "ConveyorControl", 
+      "Alarms",
+      "Trends",
+      "Reports"
+    ],
+    "scripts": [
+      "CommonScripts",
+      "TagHelper",
+      "DatabaseHelper",
+      "AlarmHandler"
+    ]
+  }
+}

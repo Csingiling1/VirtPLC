@@ -1,0 +1,45 @@
+# Factory Simulator Configuration
+
+simulation:
+  update_rate_hz: 10  # Simulation update frequency
+  real_time_factor: 1.0  # 1.0 = real-time, 2.0 = 2x speed, 0.5 = half speed
+  enable_random_faults: true
+  fault_probability: 0.01  # 1% chance per second
+
+motors:
+  - name: Motor1
+    max_speed: 2200.0  # RPM
+    min_speed: 100.0
+    rated_power: 5500.0  # Watts (5.5 kW)
+    rated_voltage: 400.0
+    rated_current: 10.0
+    acceleration: 50.0  # RPM/s
+    deceleration: 100.0
+    initial_target_speed: 1800.0
+    
+  - name: Motor2
+    max_speed: 1800.0
+    min_speed: 100.0
+    rated_power: 3000.0  # 3 kW
+    rated_voltage: 400.0
+    rated_current: 5.5
+    acceleration: 40.0
+    deceleration: 80.0
+    initial_target_speed: 1500.0
+
+conveyors:
+  - name: Conveyor1
+    max_speed: 60.0  # m/min
+    acceleration: 5.0  # m/min/s
+    initial_target_speed: 30.0
+    item_rate: 0.5  # items per second average
+    requires_motor: Motor1  # Interlock dependency
+
+opcua:
+  endpoint: "opc.tcp://0.0.0.0:4840/virtplc/"
+  server_name: "VirtPLC Factory Simulator"
+  namespace: "http://virtplc.simulator"
+
+logging:
+  level: INFO
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"

@@ -1,0 +1,169 @@
+{
+  "custom": {},
+  "params": {},
+  "props": {
+    "defaultSize": {
+      "height": 1080,
+      "width": 1920
+    }
+  },
+  "root": {
+    "children": [
+      {
+        "meta": {
+          "name": "Header"
+        },
+        "position": {
+          "height": 80,
+          "width": 1920,
+          "x": 0,
+          "y": 0
+        },
+        "propConfig": {
+          "props.style.backgroundColor": "#1e3a5f"
+        },
+        "props": {
+          "style": {
+            "backgroundColor": "#1e3a5f"
+          }
+        },
+        "type": "ia.container.flex"
+      },
+      {
+        "meta": {
+          "name": "Navigation"
+        },
+        "position": {
+          "height": 1000,
+          "width": 250,
+          "x": 0,
+          "y": 80
+        },
+        "propConfig": {
+          "props.style.backgroundColor": "#2c3e50"
+        },
+        "props": {
+          "direction": "column",
+          "style": {
+            "backgroundColor": "#2c3e50"
+          }
+        },
+        "type": "ia.container.flex",
+        "children": [
+          {
+            "meta": {
+              "name": "OverviewButton"
+            },
+            "props": {
+              "text": "Overview",
+              "style": {
+                "classes": "nav-button"
+              }
+            },
+            "events": {
+              "component": {
+                "onActionPerformed": {
+                  "script": "system.perspective.navigate('Overview')"
+                }
+              }
+            },
+            "type": "ia.input.button"
+          },
+          {
+            "meta": {
+              "name": "MotorControlButton"
+            },
+            "props": {
+              "text": "Motor Control",
+              "style": {
+                "classes": "nav-button"
+              }
+            },
+            "events": {
+              "component": {
+                "onActionPerformed": {
+                  "script": "system.perspective.navigate('MotorControl')"
+                }
+              }
+            },
+            "type": "ia.input.button"
+          },
+          {
+            "meta": {
+              "name": "ConveyorButton"
+            },
+            "props": {
+              "text": "Conveyor Control",
+              "style": {
+                "classes": "nav-button"
+              }
+            },
+            "events": {
+              "component": {
+                "onActionPerformed": {
+                  "script": "system.perspective.navigate('ConveyorControl')"
+                }
+              }
+            },
+            "type": "ia.input.button"
+          },
+          {
+            "meta": {
+              "name": "AlarmsButton"
+            },
+            "props": {
+              "text": "Alarms",
+              "style": {
+                "classes": "nav-button"
+              }
+            },
+            "events": {
+              "component": {
+                "onActionPerformed": {
+                  "script": "system.perspective.navigate('Alarms')"
+                }
+              }
+            },
+            "type": "ia.input.button"
+          },
+          {
+            "meta": {
+              "name": "TrendsButton"
+            },
+            "props": {
+              "text": "Trends",
+              "style": {
+                "classes": "nav-button"
+              }
+            },
+            "events": {
+              "component": {
+                "onActionPerformed": {
+                  "script": "system.perspective.navigate('Trends')"
+                }
+              }
+            },
+            "type": "ia.input.button"
+          }
+        ]
+      },
+      {
+        "meta": {
+          "name": "MainContent"
+        },
+        "position": {
+          "height": 1000,
+          "width": 1670,
+          "x": 250,
+          "y": 80
+        },
+        "props": {},
+        "type": "ia.container.flex"
+      }
+    ],
+    "meta": {
+      "name": "root"
+    },
+    "type": "ia.container.coord"
+  }
+}

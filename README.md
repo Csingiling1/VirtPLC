@@ -1,92 +1,57 @@
-# VirtPLC - Backend & Frontend
+# VirtPLC - PLC + HMI Control System
 
-**Branch:** `feature/Web` | **Subteam:** Web Services | **Accenture Challenge**
+An Accenture Challenge - Control & Visualization Subteam
 
-This branch contains the Spring Boot backend (OPC-UA server, REST API, JWT auth) and React TypeScript frontend (dashboard, live metrics, HMI integration).
+## Branch: feature/HMI
+
+This branch contains the Ignition Edge HMI dashboard and PLC control logic for the virtual factory.
 
 ## Overview
 
-Data infrastructure providing OPC-UA server, REST APIs, time-series storage, and web dashboard for factory monitoring and control.
+Industrial control dashboard providing real-time monitoring, control, and data logging for factory equipment via OPC-UA.
 
 ## Project Structure
 
 ```
-backend/                # Spring Boot 3 application
-├── src/
-│   ├── main/
-│   │   ├── java/
-│   │   │   └── com/virtplc/
-│   │   │       ├── config/      # Spring configuration
-│   │   │       ├── opcua/       # OPC-UA server (Milo)
-│   │   │       ├── api/         # REST controllers
-│   │   │       ├── service/     # Business logic
-│   │   │       ├── model/       # Data models
-│   │   │       └── security/    # JWT authentication
-│   │   └── resources/
-│   │       └── application.yml  # Configuration
-│   └── test/
-├── pom.xml             # Maven dependencies
-└── Dockerfile
+IgnitionEdge/          # Ignition Edge Gateway files
+├── config/            # Gateway configuration
+├── projects/          # HMI projects
+└── tags/              # Tag definitions
 
-frontend/               # React application
-├── src/
-│   ├── components/     # React components
-│   ├── pages/          # Page components
-│   ├── services/       # API clients
-│   ├── hooks/          # Custom hooks
-│   └── App.tsx         # Main app
-├── package.json
-└── Dockerfile
+PLCLogic/              # PLC control logic
+├── ladder/            # Ladder logic files
+└── structured/        # Structured text programs
 
-docs/                   # Documentation
-├── API.md              # REST API documentation
-├── Setup.md            # Setup instructions
-└── Development.md      # Development guide
+TimeBaseDB/            # TimeBaseDB configuration
+└── config/            # Database and retention policies
+
+Docs/                  # Documentation
+├── Setup.md           # Installation guide
+├── HMI-Design.md      # HMI layout specifications
+├── Tag-Configuration.md  # Tag definitions
+└── Integration.md     # Backend integration guide
 ```
 
 ## Quick Start
 
-### Backend
-
-```bash
-cd backend
-./mvnw spring-boot:run
-```
-
-Access at `http://localhost:8080`
-
-OPC-UA server at `opc.tcp://localhost:4840`
-
-### Frontend
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-Access at `http://localhost:3000`
+1. Install Ignition Edge (maker.inductiveautomation.com)
+2. Follow `Docs/Setup.md` for configuration
+3. Import HMI project from `IgnitionEdge/projects/`
+4. Configure OPC-UA connection to `opc.tcp://backend:4840`
+5. Start TimeBaseDB and configure historian
 
 ## Features
 
-### Backend
-- OPC-UA server (Eclipse Milo)
-- REST API (Spring Boot 3, Java 21)
-- JWT authentication
-- TimeBaseDB integration
-- Real-time data endpoints
-- Historical data queries
-
-### Frontend
-- React 18 + TypeScript
-- Live metrics dashboard
-- HMI iframe embed
-- JWT authentication
-- Chart visualizations
-- Responsive design
+- Real-time equipment monitoring dashboards
+- Interactive control panels (Start/Stop/Reset)
+- Live data visualization with charts
+- Alarm and fault management
+- Historical data trending with TimeBaseDB
+- OPC-UA tag synchronization
 
 ## Documentation
 
-- **API.md** - REST API endpoints and examples
-- **Setup.md** - Installation and configuration
-- **Development.md** - Development guidelines
+- **Setup.md** - Installation and configuration steps
+- **HMI-Design.md** - Dashboard layout and components
+- **Tag-Configuration.md** - Complete tag definitions
+- **Integration.md** - Backend and database integration

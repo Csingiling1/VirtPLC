@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemas>
+  <!-- Motor Telemetry Schema -->
+  <schema name="motor_data">
+    <class name="MotorTelemetry">
+      <field name="timestamp" type="TIMESTAMP" description="Data collection time"/>
+      <field name="equipmentId" type="VARCHAR(50)" description="Motor identifier"/>
+      <field name="speed" type="FLOAT" description="Motor speed in RPM"/>
+      <field name="temperature" type="FLOAT" description="Motor temperature in Celsius"/>
+      <field name="running" type="BOOLEAN" description="Motor run status"/>
+      <field name="fault" type="BOOLEAN" description="Fault indicator"/>
+      <field name="targetSpeed" type="FLOAT" description="Target speed setpoint"/>
+      <field name="current" type="FLOAT" description="Motor current in Amps" nullable="true"/>
+      <field name="voltage" type="FLOAT" description="Motor voltage" nullable="true"/>
+      <field name="power" type="FLOAT" description="Power consumption in kW" nullable="true"/>
+      <field name="vibration" type="FLOAT" description="Vibration level" nullable="true"/>
+    </class>
+  </schema>
+  
+  <!-- Conveyor Data Schema -->
+  <schema name="conveyor_schema">
+    <class name="ConveyorData">
+      <field name="timestamp" type="TIMESTAMP"/>
+      <field name="equipmentId" type="VARCHAR(50)"/>
+      <field name="speed" type="FLOAT" description="Conveyor speed in m/min"/>
+      <field name="running" type="BOOLEAN"/>
+      <field name="itemCount" type="INTEGER" description="Total items processed"/>
+      <field name="emergency" type="BOOLEAN" description="Emergency stop status"/>
+      <field name="itemsPerHour" type="INTEGER" nullable="true"/>
+      <field name="loadPercentage" type="FLOAT" nullable="true"/>
+    </class>
+  </schema>
+  
+  <!-- Alarm and Events Schema -->
+  <schema name="alarm_schema">
+    <class name="AlarmEvent">
+      <field name="timestamp" type="TIMESTAMP"/>
+      <field name="alarmId" type="VARCHAR(100)"/>
+      <field name="equipmentId" type="VARCHAR(50)"/>
+      <field name="alarmType" type="VARCHAR(50)" description="HIGH, CRITICAL, WARNING, INFO"/>
+      <field name="priority" type="INTEGER" description="1=Critical, 5=Low"/>
+      <field name="state" type="VARCHAR(20)" description="ACTIVE, ACKNOWLEDGED, CLEARED"/>
+      <field name="message" type="VARCHAR(500)"/>
+      <field name="value" type="FLOAT" nullable="true" description="Value that triggered alarm"/>
+      <field name="setpoint" type="FLOAT" nullable="true" description="Alarm setpoint"/>
+      <field name="acknowledgedBy" type="VARCHAR(100)" nullable="true"/>
+      <field name="acknowledgedAt" type="TIMESTAMP" nullable="true"/>
+      <field name="clearedAt" type="TIMESTAMP" nullable="true"/>
+    </class>
+  </schema>
+  
+  <!-- AI Predictions Schema -->
+  <schema name="prediction_schema">
+    <class name="AIPrediction">
+      <field name="timestamp" type="TIMESTAMP"/>
+      <field name="predictionId" type="VARCHAR(100)"/>
+      <field name="equipmentId" type="VARCHAR(50)"/>
+      <field name="predictionType" type="VARCHAR(50)" description="ANOMALY, FAILURE, MAINTENANCE"/>
+      <field name="confidence" type="FLOAT" description="Confidence score 0-1"/>
+      <field name="severity" type="VARCHAR(20)" description="LOW, MEDIUM, HIGH, CRITICAL"/>
+      <field name="predictedValue" type="FLOAT" nullable="true"/>
+      <field name="timeToEvent" type="INTEGER" nullable="true" description="Hours until predicted event"/>
+      <field name="recommendation" type="VARCHAR(1000)" nullable="true"/>
+      <field name="modelVersion" type="VARCHAR(50)"/>
+      <field name="features" type="VARCHAR(2000)" nullable="true" description="JSON of features used"/>
+    </class>
+  </schema>
+  
+  <!-- Aggregated Metrics Schema -->
+  <schema name="aggregated_metrics">
+    <class name="AggregatedData">
+      <field name="timestamp" type="TIMESTAMP"/>
+      <field name="equipmentId" type="VARCHAR(50)"/>
+      <field name="metricName" type="VARCHAR(100)"/>
+      <field name="aggregationType" type="VARCHAR(20)" description="AVG, MIN, MAX, SUM, COUNT"/>
+      <field name="windowSize" type="INTEGER" description="Aggregation window in minutes"/>
+      <field name="value" type="FLOAT"/>
+      <field name="sampleCount" type="INTEGER"/>
+    </class>
+  </schema>
+  
+  <!-- System Status Schema -->
+  <schema name="system_status">
+    <class name="SystemStatus">
+      <field name="timestamp" type="TIMESTAMP"/>
+      <field name="systemId" type="VARCHAR(50)"/>
+      <field name="mode" type="INTEGER" description="0=Manual, 1=Auto, 2=Maintenance"/>
+      <field name="emergencyStop" type="BOOLEAN"/>
+      <field name="totalMotorsRunning" type="INTEGER"/>
+      <field name="totalConveyorsRunning" type="INTEGER"/>
+      <field name="activeFaults" type="INTEGER"/>
+      <field name="activeAlarms" type="INTEGER"/>
+      <field name="totalItemsProcessed" type="INTEGER"/>
+      <field name="uptime" type="INTEGER" description="System uptime in seconds"/>
+    </class>
+  </schema>
+</schemas>
