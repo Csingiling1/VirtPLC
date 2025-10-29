@@ -2,13 +2,13 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import axios from 'axios';
 
 interface User {
-    id: string;
+    id: number;
     email: string;
     firstName: string;
     lastName: string;
     role: string;
     company: {
-        id: string;
+        id: number;
         name: string;
         domain: string;
     };

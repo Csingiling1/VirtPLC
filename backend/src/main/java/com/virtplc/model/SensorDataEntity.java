@@ -75,6 +75,6 @@ public class SensorDataEntity {
     private Integer quality;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "company_id", nullable = false)
+    @JoinColumn(name = "company_id")
     private Company company;
 }

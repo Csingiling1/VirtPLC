@@ -1,16 +1,8 @@
 -- Database schema for VirtPLC Backend
--- This script creates all necessary tables for the application
-
--- Drop existing tables if they exist (for development)
-DROP TABLE IF EXISTS users
-CASCADE;
-DROP TABLE IF EXISTS companies
-CASCADE;
-DROP TABLE IF EXISTS sensor_data
-CASCADE;
+-- This script creates all necessary tables for the application if they don't exist
 
 -- Companies table
-CREATE TABLE companies
+CREATE TABLE IF NOT EXISTS companies
 (
     id BIGSERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL UNIQUE,
@@ -24,7 +16,7 @@ CREATE TABLE companies
 );
 
 -- Users table
-CREATE TABLE users
+CREATE TABLE IF NOT EXISTS users
 (
     id BIGSERIAL PRIMARY KEY,
     email VARCHAR(255) NOT NULL UNIQUE,
@@ -39,15 +31,15 @@ CREATE TABLE users
 );
 
 -- Create indexes
-CREATE INDEX idx_users_email ON users (email);
-CREATE INDEX idx_users_company_id ON users (company_id);
-CREATE INDEX idx_companies_domain ON companies (domain);
+CREATE INDEX IF NOT EXISTS idx_users_email ON users (email);
+CREATE INDEX IF NOT EXISTS idx_users_company_id ON users (company_id);
+CREATE INDEX IF NOT EXISTS idx_companies_domain ON companies (domain);
 
 -- Initialize TimescaleDB hypertable for sensor data
 -- This script creates the hypertable for time-series optimization
 
 -- Create the regular table first
-CREATE TABLE sensor_data
+CREATE TABLE IF NOT EXISTS sensor_data
 (
     id BIGSERIAL PRIMARY KEY,
     timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -69,5 +61,5 @@ CREATE TABLE sensor_data
 );
 
 -- Create indexes for common queries
-CREATE INDEX idx_sensor_data_device_timestamp ON sensor_data (device_id, timestamp DESC);
-CREATE INDEX idx_sensor_data_timestamp ON sensor_data (timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_sensor_data_device_timestamp ON sensor_data (device_id, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_sensor_data_timestamp ON sensor_data (timestamp DESC);

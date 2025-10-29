@@ -40,14 +40,17 @@ public class AuthService {
     @Transactional
     public User registerUser(String email, String password, String firstName, String lastName,
             String companyName, String companyDomain) {
+        log.debug("Attempting to register user: {}", email);
         // Check if user already exists
         if (userRepository.findByEmail(email).isPresent()) {
+            log.debug("User already exists: {}", email);
             throw new RuntimeException("User already exists with this email");
         }
 
         // Find or create company
         Company company = companyRepository.findByDomain(companyDomain)
                 .orElseGet(() -> {
+                    log.debug("Creating new company: {} with domain: {}", companyName, companyDomain);
                     Company newCompany = Company.builder()
                             .name(companyName)
                             .domain(companyDomain)
@@ -74,12 +77,22 @@ public class AuthService {
     }
 
     public Optional<User> authenticateUser(String email, String password) {
+        log.debug("Attempting to authenticate user: {}", email);
         Optional<User> userOpt = userRepository.findByEmail(email);
         if (userOpt.isPresent()) {
             User user = userOpt.get();
-            if (passwordEncoder.matches(password, user.getPassword()) && user.isActive()) {
+            log.debug("User found: {}, active: {}", email, user.isActive());
+            boolean passwordMatches = passwordEncoder.matches(password, user.getPassword());
+            log.debug("Password matches: {}", passwordMatches);
+            if (passwordMatches && user.isActive()) {
+                log.debug("Authentication successful for user: {}", email);
                 return Optional.of(user);
+            } else {
+                log.debug("Authentication failed for user: {} - password match: {}, active: {}", email, passwordMatches,
+                        user.isActive());
             }
+        } else {
+            log.debug("User not found: {}", email);
         }
         return Optional.empty();
     }
