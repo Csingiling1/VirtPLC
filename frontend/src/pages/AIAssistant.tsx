@@ -262,11 +262,10 @@ function AIAssistant() {
                                     {conversations.map((conversation) => (
                                         <div
                                             key={conversation.id}
-                                            className={`group relative p-3 rounded-lg cursor-pointer transition-colors ${
-                                                currentConversationId === conversation.id
+                                            className={`group relative p-3 rounded-lg cursor-pointer transition-colors ${currentConversationId === conversation.id
                                                     ? 'bg-gray-100'
                                                     : 'hover:bg-gray-50'
-                                            }`}
+                                                }`}
                                             onClick={() => switchConversation(conversation.id)}
                                         >
                                             <div className="flex items-center justify-between">
@@ -339,16 +338,14 @@ function AIAssistant() {
                                                     </div>
                                                 )}
                                                 <div
-                                                    className={`max-w-2xl rounded-lg px-4 py-3 ${
-                                                        message.role === 'user'
+                                                    className={`max-w-2xl rounded-lg px-4 py-3 ${message.role === 'user'
                                                             ? 'bg-blue-600 text-white'
                                                             : 'bg-white border border-gray-200 text-gray-900'
-                                                    }`}
+                                                        }`}
                                                 >
                                                     <div className="whitespace-pre-wrap">{message.content}</div>
-                                                    <div className={`text-xs mt-2 ${
-                                                        message.role === 'user' ? 'text-blue-100' : 'text-gray-500'
-                                                    }`}>
+                                                    <div className={`text-xs mt-2 ${message.role === 'user' ? 'text-blue-100' : 'text-gray-500'
+                                                        }`}>
                                                         {message.timestamp.toLocaleTimeString()}
                                                     </div>
                                                     {message.chartSuggestions && message.chartSuggestions.length > 0 && (
@@ -392,8 +389,8 @@ function AIAssistant() {
                                                     <div className="flex items-center gap-2">
                                                         <div className="flex space-x-1">
                                                             <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                                                            <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
-                                                            <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+                                                            <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                                                            <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                                                         </div>
                                                         <span className="text-sm text-gray-600">AI is thinking...</span>
                                                     </div>

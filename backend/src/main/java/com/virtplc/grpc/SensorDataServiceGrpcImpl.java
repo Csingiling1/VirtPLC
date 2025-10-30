@@ -65,26 +65,32 @@ public class SensorDataServiceGrpcImpl implements SensorDataService {
     }
 
     /**
-     * Convert a SensorDataEntity to multiple SensorData DTOs (one for each motor/sensor reading)
+     * Convert a SensorDataEntity to multiple SensorData DTOs (one for each
+     * motor/sensor reading)
      */
     private Stream<SensorData> convertEntityToSensorData(SensorDataEntity entity) {
         return Stream.of(
                 createSensorData(entity, "motor1_speed", entity.getMotor1Speed()),
                 createSensorData(entity, "motor1_temp", entity.getMotor1Temp()),
-                createSensorData(entity, "motor1_run", entity.getMotor1Run() != null ? (entity.getMotor1Run() ? 1.0 : 0.0) : null),
-                createSensorData(entity, "motor1_fault", entity.getMotor1Fault() != null ? (entity.getMotor1Fault() ? 1.0 : 0.0) : null),
+                createSensorData(entity, "motor1_run",
+                        entity.getMotor1Run() != null ? (entity.getMotor1Run() ? 1.0 : 0.0) : null),
+                createSensorData(entity, "motor1_fault",
+                        entity.getMotor1Fault() != null ? (entity.getMotor1Fault() ? 1.0 : 0.0) : null),
                 createSensorData(entity, "motor2_speed", entity.getMotor2Speed()),
                 createSensorData(entity, "motor2_temp", entity.getMotor2Temp()),
-                createSensorData(entity, "motor2_run", entity.getMotor2Run() != null ? (entity.getMotor2Run() ? 1.0 : 0.0) : null),
-                createSensorData(entity, "motor2_fault", entity.getMotor2Fault() != null ? (entity.getMotor2Fault() ? 1.0 : 0.0) : null)
-        ).filter(sensorData -> sensorData != null);
+                createSensorData(entity, "motor2_run",
+                        entity.getMotor2Run() != null ? (entity.getMotor2Run() ? 1.0 : 0.0) : null),
+                createSensorData(entity, "motor2_fault",
+                        entity.getMotor2Fault() != null ? (entity.getMotor2Fault() ? 1.0 : 0.0) : null))
+                .filter(sensorData -> sensorData != null);
     }
 
     /**
      * Create a SensorData DTO for a specific sensor reading
      */
     private SensorData createSensorData(SensorDataEntity entity, String sensorId, Double value) {
-        if (value == null) return null;
+        if (value == null)
+            return null;
 
         return SensorData.builder()
                 .sensorId(sensorId)
