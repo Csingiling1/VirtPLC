@@ -13,50 +13,50 @@ metadata:
 spec:
   ingressClassName: nginx
   tls:
-  - hosts:
-    - virtplc.example.com
-    secretName: virtplc-tls
+    - hosts:
+        - virtplc.example.com
+      secretName: virtplc-tls
   rules:
-  - host: virtplc.example.com
-    http:
-      paths:
-      # Global frontend
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: virtplc-global-frontend
-            port:
-              number: 80
-      # Global AI service
-      - path: /api/ai
-        pathType: Prefix
-        backend:
-          service:
-            name: virtplc-global-ai-service
-            port:
-              number: 8000
-      # Factory-specific backends (dynamic routing based on path)
-      - path: /api/factory/([^/]+)(/.*)?
-        pathType: Prefix
-        backend:
-          service:
-            name: virtplc-factory-backend  # This will be templated per factory
-            port:
-              number: 8080
-      # Monitoring
-      - path: /monitoring
-        pathType: Prefix
-        backend:
-          service:
-            name: virtplc-global-grafana
-            port:
-              number: 80
-      # Prometheus metrics (internal)
-      - path: /metrics
-        pathType: Prefix
-        backend:
-          service:
-            name: virtplc-global-prometheus-server
-            port:
-              number: 9090
+    - host: virtplc.example.com
+      http:
+        paths:
+          # Global frontend
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: virtplc-global-frontend
+                port:
+                  number: 80
+          # Global AI service
+          - path: /api/ai
+            pathType: Prefix
+            backend:
+              service:
+                name: virtplc-global-ai-service
+                port:
+                  number: 8000
+          # Factory-specific backends (dynamic routing based on path)
+          - path: /api/factory/([^/]+)(/.*)?
+            pathType: Prefix
+            backend:
+              service:
+                name: virtplc-factory-backend # This will be templated per factory
+                port:
+                  number: 8080
+          # Monitoring
+          - path: /monitoring
+            pathType: Prefix
+            backend:
+              service:
+                name: virtplc-global-grafana
+                port:
+                  number: 80
+          # Prometheus metrics (internal)
+          - path: /metrics
+            pathType: Prefix
+            backend:
+              service:
+                name: virtplc-global-prometheus-server
+                port:
+                  number: 9090

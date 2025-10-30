@@ -44,7 +44,7 @@ backend:
     - name: FACTORY_NAME
       value: "{{ .Values.factory.name }}"
     - name: POSTGRES_HOST
-      value: "{{ include \"virtplc-factory.postgresql.fullname\" . }}"
+      value: '{{ include "virtplc-factory.postgresql.fullname" . }}'
     - name: POSTGRES_PORT
       value: "5432"
     - name: POSTGRES_DB
@@ -54,7 +54,7 @@ backend:
     - name: POSTGRES_PASSWORD
       valueFrom:
         secretKeyRef:
-          name: "{{ include \"virtplc-factory.postgresql.fullname\" . }}"
+          name: '{{ include "virtplc-factory.postgresql.fullname" . }}'
           key: password
 
   config:

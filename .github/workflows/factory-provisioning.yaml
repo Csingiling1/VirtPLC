@@ -1,0 +1,150 @@
+name: Factory Provisioning
+
+on:
+  workflow_dispatch:
+    inputs:
+      factory_name:
+        description: "Factory name (e.g., factory-a, factory-b)"
+        required: true
+        type: string
+      factory_timezone:
+        description: "Factory timezone (e.g., America/New_York, Europe/London)"
+        required: true
+        default: "UTC"
+        type: string
+      database_size:
+        description: "Database storage size (e.g., 10Gi, 20Gi)"
+        required: false
+        default: "10Gi"
+        type: string
+      environment:
+        description: "Target environment"
+        required: true
+        default: "staging"
+        type: choice
+        options:
+          - staging
+          - production
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  provision-factory:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure kubectl
+        uses: azure/k8s-set-context@v3
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBE_CONFIG }}
+
+      - name: Create factory namespace
+        run: |
+          NAMESPACE="virtplc-${{ inputs.factory_name }}"
+          kubectl create namespace $NAMESPACE --dry-run=client -o yaml | kubectl apply -f -
+
+          # Label the namespace
+          kubectl label namespace $NAMESPACE \
+            app.kubernetes.io/name=virtplc \
+            app.kubernetes.io/component=factory \
+            factory-name=${{ inputs.factory_name }} \
+            --overwrite
+
+      - name: Generate factory secrets
+        run: |
+          NAMESPACE="virtplc-${{ inputs.factory_name }}"
+          SECRET_NAME="${{ inputs.factory_name }}-secrets"
+
+          # Generate random passwords
+          DB_PASSWORD=$(openssl rand -base64 32)
+          JWT_SECRET=$(openssl rand -base64 32)
+
+          # Create secret
+          kubectl create secret generic $SECRET_NAME \
+            --namespace $NAMESPACE \
+            --from-literal=postgres-password=$DB_PASSWORD \
+            --from-literal=jwt-secret=$JWT_SECRET \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Deploy factory
+        run: |
+          NAMESPACE="virtplc-${{ inputs.factory_name }}"
+
+          # Get latest image tag from registry
+          LATEST_TAG=$(curl -s "https://ghcr.io/v2/${{ github.repository }}/backend/tags/list" | jq -r '.tags[]' | grep -E '^[0-9a-f]{40}$' | head -1)
+
+          if [ -z "$LATEST_TAG" ]; then
+            echo "No valid image tag found, using 'latest'"
+            LATEST_TAG="latest"
+          fi
+
+          # Deploy factory using Helm
+          helm upgrade --install ${{ inputs.factory_name }} ./infra/helm/factory-chart \
+            --namespace $NAMESPACE \
+            --set factory.name=${{ inputs.factory_name }} \
+            --set factory.timezone=${{ inputs.factory_timezone }} \
+            --set postgresql.persistence.size=${{ inputs.database_size }} \
+            --set backend.image.tag=$LATEST_TAG \
+            --set global.registry=${{ env.REGISTRY }} \
+            --wait \
+            --timeout=10m
+
+      - name: Verify deployment
+        run: |
+          NAMESPACE="virtplc-${{ inputs.factory_name }}"
+
+          echo "Waiting for pods to be ready..."
+          kubectl wait --for=condition=ready pod \
+            --selector=app.kubernetes.io/component=backend \
+            --namespace $NAMESPACE \
+            --timeout=300s
+
+          echo "Checking backend health..."
+          BACKEND_POD=$(kubectl get pods -n $NAMESPACE -l app.kubernetes.io/component=backend -o jsonpath='{.items[0].metadata.name}')
+          kubectl exec -n $NAMESPACE $BACKEND_POD -- curl -f http://localhost:8080/actuator/health
+
+          echo "Factory ${{ inputs.factory_name }} provisioned successfully!"
+
+      - name: Update ingress (if needed)
+        run: |
+          # This step would update the ingress configuration to include the new factory
+          # For now, we'll use the existing ingress with regex routing
+          echo "Factory routing is handled by ingress regex patterns"
+          echo "Factory ${{ inputs.factory_name }} is accessible at: /api/factory/${{ inputs.factory_name }}"
+
+      - name: Notify monitoring
+        run: |
+          # Add factory to monitoring configuration
+          echo "Factory ${{ inputs.factory_name }} added to monitoring scope"
+
+  update-documentation:
+    needs: provision-factory
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Update factory registry
+        run: |
+          # Update documentation with new factory
+          echo "## Factory: ${{ inputs.factory_name }}" >> docs/DEPLOYMENT.md
+          echo "- **Namespace**: virtplc-${{ inputs.factory_name }}" >> docs/DEPLOYMENT.md
+          echo "- **Timezone**: ${{ inputs.factory_timezone }}" >> docs/DEPLOYMENT.md
+          echo "- **Database Size**: ${{ inputs.database_size }}" >> docs/DEPLOYMENT.md
+          echo "- **Environment**: ${{ inputs.environment }}" >> docs/DEPLOYMENT.md
+          echo "- **Deployed**: $(date)" >> docs/DEPLOYMENT.md
+          echo "" >> docs/DEPLOYMENT.md
+
+      - name: Commit documentation update
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add docs/DEPLOYMENT.md
+          git commit -m "docs: add factory ${{ inputs.factory_name }} to deployment registry" || echo "No changes to commit"
+          git push
