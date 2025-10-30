@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import axios from 'axios';
+import { api } from '@/lib/api';
 
 interface User {
     id: number;
@@ -62,7 +62,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     const validateToken = async (token: string) => {
         try {
-            const response = await axios.post('/api/auth/validate', {}, {
+            const response = await api.post('/api/auth/validate', {}, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             setUser(response.data.user);
@@ -75,14 +75,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     const login = async (email: string, password: string) => {
         try {
-            const response = await axios.post('/api/auth/login', { email, password });
+            const response = await api.post('/api/auth/login', { email, password });
             const { token, user: userData } = response.data;
 
             localStorage.setItem('authToken', token);
             setUser(userData);
 
             // Set default axios header for future requests
-            axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+            api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
         } catch (error) {
             throw new Error('Login failed. Please check your credentials.');
         }
@@ -90,14 +90,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     const register = async (userData: RegisterData) => {
         try {
-            const response = await axios.post('/api/auth/register', userData);
+            const response = await api.post('/api/auth/register', userData);
             const { token, user: newUser } = response.data;
 
             localStorage.setItem('authToken', token);
             setUser(newUser);
 
             // Set default axios header for future requests
-            axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+            api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
         } catch (error) {
             throw new Error('Registration failed. Please try again.');
         }
@@ -105,7 +105,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     const logout = () => {
         localStorage.removeItem('authToken');
-        delete axios.defaults.headers.common['Authorization'];
+        delete api.defaults.headers.common['Authorization'];
         setUser(null);
     };
 

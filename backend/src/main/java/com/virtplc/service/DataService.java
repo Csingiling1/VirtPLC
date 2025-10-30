@@ -43,7 +43,7 @@ public class DataService {
     @Transactional
     public SensorData getLatestData(Company company) {
         log.debug("Fetching latest sensor data from: {} for company: {}", dataSourceService.getDataSourceName(),
-                company.getName());
+                company != null ? company.getName() : "all");
 
         SensorData sensorData;
 
@@ -97,13 +97,15 @@ public class DataService {
         }
 
         // Persist to TimescaleDB
-        try {
-            SensorDataEntity entity = convertToEntity(sensorData, company);
-            sensorDataRepository.save(entity);
-            log.debug("Persisted sensor data to TimescaleDB: {} for company: {}", entity.getTimestamp(),
-                    company.getName());
-        } catch (Exception e) {
-            log.error("Failed to persist sensor data to TimescaleDB", e);
+        if (company != null) {
+            try {
+                SensorDataEntity entity = convertToEntity(sensorData, company);
+                sensorDataRepository.save(entity);
+                log.debug("Persisted sensor data to TimescaleDB: {} for company: {}", entity.getTimestamp(),
+                        company.getName());
+            } catch (Exception e) {
+                log.error("Failed to persist sensor data to TimescaleDB", e);
+            }
         }
 
         return sensorData;

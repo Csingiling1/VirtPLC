@@ -10,6 +10,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.http.HttpMethod;
 
 @Configuration
 @EnableWebSecurity
@@ -26,10 +27,13 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(authz -> authz
                         // Public endpoints
+                        .requestMatchers(HttpMethod.OPTIONS).permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/actuator/**").permitAll()
                         .requestMatchers("/health").permitAll()
                         .requestMatchers("/api/data/health").permitAll()
+                        .requestMatchers(HttpMethod.OPTIONS, "/api/data/latest").permitAll()
+                        .requestMatchers("/api/data/latest").permitAll()
 
                         // Protected endpoints
                         .anyRequest().authenticated())

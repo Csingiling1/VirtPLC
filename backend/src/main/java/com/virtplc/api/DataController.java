@@ -32,13 +32,8 @@ public class DataController {
     public ResponseEntity<SensorData> getLatestData(HttpServletRequest request) {
         log.debug("GET /api/data/latest");
 
-        Company company = getCompanyFromRequest(request);
-        if (company == null) {
-            return ResponseEntity.badRequest().build();
-        }
-
-        SensorData data = dataService.getLatestData(company);
-        return ResponseEntity.ok(data);
+        SensorData sensorData = dataService.getLatestData(null);
+        return ResponseEntity.ok(sensorData);
     }
 
     /**

@@ -46,7 +46,7 @@ public class User {
     @Column
     private LocalDateTime updatedAt;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "company_id", nullable = false)
     private Company company;
 
