@@ -1,0 +1,126 @@
+# Default values for virtplc-factory chart
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# Factory-specific configuration
+factory:
+  name: "default"
+  id: "factory-001"
+
+# Backend configuration
+backend:
+  image:
+    repository: virtplc/backend
+    tag: "latest"
+    pullPolicy: IfNotPresent
+
+  replicaCount: 2
+
+  service:
+    type: ClusterIP
+    port: 8080
+    targetPort: 8080
+
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 500m
+      memory: 512Mi
+
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+  env:
+    - name: SPRING_PROFILES_ACTIVE
+      value: "k8s"
+    - name: FACTORY_ID
+      value: "{{ .Values.factory.id }}"
+    - name: FACTORY_NAME
+      value: "{{ .Values.factory.name }}"
+    - name: POSTGRES_HOST
+      value: "{{ include \"virtplc-factory.postgresql.fullname\" . }}"
+    - name: POSTGRES_PORT
+      value: "5432"
+    - name: POSTGRES_DB
+      value: "{{ .Values.postgresql.auth.database }}"
+    - name: POSTGRES_USER
+      value: "{{ .Values.postgresql.auth.username }}"
+    - name: POSTGRES_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: "{{ include \"virtplc-factory.postgresql.fullname\" . }}"
+          key: password
+
+  config:
+    cors:
+      allowedOrigins: "https://{{ .Values.global.domain }}"
+    logging:
+      level: "INFO"
+
+# PostgreSQL configuration
+postgresql:
+  enabled: true
+  auth:
+    postgresPassword: "changeme"
+    username: "virtplc"
+    password: "changeme"
+    database: "virtplc_factory"
+
+  architecture: standalone
+
+  primary:
+    persistence:
+      enabled: true
+      size: 10Gi
+      storageClass: "local-storage"
+
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 250m
+        memory: 256Mi
+
+    initdb:
+      scripts:
+        init.sql: |
+          CREATE EXTENSION IF NOT EXISTS timescaledb;
+          CREATE SCHEMA IF NOT EXISTS factory_{{ .Values.factory.id | replace "-" "_" }};
+          GRANT ALL PRIVILEGES ON SCHEMA factory_{{ .Values.factory.id | replace "-" "_" }} TO {{ .Values.postgresql.auth.username }};
+
+# Global configuration (passed from parent chart)
+global:
+  domain: "virtplc.local"
+  registry: "docker.io"
+
+# Service account configuration
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# Pod security context
+podSecurityContext:
+  fsGroup: 1001
+
+# Security context
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1001
+  runAsGroup: 1001
+
+# Node selector
+nodeSelector: {}
+
+# Tolerations
+tolerations: []
+
+# Affinity
+affinity: {}

@@ -1,0 +1,22 @@
+apiVersion: v2
+name: virtplc-factory
+description: VirtPLC Factory Deployment Chart
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+
+keywords:
+  - virtplc
+  - factory
+  - iot
+  - manufacturing
+
+maintainers:
+  - name: VirtPLC Team
+    email: team@virtplc.local
+
+dependencies:
+  - name: postgresql
+    version: "12.1.6"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: postgresql.enabled
