@@ -1,8 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { X, Download, Maximize2, Code, Settings } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
+import { X, Download, Maximize2, Code, Settings, Play, Image } from 'lucide-react';
 import { ChartSuggestion } from '../types';
 import { dataApi } from '../lib/api';
 
@@ -21,6 +23,10 @@ const AIChart: React.FC<AIChartProps> = ({ suggestion, onClose }) => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [showCustomization, setShowCustomization] = useState(false);
+    const [showMaximize, setShowMaximize] = useState(false);
+    const [showCodeEditor, setShowCodeEditor] = useState(false);
+    const [editableCode, setEditableCode] = useState('');
+    const chartRef = useRef<HTMLDivElement>(null);
     const [chartConfig, setChartConfig] = useState({
         showGrid: true,
         showTooltip: true,
@@ -173,31 +179,23 @@ const AIChart: React.FC<AIChartProps> = ({ suggestion, onClose }) => {
             // Fallback: try to render based on available data
             if (chartData.length > 0 && Object.keys(chartData[0]).length > 1) {
                 // Default to line chart if we have data
-                return (
-                    <ResponsiveContainer width="100%" height={chartConfig.height}>
+                chartCode = `
+                    <ResponsiveContainer width="100%" height={height}>
                         <LineChart data={chartData}>
-                            {chartConfig.showGrid && <CartesianGrid strokeDasharray="3 3" />}
+                            {showGrid && <CartesianGrid strokeDasharray="3 3" />}
                             <XAxis dataKey="timestamp" fontSize={12} tick={{ fontSize: 10 }} />
                             <YAxis fontSize={12} />
-                            {chartConfig.showTooltip && <Tooltip />}
-                            {Object.keys(chartData[0])
-                                .filter(key => key !== 'timestamp')
-                                .slice(0, 3) // Limit to 3 lines for readability
-                                .map((key, index) => (
-                                    <Line
-                                        key={key}
-                                        type="monotone"
-                                        dataKey={key}
-                                        stroke={chartConfig.colors[index % chartConfig.colors.length]}
-                                        strokeWidth={2}
-                                        name={key}
-                                    />
-                                ))}
+                            {showTooltip && <Tooltip />}
+                            ${Object.keys(chartData[0])
+                        .filter(key => key !== 'timestamp')
+                        .slice(0, 3) // Limit to 3 lines for readability
+                        .map((key, index) => `<Line key="${key}" type="monotone" dataKey="${key}" stroke="${chartConfig.colors[index % chartConfig.colors.length]}" strokeWidth={2} name="${key}" />`)
+                        .join('\n                            ')}
                         </LineChart>
-                    </ResponsiveContainer>
-                );
+                    </ResponsiveContainer>`;
+            } else {
+                chartCode = `// No data available for chart\nreturn <div className="flex items-center justify-center h-[400px] text-muted-foreground">No data available for chart</div>;`;
             }
-            return `// No data available for chart\nreturn <div className="flex items-center justify-center h-[400px] text-muted-foreground">No data available for chart</div>;`;
         }
 
         const reactCode = `import React, { useState, useEffect } from 'react';
@@ -277,6 +275,67 @@ export default ${componentName};
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
     }, [generateReactCode, suggestion.title]);
+
+    const downloadPNG = useCallback(async () => {
+        if (!chartRef.current) return;
+
+        try {
+            // Dynamic import to avoid bundle size issues
+            const html2canvas = (await import('html2canvas')).default;
+            const canvas = await html2canvas(chartRef.current, {
+                backgroundColor: 'white',
+                scale: 2, // Higher resolution
+                useCORS: true
+            });
+
+            const link = document.createElement('a');
+            link.download = `${suggestion.title.replace(/\s+/g, '_')}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        } catch (error) {
+            console.error('Failed to download PNG:', error);
+        }
+    }, [suggestion.title]);
+
+    const openCodeEditor = useCallback(() => {
+        const code = generateReactCode();
+        setEditableCode(code);
+        setShowCodeEditor(true);
+    }, [generateReactCode]);
+
+    const runEditedCode = useCallback(() => {
+        // Basic security: prevent dangerous operations
+        const dangerousPatterns = [
+            /eval\s*\(/g,
+            /Function\s*\(/g,
+            /setTimeout\s*\(/g,
+            /setInterval\s*\(/g,
+            /fetch\s*\(/g,
+            /XMLHttpRequest/g,
+            /import\s*\(/g,
+            /require\s*\(/g,
+            /process\./g,
+            /window\./g,
+            /document\./g,
+            /localStorage/g,
+            /sessionStorage/g,
+            /console\./g,
+            /alert\s*\(/g,
+            /prompt\s*\(/g,
+            /confirm\s*\(/g
+        ];
+
+        const hasDangerousCode = dangerousPatterns.some(pattern => pattern.test(editableCode));
+
+        if (hasDangerousCode) {
+            alert('Code contains potentially dangerous operations that are not allowed for security reasons.');
+            return;
+        }
+
+        // For now, just show a preview message
+        // In a real implementation, you might use react-live or a code sandbox
+        alert('Code preview: This would render the edited chart component. Full implementation would require a secure code execution environment.');
+    }, [editableCode]);
 
     const loadChartData = useCallback(async () => {
         try {
@@ -503,81 +562,126 @@ export default ${componentName};
     }
 
     return (
-        <Card className="w-full">
-            <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                    <CardTitle className="text-sm">{suggestion.title}</CardTitle>
-                    <div className="flex gap-1">
-                        <Button variant="ghost" size="sm" onClick={() => setShowCustomization(!showCustomization)} title="Customize Chart">
-                            <Settings className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="sm" onClick={downloadCode} title="Download React Code">
-                            <Code className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="sm">
-                            <Download className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="sm">
-                            <Maximize2 className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="sm" onClick={onClose}>
-                            <X className="h-4 w-4" />
-                        </Button>
-                    </div>
-                </div>
-                <p className="text-xs text-muted-foreground">{suggestion.description}</p>
-            </CardHeader>
-            <CardContent>
-                {renderChart()}
-                {showCustomization && (
-                    <div className="mt-4 p-4 border-t space-y-4">
-                        <h4 className="text-sm font-medium">Chart Customization</h4>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <label className="text-xs font-medium">Height (px)</label>
-                                <input
-                                    type="number"
-                                    value={chartConfig.height}
-                                    onChange={(e) => setChartConfig(prev => ({ ...prev, height: parseInt(e.target.value) || 300 }))}
-                                    className="w-full px-2 py-1 text-sm border rounded"
-                                    min="200"
-                                    max="600"
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <label className="text-xs font-medium">Library</label>
-                                <select
-                                    value={chartConfig.library}
-                                    onChange={(e) => setChartConfig(prev => ({ ...prev, library: e.target.value as 'recharts' | 'chartjs' }))}
-                                    className="w-full px-2 py-1 text-sm border rounded"
-                                >
-                                    <option value="recharts">Recharts</option>
-                                    <option value="chartjs">Chart.js</option>
-                                </select>
-                            </div>
-                            <div className="space-y-2 col-span-2">
-                                <label className="flex items-center space-x-2 text-xs">
-                                    <input
-                                        type="checkbox"
-                                        checked={chartConfig.showGrid}
-                                        onChange={(e) => setChartConfig(prev => ({ ...prev, showGrid: e.target.checked }))}
-                                    />
-                                    <span>Show Grid</span>
-                                </label>
-                                <label className="flex items-center space-x-2 text-xs">
-                                    <input
-                                        type="checkbox"
-                                        checked={chartConfig.showTooltip}
-                                        onChange={(e) => setChartConfig(prev => ({ ...prev, showTooltip: e.target.checked }))}
-                                    />
-                                    <span>Show Tooltip</span>
-                                </label>
-                            </div>
+        <>
+            <Card className="w-full">
+                <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                        <CardTitle className="text-sm">{suggestion.title}</CardTitle>
+                        <div className="flex gap-1">
+                            <Button variant="ghost" size="sm" onClick={() => setShowCustomization(!showCustomization)} title="Customize Chart">
+                                <Settings className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={downloadCode} title="Download React Code">
+                                <Code className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={downloadPNG} title="Download as PNG">
+                                <Image className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={() => setShowMaximize(true)} title="Maximize Chart">
+                                <Maximize2 className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={openCodeEditor} title="Edit Code">
+                                <Play className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={onClose}>
+                                <X className="h-4 w-4" />
+                            </Button>
                         </div>
                     </div>
-                )}
-            </CardContent>
-        </Card>
+                    <p className="text-xs text-muted-foreground">{suggestion.description}</p>
+                </CardHeader>
+                <CardContent>
+                    <div ref={chartRef}>
+                        {renderChart()}
+                    </div>
+                    {showCustomization && (
+                        <div className="mt-4 p-4 border-t space-y-4">
+                            <h4 className="text-sm font-medium">Chart Customization</h4>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <label className="text-xs font-medium">Height (px)</label>
+                                    <input
+                                        type="number"
+                                        value={chartConfig.height}
+                                        onChange={(e) => setChartConfig(prev => ({ ...prev, height: parseInt(e.target.value) || 300 }))}
+                                        className="w-full px-2 py-1 text-sm border rounded"
+                                        min="200"
+                                        max="600"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-xs font-medium">Library</label>
+                                    <select
+                                        value={chartConfig.library}
+                                        onChange={(e) => setChartConfig(prev => ({ ...prev, library: e.target.value as 'recharts' | 'chartjs' }))}
+                                        className="w-full px-2 py-1 text-sm border rounded"
+                                    >
+                                        <option value="recharts">Recharts</option>
+                                        <option value="chartjs">Chart.js</option>
+                                    </select>
+                                </div>
+                                <div className="space-y-2 col-span-2">
+                                    <label className="flex items-center space-x-2 text-xs">
+                                        <input
+                                            type="checkbox"
+                                            checked={chartConfig.showGrid}
+                                            onChange={(e) => setChartConfig(prev => ({ ...prev, showGrid: e.target.checked }))}
+                                        />
+                                        <span>Show Grid</span>
+                                    </label>
+                                    <label className="flex items-center space-x-2 text-xs">
+                                        <input
+                                            type="checkbox"
+                                            checked={chartConfig.showTooltip}
+                                            onChange={(e) => setChartConfig(prev => ({ ...prev, showTooltip: e.target.checked }))}
+                                        />
+                                        <span>Show Tooltip</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+
+            {/* Maximize Modal */}
+            <Dialog open={showMaximize} onOpenChange={setShowMaximize}>
+                <DialogContent className="max-w-6xl max-h-[90vh] overflow-auto">
+                    <DialogHeader>
+                        <DialogTitle>{suggestion.title}</DialogTitle>
+                    </DialogHeader>
+                    <div className="w-full h-[70vh]" ref={chartRef}>
+                        {renderChart()}
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Code Editor Modal */}
+            <Dialog open={showCodeEditor} onOpenChange={setShowCodeEditor}>
+                <DialogContent className="max-w-4xl max-h-[90vh]">
+                    <DialogHeader>
+                        <DialogTitle>Edit Chart Code</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                        <Textarea
+                            value={editableCode}
+                            onChange={(e) => setEditableCode(e.target.value)}
+                            className="min-h-[400px] font-mono text-sm"
+                            placeholder="Edit your React code here..."
+                        />
+                        <div className="flex gap-2">
+                            <Button onClick={runEditedCode} className="flex items-center gap-2">
+                                <Play className="h-4 w-4" />
+                                Run Code
+                            </Button>
+                            <Button variant="outline" onClick={() => setEditableCode(generateReactCode())}>
+                                Reset
+                            </Button>
+                        </div>
+                    </div>
+                </DialogContent>
+            </Dialog>
+        </>
     );
 };
 

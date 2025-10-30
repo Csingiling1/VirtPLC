@@ -167,6 +167,15 @@ Assistant:"""
                     "metrics": ["temperature", "vibration", "current"],
                     "time_range": "24h"
                 })
+                chart_suggestions.append({
+                    "type": "bar_chart",
+                    "title": "Motor Status Comparison",
+                    "description": "Bar chart comparing current motor statuses",
+                    "data_source": "latest_readings",
+                    "symbols": ["Motor1", "Motor2"],
+                    "metrics": ["run", "fault"],
+                    "time_range": "current"
+                })
             elif 'sensor' in message_lower:
                 chart_suggestions.append({
                     "type": "line_chart", 
@@ -176,6 +185,14 @@ Assistant:"""
                     "symbols": ["Sensor1", "Sensor2"],
                     "time_range": "24h"
                 })
+                chart_suggestions.append({
+                    "type": "pie_chart",
+                    "title": "Sensor Distribution",
+                    "description": "Pie chart showing sensor value distribution",
+                    "data_source": "latest_readings",
+                    "symbols": ["Sensor1", "Sensor2"],
+                    "time_range": "current"
+                })
         elif any(keyword in message_lower for keyword in ['how', 'what', 'status', 'performance', 'trending']):
             # Suggest charts for analytical questions
             chart_suggestions.append({
@@ -184,6 +201,16 @@ Assistant:"""
                 "description": "Overview of all equipment current status",
                 "data_source": "latest_readings"
             })
+            if 'performance' in message_lower:
+                chart_suggestions.append({
+                    "type": "bar_chart",
+                    "title": "Performance Metrics",
+                    "description": "Bar chart of key performance indicators",
+                    "data_source": "latest_readings",
+                    "symbols": ["Motor1", "Motor2", "Conveyor1"],
+                    "metrics": ["speed", "efficiency"],
+                    "time_range": "current"
+                })
 
         return ChatResponse(
             response=response,
