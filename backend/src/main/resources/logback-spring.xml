@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <!-- Console appender for development -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- JSON appender for production/aggregation -->
+    <appender name="JSON_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>logs/virtplc-backend.json</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>logs/virtplc-backend.%d{yyyy-MM-dd}.%i.json</fileNamePattern>
+            <maxFileSize>100MB</maxFileSize>
+            <maxHistory>30</maxHistory>
+            <totalSizeCap>3GB</totalSizeCap>
+        </rollingPolicy>
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <customFields>{"service":"virtplc-backend","version":"1.0.0"}</customFields>
+        </encoder>
+    </appender>
+
+    <!-- Error file appender -->
+    <appender name="ERROR_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>logs/virtplc-backend-error.log</file>
+        <filter class="ch.qos.logback.classic.filter.LevelFilter">
+            <level>ERROR</level>
+            <onMatch>ACCEPT</onMatch>
+            <onMismatch>DENY</onMismatch>
+        </filter>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>logs/virtplc-backend-error.%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+            <maxFileSize>50MB</maxFileSize>
+            <maxHistory>30</maxHistory>
+            <totalSizeCap>1GB</totalSizeCap>
+        </rollingPolicy>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n%xException</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Async appenders for better performance -->
+    <appender name="ASYNC_JSON" class="ch.qos.logback.classic.AsyncAppender">
+        <appender-ref ref="JSON_FILE" />
+        <queueSize>512</queueSize>
+        <discardingThreshold>20</discardingThreshold>
+    </appender>
+
+    <appender name="ASYNC_ERROR" class="ch.qos.logback.classic.AsyncAppender">
+        <appender-ref ref="ERROR_FILE" />
+        <queueSize>256</queueSize>
+        <discardingThreshold>20</discardingThreshold>
+    </appender>
+
+    <!-- Root logger -->
+    <root level="INFO">
+        <appender-ref ref="CONSOLE" />
+        <appender-ref ref="ASYNC_JSON" />
+        <appender-ref ref="ASYNC_ERROR" />
+    </root>
+
+    <!-- Application specific loggers -->
+    <logger name="com.virtplc" level="DEBUG" additivity="false">
+        <appender-ref ref="CONSOLE" />
+        <appender-ref ref="ASYNC_JSON" />
+        <appender-ref ref="ASYNC_ERROR" />
+    </logger>
+
+    <!-- WebSocket logging -->
+    <logger name="com.virtplc.websocket" level="INFO" additivity="false">
+        <appender-ref ref="CONSOLE" />
+        <appender-ref ref="ASYNC_JSON" />
+        <appender-ref ref="ASYNC_ERROR" />
+    </logger>
+
+    <!-- gRPC logging -->
+    <logger name="com.virtplc.grpc" level="INFO" additivity="false">
+        <appender-ref ref="CONSOLE" />
+        <appender-ref ref="ASYNC_JSON" />
+        <appender-ref ref="ASYNC_ERROR" />
+    </logger>
+
+    <!-- Security logging -->
+    <logger name="com.virtplc.security" level="INFO" additivity="false">
+        <appender-ref ref="CONSOLE" />
+        <appender-ref ref="ASYNC_JSON" />
+        <appender-ref ref="ASYNC_ERROR" />
+    </logger>
+
+    <!-- Database logging -->
+    <logger name="org.hibernate.SQL" level="DEBUG" additivity="false">
+        <appender-ref ref="ASYNC_JSON" />
+    </logger>
+
+    <logger name="org.hibernate.type.descriptor.sql.BasicBinder" level="TRACE" additivity="false">
+        <appender-ref ref="ASYNC_JSON" />
+    </logger>
+
+    <!-- External library logging -->
+    <logger name="org.springframework" level="INFO" />
+    <logger name="org.eclipse.milo" level="INFO" />
+    <logger name="reactor" level="INFO" />
+    <logger name="io.grpc" level="INFO" />
+
+    <!-- Reduce noise from common libraries -->
+    <logger name="org.springframework.web.socket" level="WARN" />
+    <logger name="org.springframework.security" level="INFO" />
+</configuration>

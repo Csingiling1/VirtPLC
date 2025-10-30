@@ -1,0 +1,507 @@
+name: Security Scanning & Compliance
+
+on:
+  push:
+    branches: [main, develop, release]
+  pull_request:
+    branches: [main, develop, release]
+  schedule:
+    # Run weekly security scans
+    - cron: "0 2 * * 1" # Every Monday at 2 AM UTC
+  workflow_dispatch:
+
+env:
+  PYTHON_VERSION: "3.11"
+  NODE_VERSION: "20"
+  JAVA_VERSION: "21"
+
+jobs:
+  # ==========================================
+  # CODE SECURITY SCANNING (SAST)
+  # ==========================================
+  sast-scanning:
+    name: Static Application Security Testing
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Backend SAST
+      - name: Setup Java for Backend SAST
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: "temurin"
+
+      - name: Run SpotBugs (Backend)
+        run: |
+          cd backend
+          mvn compile spotbugs:check
+          mvn spotbugs:spotbugs
+
+      - name: Upload SpotBugs results
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: backend/target/spotbugsSarif.xml
+
+      # Frontend SAST
+      - name: Setup Node.js for Frontend SAST
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Run ESLint security rules (Frontend)
+        run: |
+          cd frontend
+          npm install --save-dev eslint-plugin-security
+          npx eslint . --ext .ts,.tsx,.js,.jsx --config eslint.config.js --format sarif -o eslint-security-results.sarif || true
+
+      - name: Upload ESLint security results
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: frontend/eslint-security-results.sarif
+
+      # AI Service SAST
+      - name: Setup Python for AI Service SAST
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Run Bandit (AI Service)
+        run: |
+          cd ai-service
+          pip install bandit[sarif]
+          bandit -r src/ -f sarif -o bandit-results.sarif --exclude tests/
+
+      - name: Upload Bandit results
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: ai-service/bandit-results.sarif
+
+      # Simulator SAST
+      - name: Run Bandit (Simulator)
+        run: |
+          cd simulator
+          pip install bandit[sarif]
+          bandit -r . -f sarif -o bandit-results.sarif --exclude __pycache__/
+
+      - name: Upload Simulator Bandit results
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: simulator/bandit-results.sarif
+
+  # ==========================================
+  # DEPENDENCY SCANNING
+  # ==========================================
+  dependency-scanning:
+    name: Dependency Vulnerability Scanning
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Backend dependency scanning
+      - name: Setup Java for Backend
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: "temurin"
+          cache: maven
+
+      - name: Run OWASP Dependency Check (Backend)
+        uses: dependency-check/Dependency-Check_Action@main
+        with:
+          project: "VirtPLC Backend"
+          path: "./backend"
+          format: "SARIF"
+          args: >
+            --enableRetired
+            --enableExperimental
+            --nvdValidForHours 24
+            --suppression backend/dependency-check-suppression.xml
+
+      - name: Upload OWASP Backend results
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: reports/dependency-check-report.sarif
+
+      # Frontend dependency scanning
+      - name: Setup Node.js for Frontend
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Run npm audit (Frontend)
+        run: |
+          cd frontend
+          npm audit --audit-level moderate --json > npm-audit-results.json || true
+
+      - name: Run Trivy npm scan (Frontend)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: "fs"
+          scan-ref: "frontend"
+          format: "sarif"
+          output: "frontend-trivy-npm.sarif"
+          scanners: "vuln,secret"
+
+      - name: Upload Frontend Trivy results
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: "frontend-trivy-npm.sarif"
+
+      # AI Service dependency scanning
+      - name: Setup Python for AI Service
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Run Safety (AI Service)
+        run: |
+          cd ai-service
+          pip install safety
+          safety check --json > safety-results.json || true
+
+      - name: Run Trivy pip scan (AI Service)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: "fs"
+          scan-ref: "ai-service"
+          format: "sarif"
+          output: "ai-service-trivy-pip.sarif"
+          scanners: "vuln,secret"
+
+      - name: Upload AI Service Trivy results
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: "ai-service-trivy-pip.sarif"
+
+      # Simulator dependency scanning
+      - name: Run Safety (Simulator)
+        run: |
+          cd simulator
+          pip install safety
+          safety check --json > safety-results.json || true
+
+      - name: Run Trivy pip scan (Simulator)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: "fs"
+          scan-ref: "simulator"
+          format: "sarif"
+          output: "simulator-trivy-pip.sarif"
+          scanners: "vuln,secret"
+
+      - name: Upload Simulator Trivy results
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: "simulator-trivy-pip.sarif"
+
+  # ==========================================
+  # CONTAINER IMAGE SCANNING
+  # ==========================================
+  container-scanning:
+    name: Container Image Security Scanning
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Scan Backend Image
+      - name: Scan Backend Container Image
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: "image"
+          scan-ref: "ghcr.io/${{ github.repository }}/backend:latest"
+          format: "sarif"
+          output: "backend-container-scan.sarif"
+          scanners: "vuln,secret,misconfig"
+
+      - name: Upload Backend Container Scan
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: "backend-container-scan.sarif"
+
+      # Scan Frontend Image
+      - name: Scan Frontend Container Image
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: "image"
+          scan-ref: "ghcr.io/${{ github.repository }}/frontend:latest"
+          format: "sarif"
+          output: "frontend-container-scan.sarif"
+          scanners: "vuln,secret,misconfig"
+
+      - name: Upload Frontend Container Scan
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: "frontend-container-scan.sarif"
+
+      # Scan AI Service Image
+      - name: Scan AI Service Container Image
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: "image"
+          scan-ref: "ghcr.io/${{ github.repository }}/ai-service:latest"
+          format: "sarif"
+          output: "ai-service-container-scan.sarif"
+          scanners: "vuln,secret,misconfig"
+
+      - name: Upload AI Service Container Scan
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: "ai-service-container-scan.sarif"
+
+      # Scan Simulator Image
+      - name: Scan Simulator Container Image
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: "image"
+          scan-ref: "ghcr.io/${{ github.repository }}/simulator:latest"
+          format: "sarif"
+          output: "simulator-container-scan.sarif"
+          scanners: "vuln,secret,misconfig"
+
+      - name: Upload Simulator Container Scan
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: "simulator-container-scan.sarif"
+
+  # ==========================================
+  # INFRASTRUCTURE AS CODE SCANNING
+  # ==========================================
+  iac-scanning:
+    name: Infrastructure as Code Security Scanning
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Run Checkov (IaC Security Scanning)
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          framework: terraform
+          check: CKV_AWS_*
+          output_format: sarif
+          output_file_path: checkov-results.sarif
+
+      - name: Upload Checkov results
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: checkov-results.sarif
+
+      - name: Run TFLint
+        uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: latest
+
+      - name: Run TFLint scan
+        run: |
+          find . -name "*.tf" -exec tflint --format=sarif {} \; > tflint-results.sarif || true
+
+      - name: Upload TFLint results
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: tflint-results.sarif
+
+  # ==========================================
+  # LICENSE COMPLIANCE
+  # ==========================================
+  license-compliance:
+    name: License Compliance Checking
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Backend license checking
+      - name: Setup Java for Backend
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: "temurin"
+          cache: maven
+
+      - name: Run License Maven Plugin (Backend)
+        run: |
+          cd backend
+          mvn license:check || true
+
+      # Frontend license checking
+      - name: Setup Node.js for Frontend
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Run license-checker (Frontend)
+        run: |
+          cd frontend
+          npm install -g license-checker
+          license-checker --json > license-report.json || true
+
+      # Python services license checking
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Run pip-licenses (AI Service)
+        run: |
+          cd ai-service
+          pip install pip-licenses
+          pip-licenses --format=json > license-report.json || true
+
+      - name: Run pip-licenses (Simulator)
+        run: |
+          cd simulator
+          pip install pip-licenses
+          pip-licenses --format=json > license-report.json || true
+
+      - name: Upload license reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: license-compliance-reports
+          path: |
+            frontend/license-report.json
+            ai-service/license-report.json
+            simulator/license-report.json
+
+  # ==========================================
+  # SECURITY DASHBOARD & REPORTING
+  # ==========================================
+  security-dashboard:
+    name: Generate Security Dashboard
+    runs-on: ubuntu-latest
+    needs:
+      [
+        sast-scanning,
+        dependency-scanning,
+        container-scanning,
+        iac-scanning,
+        license-compliance,
+      ]
+    if: always()
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Generate Security Report
+        run: |
+          echo "# VirtPLC Security Scan Report" > security-report.md
+          echo "Generated on: $(date)" >> security-report.md
+          echo "" >> security-report.md
+          echo "## Scan Results Summary" >> security-report.md
+          echo "" >> security-report.md
+          echo "| Component | SAST | Dependencies | Container | Status |" >> security-report.md
+          echo "|-----------|------|--------------|-----------|--------|" >> security-report.md
+          echo "| Backend | ${{ needs.sast-scanning.result }} | ${{ needs.dependency-scanning.result }} | ${{ needs.container-scanning.result }} | $([ "${{ needs.sast-scanning.result }}" = "success" ] && [ "${{ needs.dependency-scanning.result }}" = "success" ] && [ "${{ needs.container-scanning.result }}" = "success" ] && echo "✅" || echo "❌") |" >> security-report.md
+          echo "| Frontend | ${{ needs.sast-scanning.result }} | ${{ needs.dependency-scanning.result }} | ${{ needs.container-scanning.result }} | $([ "${{ needs.sast-scanning.result }}" = "success" ] && [ "${{ needs.dependency-scanning.result }}" = "success" ] && [ "${{ needs.container-scanning.result }}" = "success" ] && echo "✅" || echo "❌") |" >> security-report.md
+          echo "| AI Service | ${{ needs.sast-scanning.result }} | ${{ needs.dependency-scanning.result }} | ${{ needs.container-scanning.result }} | $([ "${{ needs.sast-scanning.result }}" = "success" ] && [ "${{ needs.dependency-scanning.result }}" = "success" ] && [ "${{ needs.container-scanning.result }}" = "success" ] && echo "✅" || echo "❌") |" >> security-report.md
+          echo "| Simulator | ${{ needs.sast-scanning.result }} | ${{ needs.dependency-scanning.result }} | ${{ needs.container-scanning.result }} | $([ "${{ needs.sast-scanning.result }}" = "success" ] && [ "${{ needs.dependency-scanning.result }}" = "success" ] && [ "${{ needs.container-scanning.result }}" = "success" ] && echo "✅" || echo "❌") |" >> security-report.md
+          echo "" >> security-report.md
+          echo "## Infrastructure Security" >> security-report.md
+          echo "- IaC Scanning: ${{ needs.iac-scanning.result }}" >> security-report.md
+          echo "- License Compliance: ${{ needs.license-compliance.result }}" >> security-report.md
+          echo "" >> security-report.md
+          echo "## Recommendations" >> security-report.md
+          echo "1. Review all failed security scans" >> security-report.md
+          echo "2. Address high and critical severity vulnerabilities" >> security-report.md
+          echo "3. Update dependencies with known vulnerabilities" >> security-report.md
+          echo "4. Review container base images for security updates" >> security-report.md
+          echo "5. Ensure proper secrets management in CI/CD" >> security-report.md
+
+      - name: Upload Security Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-dashboard
+          path: security-report.md
+
+      - name: Comment Security Report on PR
+        uses: actions/github-script@v7
+        if: github.event_name == 'pull_request'
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('security-report.md', 'utf8');
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## 🔒 Security Scan Results\n\n${report}`
+            });
+
+  # ==========================================
+  # COMPLIANCE CHECKING
+  # ==========================================
+  compliance-check:
+    name: Compliance & Policy Checking
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check for secrets in code
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: main
+          head: HEAD
+          extra_args: --debug --only-verified
+
+      - name: Run OpenSSF Scorecard
+        uses: ossf/scorecard-action@v2
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          publish_results: true
+
+      - name: Upload Scorecard results
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: results.sarif

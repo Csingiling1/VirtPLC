@@ -7,6 +7,16 @@
 /home/deginandor/Documents/Programming/VirtPLC/backend/src/main/java/com/virtplc/config/OPCUAServerConfig.java
 /home/deginandor/Documents/Programming/VirtPLC/backend/src/main/java/com/virtplc/config/PasswordConfig.java
 /home/deginandor/Documents/Programming/VirtPLC/backend/src/main/java/com/virtplc/config/WebConfig.java
+/home/deginandor/Documents/Programming/VirtPLC/backend/src/main/java/com/virtplc/grpc/AIServiceGrpcImpl.java
+/home/deginandor/Documents/Programming/VirtPLC/backend/src/main/java/com/virtplc/grpc/DashboardServiceGrpcImpl.java
+/home/deginandor/Documents/Programming/VirtPLC/backend/src/main/java/com/virtplc/grpc/GrpcConfiguration.java
+/home/deginandor/Documents/Programming/VirtPLC/backend/src/main/java/com/virtplc/grpc/GrpcDtos.java
+/home/deginandor/Documents/Programming/VirtPLC/backend/src/main/java/com/virtplc/grpc/GrpcServices.java
+/home/deginandor/Documents/Programming/VirtPLC/backend/src/main/java/com/virtplc/grpc/SensorDataProcessor.java
+/home/deginandor/Documents/Programming/VirtPLC/backend/src/main/java/com/virtplc/grpc/SensorDataRepository.java
+/home/deginandor/Documents/Programming/VirtPLC/backend/src/main/java/com/virtplc/grpc/SensorDataServiceGrpcImpl.java
+/home/deginandor/Documents/Programming/VirtPLC/backend/src/main/java/com/virtplc/grpc/SensorDataServiceImpl.java
+/home/deginandor/Documents/Programming/VirtPLC/backend/src/main/java/com/virtplc/grpc/SimulatorControlServiceGrpcImpl.java
 /home/deginandor/Documents/Programming/VirtPLC/backend/src/main/java/com/virtplc/model/Company.java
 /home/deginandor/Documents/Programming/VirtPLC/backend/src/main/java/com/virtplc/model/SensorData.java
 /home/deginandor/Documents/Programming/VirtPLC/backend/src/main/java/com/virtplc/model/SensorDataEntity.java

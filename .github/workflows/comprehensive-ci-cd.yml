@@ -1,0 +1,933 @@
+name: VirtPLC Comprehensive CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop, release]
+    paths-ignore:
+      - "docs/**"
+      - "*.md"
+      - ".gitignore"
+  pull_request:
+    branches: [main, develop, release]
+    paths-ignore:
+      - "docs/**"
+      - "*.md"
+      - ".gitignore"
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        default: "staging"
+        type: choice
+        options:
+          - staging
+          - production
+      skip_tests:
+        description: "Skip tests for faster deployment"
+        required: false
+        default: false
+        type: boolean
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  NODE_VERSION: "20"
+  PYTHON_VERSION: "3.11"
+  JAVA_VERSION: "21"
+
+jobs:
+  # ==========================================
+  # BACKEND CI/CD
+  # ==========================================
+  backend-lint-test:
+    name: Backend - Lint & Test
+    runs-on: ubuntu-latest
+    outputs:
+      test-results: ${{ steps.test.outputs.results }}
+      coverage: ${{ steps.test.outputs.coverage }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: "temurin"
+          cache: maven
+
+      - name: Cache Maven dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.m2
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+
+      - name: Run Maven compile
+        run: cd backend && mvn compile -q
+
+      - name: Run Spotless check (code formatting)
+        run: cd backend && mvn spotless:check
+
+      - name: Run unit tests with coverage
+        id: test
+        run: |
+          cd backend
+          mvn test -Dspring.profiles.active=test \
+                   -Dtest.failure.ignore=true \
+                   jacoco:prepare-agent test jacoco:report
+          echo "results=$(find . -name 'surefire-reports' -type d)" >> $GITHUB_OUTPUT
+          echo "coverage=$(find . -name 'jacoco' -type d)" >> $GITHUB_OUTPUT
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backend-test-results
+          path: backend/target/surefire-reports/
+
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v3
+        if: success()
+        with:
+          directory: backend/target/site/jacoco/
+          flags: backend,unittest
+          name: backend-coverage
+
+  backend-security-scan:
+    name: Backend - Security Scan
+    runs-on: ubuntu-latest
+    needs: backend-lint-test
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: "fs"
+          scan-ref: "backend"
+          format: "sarif"
+          output: "backend-trivy-results.sarif"
+
+      - name: Upload Trivy results
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: "backend-trivy-results.sarif"
+
+      - name: Run OWASP Dependency Check
+        uses: dependency-check/Dependency-Check_Action@main
+        with:
+          project: "VirtPLC Backend"
+          path: "./backend"
+          format: "ALL"
+          args: >
+            --enableRetired
+            --enableExperimental
+            --nvdValidForHours 24
+
+      - name: Upload OWASP results
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-owasp-report
+          path: reports/
+
+  backend-build:
+    name: Backend - Build & Package
+    runs-on: ubuntu-latest
+    needs: [backend-lint-test, backend-security-scan]
+    outputs:
+      image-digest: ${{ steps.build.outputs.digest }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: "temurin"
+          cache: maven
+
+      - name: Build JAR
+        run: cd backend && mvn clean package -DskipTests -Dspring.profiles.active=prod
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/backend
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Docker image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+
+  # ==========================================
+  # FRONTEND CI/CD
+  # ==========================================
+  frontend-lint-test:
+    name: Frontend - Lint & Test
+    runs-on: ubuntu-latest
+    outputs:
+      test-results: ${{ steps.test.outputs.results }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: cd frontend && npm ci
+
+      - name: Run ESLint
+        run: cd frontend && npm run lint
+
+      - name: Run TypeScript check
+        run: cd frontend && npx tsc --noEmit
+
+      - name: Run tests with coverage
+        id: test
+        run: |
+          cd frontend
+          npm test -- --coverage --watchAll=false --passWithNoTests
+          echo "results=$(find . -name 'coverage' -type d)" >> $GITHUB_OUTPUT
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: frontend-test-results
+          path: frontend/coverage/
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        if: success()
+        with:
+          directory: frontend/coverage/
+          flags: frontend,unittest
+          name: frontend-coverage
+
+  frontend-build:
+    name: Frontend - Build & Deploy
+    runs-on: ubuntu-latest
+    needs: frontend-lint-test
+    outputs:
+      image-digest: ${{ steps.build.outputs.digest }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: cd frontend && npm ci
+
+      - name: Build application
+        run: cd frontend && npm run build
+        env:
+          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
+
+      - name: Run Lighthouse CI
+        run: |
+          npm install -g lighthouse
+          cd frontend
+          lighthouse http://localhost:4173 --output=json --output-path=./lighthouse-results.json || true
+
+      - name: Upload Lighthouse results
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-lighthouse-results
+          path: frontend/lighthouse-results.json
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/frontend
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Docker image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+
+  # ==========================================
+  # AI SERVICE CI/CD
+  # ==========================================
+  ai-service-lint-test:
+    name: AI Service - Lint & Test
+    runs-on: ubuntu-latest
+    outputs:
+      test-results: ${{ steps.test.outputs.results }}
+      coverage: ${{ steps.test.outputs.coverage }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
+          cache-dependency-path: ai-service/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          cd ai-service
+          pip install -r requirements.txt
+          pip install mypy black isort flake8 bandit safety
+
+      - name: Run code formatting checks
+        run: |
+          cd ai-service
+          black --check --diff src/ tests/
+          isort --check-only --diff src/ tests/
+
+      - name: Run linting
+        run: |
+          cd ai-service
+          flake8 src/ tests/ --max-line-length=88 --extend-ignore=E203,W503
+          mypy src/ --ignore-missing-imports
+
+      - name: Run security scan
+        run: |
+          cd ai-service
+          bandit -r src/ -f json -o bandit-results.json || true
+          safety check --json > safety-results.json || true
+
+      - name: Upload security results
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-service-security-results
+          path: |
+            ai-service/bandit-results.json
+            ai-service/safety-results.json
+
+      - name: Run tests with coverage
+        id: test
+        run: |
+          cd ai-service
+          pytest --cov=src --cov-report=xml --cov-report=term-missing \
+                 --cov-fail-under=80 -v
+          echo "results=$(find . -name 'coverage.xml' -type f)" >> $GITHUB_OUTPUT
+          echo "coverage=$(find . -name 'htmlcov' -type d)" >> $GITHUB_OUTPUT
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ai-service-test-results
+          path: ai-service/coverage.xml
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        if: success()
+        with:
+          directory: ai-service/
+          flags: ai-service,unittest
+          name: ai-service-coverage
+
+  ai-service-build:
+    name: AI Service - Build & Package
+    runs-on: ubuntu-latest
+    needs: ai-service-lint-test
+    outputs:
+      image-digest: ${{ steps.build.outputs.digest }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
+          cache-dependency-path: ai-service/requirements.txt
+
+      - name: Install dependencies
+        run: cd ai-service && pip install -r requirements.txt
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/ai-service
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Docker image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: ./ai-service
+          file: ./ai-service/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+
+  # ==========================================
+  # SIMULATOR CI/CD
+  # ==========================================
+  simulator-lint-test:
+    name: Simulator - Lint & Test
+    runs-on: ubuntu-latest
+    outputs:
+      test-results: ${{ steps.test.outputs.results }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
+          cache-dependency-path: simulator/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          cd simulator
+          pip install -r requirements.txt
+          pip install pytest pytest-cov flake8 black isort mypy bandit
+
+      - name: Run code formatting checks
+        run: |
+          cd simulator
+          black --check --diff . || true
+          isort --check-only --diff . || true
+
+      - name: Run linting
+        run: |
+          cd simulator
+          flake8 . --max-line-length=88 --extend-ignore=E203,W503 || true
+          mypy . --ignore-missing-imports || true
+
+      - name: Run tests
+        id: test
+        run: |
+          cd simulator
+          pytest --cov=. --cov-report=xml --cov-report=term-missing -v || true
+          echo "results=$(find . -name 'coverage.xml' -type f)" >> $GITHUB_OUTPUT
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: simulator-test-results
+          path: simulator/coverage.xml
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        if: success()
+        with:
+          directory: simulator/
+          flags: simulator,unittest
+          name: simulator-coverage
+
+  simulator-build:
+    name: Simulator - Build & Package
+    runs-on: ubuntu-latest
+    needs: simulator-lint-test
+    outputs:
+      image-digest: ${{ steps.build.outputs.digest }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
+          cache-dependency-path: simulator/requirements.txt
+
+      - name: Install dependencies
+        run: cd simulator && pip install -r requirements.txt
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/simulator
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Docker image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: ./simulator
+          file: ./simulator/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+
+  # ==========================================
+  # INTEGRATION TESTING
+  # ==========================================
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: [backend-build, frontend-build, ai-service-build, simulator-build]
+    if: github.event_name != 'pull_request' || inputs.skip_tests != true
+
+    services:
+      postgres:
+        image: timescale/timescaledb:latest-pg15
+        env:
+          POSTGRES_DB: virtplc_test
+          POSTGRES_USER: virtplc
+          POSTGRES_PASSWORD: test123
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Docker Compose
+        run: |
+          docker --version
+          docker-compose --version
+
+      - name: Create test environment file
+        run: |
+          cat > .env.test << EOF
+          POSTGRES_HOST=localhost
+          POSTGRES_PORT=5432
+          POSTGRES_DB=virtplc_test
+          POSTGRES_USER=virtplc
+          POSTGRES_PASSWORD=test123
+          REDIS_HOST=localhost
+          REDIS_PORT=6379
+          JWT_SECRET=test-jwt-secret-key-for-testing-only
+          OLLAMA_BASE_URL=http://host.docker.internal:11434
+          EOF
+
+      - name: Run integration tests
+        run: |
+          # Start all services in test mode
+          docker-compose -f docker-compose.yml -f docker-compose.test.yml up -d --build
+
+          # Wait for services to be healthy
+          timeout 300 bash -c 'until docker-compose ps | grep -q "healthy\|running"; do sleep 5; done'
+
+          # Run integration test suite
+          docker-compose exec -T ai-service pytest tests/test_integration.py -v --tb=short
+
+          # Run API integration tests
+          docker-compose exec -T backend ./mvnw test -Dtest="*IntegrationTest" -Dspring.profiles.active=test
+
+      - name: Collect integration test logs
+        if: always()
+        run: |
+          docker-compose logs > integration-logs.txt
+          docker-compose ps > integration-services.txt
+
+      - name: Upload integration test artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: integration-test-results
+          path: |
+            integration-logs.txt
+            integration-services.txt
+
+  # ==========================================
+  # PERFORMANCE TESTING
+  # ==========================================
+  performance-tests:
+    name: Performance Tests
+    runs-on: ubuntu-latest
+    needs: integration-tests
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup k6
+        run: |
+          curl https://github.com/grafana/k6/releases/download/v0.45.0/k6-v0.45.0-linux-amd64.tar.gz -L | tar xvz
+          sudo mv k6-v0.45.0-linux-amd64/k6 /usr/local/bin/
+
+      - name: Run performance tests
+        run: |
+          # Run load tests against staging environment
+          k6 run --out json=performance-results.json \
+                 -e BASE_URL=${{ secrets.STAGING_URL }} \
+                 tests/performance/load-test.js
+
+      - name: Upload performance results
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-test-results
+          path: performance-results.json
+
+  # ==========================================
+  # DEPLOYMENT
+  # ==========================================
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [integration-tests, performance-tests]
+    if: (github.ref == 'refs/heads/develop' || github.event_name == 'workflow_dispatch') && inputs.environment == 'staging'
+    environment:
+      name: staging
+      url: ${{ secrets.STAGING_URL }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Deploy to staging
+        run: |
+          # Update staging environment with new images
+          aws ecs update-service --cluster virtplc-staging \
+                                --service virtplc-backend \
+                                --force-new-deployment
+
+          aws ecs update-service --cluster virtplc-staging \
+                                --service virtplc-frontend \
+                                --force-new-deployment
+
+          aws ecs update-service --cluster virtplc-staging \
+                                --service virtplc-ai-service \
+                                --force-new-deployment
+
+          aws ecs update-service --cluster virtplc-staging \
+                                --service virtplc-simulator \
+                                --force-new-deployment
+
+      - name: Wait for deployment to complete
+        run: |
+          aws ecs wait services-stable --cluster virtplc-staging \
+                                      --services virtplc-backend virtplc-frontend virtplc-ai-service virtplc-simulator
+
+      - name: Run smoke tests
+        run: |
+          # Run basic smoke tests against staging
+          curl -f ${{ secrets.STAGING_URL }}/health || exit 1
+          curl -f ${{ secrets.STAGING_URL }}/api/status || exit 1
+
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [integration-tests, performance-tests]
+    if: (github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch') && inputs.environment == 'production'
+    environment:
+      name: production
+      url: ${{ secrets.PRODUCTION_URL }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Blue-Green deployment to production
+        run: |
+          # Get current production service
+          CURRENT_COLOR=$(aws ecs describe-services --cluster virtplc-prod \
+                                                   --services virtplc-backend \
+                                                   --query 'services[0].taskDefinition' \
+                                                   --output text | grep -o 'blue\|green')
+
+          if [ "$CURRENT_COLOR" = "blue" ]; then
+            NEW_COLOR="green"
+          else
+            NEW_COLOR="blue"
+          fi
+
+          echo "Deploying to $NEW_COLOR environment"
+
+          # Update task definitions with new images
+          aws ecs register-task-definition --cli-input-json file://infrastructure/task-definitions/$NEW_COLOR-backend.json
+          aws ecs register-task-definition --cli-input-json file://infrastructure/task-definitions/$NEW_COLOR-frontend.json
+          aws ecs register-task-definition --cli-input-json file://infrastructure/task-definitions/$NEW_COLOR-ai-service.json
+          aws ecs register-task-definition --cli-input-json file://infrastructure/task-definitions/$NEW_COLOR-simulator.json
+
+          # Update services to use new task definitions
+          aws ecs update-service --cluster virtplc-prod \
+                                --service virtplc-backend-$NEW_COLOR \
+                                --task-definition virtplc-backend-$NEW_COLOR \
+                                --force-new-deployment
+
+          aws ecs update-service --cluster virtplc-prod \
+                                --service virtplc-frontend-$NEW_COLOR \
+                                --task-definition virtplc-frontend-$NEW_COLOR \
+                                --force-new-deployment
+
+          aws ecs update-service --cluster virtplc-prod \
+                                --service virtplc-ai-service-$NEW_COLOR \
+                                --task-definition virtplc-ai-service-$NEW_COLOR \
+                                --force-new-deployment
+
+          aws ecs update-service --cluster virtplc-prod \
+                                --service virtplc-simulator-$NEW_COLOR \
+                                --task-definition virtplc-simulator-$NEW_COLOR \
+                                --force-new-deployment
+
+      - name: Wait for deployment and run tests
+        run: |
+          # Wait for new services to be healthy
+          aws ecs wait services-stable --cluster virtplc-prod \
+                                      --services virtplc-backend-$NEW_COLOR \
+                                                 virtplc-frontend-$NEW_COLOR \
+                                                 virtplc-ai-service-$NEW_COLOR \
+                                                 virtplc-simulator-$NEW_COLOR
+
+          # Run comprehensive smoke tests
+          ./scripts/smoke-tests.sh ${{ secrets.PRODUCTION_URL }}
+
+      - name: Switch traffic to new deployment
+        run: |
+          # Update load balancer to route traffic to new color
+          aws elbv2 modify-listener --listener-arn ${{ secrets.PROD_LISTENER_ARN }} \
+                                   --default-actions Type=forward,TargetGroupArn=${{ secrets.PROD_TG_$NEW_COLOR }}
+
+      - name: Monitor deployment
+        run: |
+          # Monitor for 10 minutes to ensure stability
+          for i in {1..20}; do
+            sleep 30
+            # Check health endpoints
+            curl -f ${{ secrets.PRODUCTION_URL }}/health || exit 1
+          done
+
+      - name: Cleanup old deployment
+        run: |
+          # Scale down old color services
+          aws ecs update-service --cluster virtplc-prod \
+                                --service virtplc-backend-$CURRENT_COLOR \
+                                --desired-count 0
+
+          aws ecs update-service --cluster virtplc-prod \
+                                --service virtplc-frontend-$CURRENT_COLOR \
+                                --desired-count 0
+
+          aws ecs update-service --cluster virtplc-prod \
+                                --service virtplc-ai-service-$CURRENT_COLOR \
+                                --desired-count 0
+
+          aws ecs update-service --cluster virtplc-prod \
+                                --service virtplc-simulator-$CURRENT_COLOR \
+                                --desired-count 0
+
+  # ==========================================
+  # MONITORING & NOTIFICATIONS
+  # ==========================================
+  notify:
+    name: Send Notifications
+    runs-on: ubuntu-latest
+    needs:
+      [
+        backend-build,
+        frontend-build,
+        ai-service-build,
+        simulator-build,
+        integration-tests,
+      ]
+    if: always()
+
+    steps:
+      - name: Send Slack notification
+        uses: slackapi/slack-github-action@v1.24.0
+        with:
+          payload: |
+            {
+              "text": "VirtPLC CI/CD Pipeline Results",
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "🚀 VirtPLC CI/CD Pipeline Results"
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Branch:* ${{ github.ref_name }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Commit:* ${{ github.sha }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Status:* ${{ job.status }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Triggered by:* ${{ github.actor }}"
+                    }
+                  ]
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Build Results:*\n✅ Backend: ${{ needs.backend-build.result }}\n✅ Frontend: ${{ needs.frontend-build.result }}\n✅ AI Service: ${{ needs.ai-service-build.result }}\n✅ Simulator: ${{ needs.simulator-build.result }}\n✅ Integration Tests: ${{ needs.integration-tests.result }}"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        if: always()
+
+      - name: Send Teams notification
+        uses: msdrmicrosoftteams/teams-webhook-action@v1
+        with:
+          webhook-url: ${{ secrets.TEAMS_WEBHOOK_URL }}
+          payload: |
+            {
+              "@type": "MessageCard",
+              "@context": "http://schema.org/extensions",
+              "themeColor": "${{ job.status == 'success' && '0076D7' || 'FF0000' }}",
+              "title": "VirtPLC CI/CD Pipeline Results",
+              "text": "Branch: ${{ github.ref_name }}\nCommit: ${{ github.sha }}\nStatus: ${{ job.status }}\nTriggered by: ${{ github.actor }}",
+              "potentialAction": [
+                {
+                  "@type": "OpenUri",
+                  "name": "View Workflow",
+                  "targets": [
+                    {
+                      "os": "default",
+                      "uri": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                    }
+                  ]
+                }
+              ]
+            }
+        if: always()
