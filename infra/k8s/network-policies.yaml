@@ -1,0 +1,129 @@
+# Network policy for factory isolation
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: factory-isolation
+  namespace: virtplc-factory-template
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Allow traffic from ingress controller
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 8080  # Backend port
+  # Allow traffic from global monitoring
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          app.kubernetes.io/component: monitoring
+    ports:
+    - protocol: TCP
+      port: 8080  # Metrics port
+  # Allow traffic from global AI service
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          app.kubernetes.io/component: global
+    ports:
+    - protocol: TCP
+      port: 8080
+  egress:
+  # Allow DNS resolution
+  - to: []
+    ports:
+    - protocol: UDP
+      port: 53
+  # Allow traffic to PostgreSQL
+  - to:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: postgresql
+    ports:
+    - protocol: TCP
+      port: 5432
+  # Allow traffic to global services
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          app.kubernetes.io/component: global
+    ports:
+    - protocol: TCP
+  # Allow traffic to monitoring
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          app.kubernetes.io/component: monitoring
+    ports:
+    - protocol: TCP
+
+---
+# Network policy for global services
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: global-services
+  namespace: virtplc-system
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: global
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Allow traffic from all factory namespaces
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          app.kubernetes.io/component: factory
+    ports:
+    - protocol: TCP
+      port: 8000  # AI service port
+  # Allow traffic from ingress
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 80   # Frontend port
+    - protocol: TCP
+      port: 8000 # AI service port
+  egress:
+  # Allow all outbound traffic for global services
+  - to: []
+    ports: []
+
+---
+# Network policy for monitoring
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: monitoring-access
+  namespace: virtplc-monitoring
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Allow traffic from all namespaces for metrics collection
+  - from: []
+    ports:
+    - protocol: TCP
+      port: 9090  # Prometheus
+    - protocol: TCP
+      port: 3100  # Loki
+    - protocol: TCP
+      port: 80    # Grafana
+  egress:
+  # Allow all outbound traffic for monitoring
+  - to: []
+    ports: []

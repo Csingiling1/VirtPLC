@@ -1,0 +1,33 @@
+# Global system namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: virtplc-system
+  labels:
+    name: virtplc-system
+    app.kubernetes.io/name: virtplc
+    app.kubernetes.io/component: system
+
+---
+# Global monitoring namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: virtplc-monitoring
+  labels:
+    name: virtplc-monitoring
+    app.kubernetes.io/name: virtplc
+    app.kubernetes.io/component: monitoring
+
+---
+# Factory namespace template (this will be used as a template for factory provisioning)
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: virtplc-factory-template
+  labels:
+    name: virtplc-factory-template
+    app.kubernetes.io/name: virtplc
+    app.kubernetes.io/component: factory
+  annotations:
+    description: "Template namespace for VirtPLC factory deployments"

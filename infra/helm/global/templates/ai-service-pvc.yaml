@@ -1,0 +1,18 @@
+{{- if and .Values.aiService.enabled .Values.aiService.persistence.enabled -}}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "virtplc-global.fullname" . }}-ai-service
+  labels:
+    {{- include "virtplc-global.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ai-service
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.aiService.persistence.size }}
+  {{- if .Values.global.storageClass }}
+  storageClassName: {{ .Values.global.storageClass }}
+  {{- end }}
+{{- end }}
