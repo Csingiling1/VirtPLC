@@ -72,7 +72,7 @@ export const simulatorApi = {
     const response = await api.get(`/api/simulator/devices/${deviceId}`);
     return response.data;
   },
-  createDevice: async (device: Omit<SimulatorDevice, 'id' | 'createdAt' | 'updatedAt'>) => {
+  createDevice: async (device) => {
     const response = await api.post('/api/simulator/devices', device);
     return response.data;
   },

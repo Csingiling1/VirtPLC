@@ -339,137 +339,216 @@ def create_app(database: MultiTenantDatabase) -> FastAPI:
             raise HTTPException(status_code=404, detail="Tenant not found")
         return TenantModel(**tenant.to_dict())
 
-    @app.put("/devices/{device_id}", response_model=PLCModel)
-    async def update_device(device_id: str, updates: DeviceUpdateModel):
-        """Update device"""
-        update_dict = updates.dict(exclude_unset=True)
-        device = database.update_device(device_id, update_dict)
-        if not device:
-            raise HTTPException(status_code=404, detail="Device not found")
-        return PLCModel(**device.to_dict())
-
-    @app.delete("/devices/{device_id}")
-    async def delete_device(device_id: str):
-        """Delete device"""
-        if not database.delete_device(device_id):
-            raise HTTPException(status_code=404, detail="Device not found")
-        return {"message": f"Device {device_id} deleted"}
-
-    @app.get("/devices/{device_id}/signals")
-    async def get_device_signals(device_id: str):
-        """Get all signals for a device"""
-        device = database.get_device(device_id)
-        if not device:
-            raise HTTPException(status_code=404, detail="Device not found")
-
-        return {
-            "device_id": device_id,
-            "signals": [
-                {
-                    "name": s.name,
-                    "unit": s.unit,
-                    "value": s.value,
-                    "generator": s.generator,
-                    "is_running": s.is_running
-                }
-                for s in device.signals
-            ]
-        }
-
-    @app.post("/devices/{device_id}/signals")
-    async def add_signal(device_id: str, signal: SignalCreateModel):
-        """Add signal to device"""
-        device = database.get_device(device_id)
-        if not device:
-            raise HTTPException(status_code=404, detail="Device not found")
-
-        signal_config = SignalConfig(
-            name=signal.name,
-            unit=signal.unit,
-            generator=signal.generator,
-            min_value=signal.min_value,
-            max_value=signal.max_value,
-            mean=signal.mean,
-            std_dev=signal.std_dev,
-            rate=signal.rate,
-            frequency=signal.frequency,
-            amplitude=signal.amplitude,
-            offset=signal.offset,
-            step_size=signal.step_size
-        )
-
-        device.signals.append(signal_config)
-        database._save_devices()
-        return {"message": f"Signal {signal.name} added to device {device_id}"}
-
-    @app.delete("/devices/{device_id}/signals/{signal_name}")
-    async def remove_signal(device_id: str, signal_name: str):
-        """Remove signal from device"""
-        device = database.get_device(device_id)
-        if not device:
-            raise HTTPException(status_code=404, detail="Device not found")
-
-        device.signals = [s for s in device.signals if s.name != signal_name]
-        database._save_devices()
-        return {"message": f"Signal {signal_name} removed from device {device_id}"}
-
-    @app.get("/devices/{device_id}/signals/{signal_name}")
-    async def get_signal_value(device_id: str, signal_name: str):
-        """Get signal value"""
-        device = database.get_device(device_id)
-        if not device:
-            raise HTTPException(status_code=404, detail="Device not found")
-
-        value = device.get_signal_value(signal_name)
-        if value is None:
-            raise HTTPException(status_code=404, detail="Signal not found")
-
-        return {
-            "device_id": device_id,
-            "signal_name": signal_name,
-            "value": value,
-            "timestamp": datetime.now().isoformat()
-        }
-
-    @app.put("/devices/{device_id}/signals/{signal_name}")
-    async def set_signal_value(device_id: str, signal_name: str, value: float):
-        """Set signal value"""
-        device = database.get_device(device_id)
-        if not device:
-            raise HTTPException(status_code=404, detail="Device not found")
-
-        device.set_signal_value(signal_name, value)
-        database._save_devices()
-        return {"message": f"Signal {signal_name} set to {value}"}
-
-    @app.post("/simulation/update")
-    async def update_simulation():
-        """Manually trigger simulation update"""
-        database.update_all_signals()
-        return {"message": "Simulation updated", "timestamp": datetime.now().isoformat()}
-
-    @app.get("/simulation/status")
-    async def get_simulation_status():
-        """Get simulation status"""
+    # Simulator API endpoints (flat device representation for frontend compatibility)
+    @app.get("/api/simulator/devices")
+    async def get_simulator_devices():
+        """Get all devices in flat format for frontend compatibility"""
         tenants = database.get_all_tenants()
-        active_tenants = len(database.get_active_tenants())
-        
-        # Count total PLCs across all tenants
-        total_plcs = 0
-        total_sensors = 0
+        devices = []
+
+        for tenant in tenants:
+            if not tenant.is_active:
+                continue
+
+            for manufacturer in tenant.manufacturers:
+                if not manufacturer.is_active:
+                    continue
+
+                for factory in manufacturer.factories:
+                    if not factory.is_active:
+                        continue
+
+                    for plc in factory.plcs:
+                        if not plc.is_active:
+                            continue
+
+                        # Convert PLC to device format
+                        device = {
+                            "id": plc.id,
+                            "name": plc.name,
+                            "description": plc.description or f"PLC in {factory.name}",
+                            "deviceType": "plc",
+                            "signals": [
+                                {
+                                    "name": sensor.signal_config.name,
+                                    "unit": sensor.signal_config.unit,
+                                    "value": sensor.signal_config.value,
+                                    "generator": sensor.signal_config.generator,
+                                    "isRunning": sensor.signal_config.is_running,
+                                    "minValue": sensor.signal_config.min_value,
+                                    "maxValue": sensor.signal_config.max_value,
+                                    "mean": sensor.signal_config.mean,
+                                    "stdDev": sensor.signal_config.std_dev,
+                                    "rate": sensor.signal_config.rate,
+                                    "frequency": sensor.signal_config.frequency,
+                                    "amplitude": sensor.signal_config.amplitude,
+                                    "offset": sensor.signal_config.offset,
+                                    "stepSize": sensor.signal_config.step_size,
+                                    "lastUpdate": int(sensor.signal_config.last_update * 1000)
+                                }
+                                for sensor in plc.sensors if sensor.is_active
+                            ],
+                            "is_active": plc.is_active,
+                            "created_at": int(plc.created_at * 1000),
+                            "updated_at": int(plc.updated_at * 1000)
+                        }
+                        devices.append(device)
+
+        return devices
+
+    @app.post("/api/simulator/devices")
+    async def create_simulator_device(device: dict):
+        """Create a new device (PLC)"""
+        try:
+            # For now, create a simple PLC with basic sensors
+            tenant_id = device.get("tenantId", "demo-tenant")
+            manufacturer_id = device.get("manufacturerId", "demo-mfg")
+            factory_id = device.get("factoryId", "demo-factory")
+
+            # Get or create tenant
+            tenant = database.get_tenant(tenant_id)
+            if not tenant:
+                tenant = Tenant(id=tenant_id, name=device.get("tenantName", "New Tenant"))
+                tenant = database.create_tenant(tenant)
+
+            # Get or create manufacturer
+            manufacturer = None
+            for m in tenant.manufacturers:
+                if m.id == manufacturer_id:
+                    manufacturer = m
+                    break
+            if not manufacturer:
+                manufacturer = Manufacturer(id=manufacturer_id, name=device.get("manufacturerName", "New Manufacturer"))
+                tenant.manufacturers.append(manufacturer)
+
+            # Get or create factory
+            factory = None
+            for f in manufacturer.factories:
+                if f.id == factory_id:
+                    factory = f
+                    break
+            if not factory:
+                factory = Factory(id=factory_id, name=device.get("factoryName", "New Factory"))
+                manufacturer.factories.append(factory)
+
+            # Create PLC
+            plc_id = device.get("id", f"plc-{int(time.time())}")
+            plc = PLC(
+                id=plc_id,
+                name=device.get("name", "New PLC"),
+                description=device.get("description", "Auto-created PLC")
+            )
+
+            # Add default sensors if none provided
+            if not device.get("signals"):
+                sensors_data = [
+                    ("temperature", "Temperature Sensor", "°C", 25.0, "normal", 20.0, 30.0),
+                    ("pressure", "Pressure Sensor", "bar", 1.0, "uniform", 0.8, 1.2),
+                    ("flow_rate", "Flow Rate Sensor", "L/min", 50.0, "normal", 40.0, 60.0),
+                ]
+                for sensor_name, description, unit, value, generator, min_val, max_val in sensors_data:
+                    sensor = Sensor(
+                        id=f"{sensor_name}_{plc_id}",
+                        name=description,
+                        signal_config=SignalConfig(
+                            name=sensor_name,
+                            unit=unit,
+                            value=value,
+                            generator=generator,
+                            min_value=min_val,
+                            max_value=max_val
+                        )
+                    )
+                    plc.sensors.append(sensor)
+            else:
+                # Add provided signals as sensors
+                for signal in device.get("signals", []):
+                    sensor = Sensor(
+                        id=f"{signal['name']}_{plc_id}",
+                        name=signal.get("name", "Sensor"),
+                        signal_config=SignalConfig(
+                            name=signal["name"],
+                            unit=signal["unit"],
+                            value=signal.get("value", 0.0),
+                            generator=signal.get("generator", "constant"),
+                            min_value=signal.get("minValue"),
+                            max_value=signal.get("maxValue"),
+                            mean=signal.get("mean"),
+                            std_dev=signal.get("stdDev"),
+                            rate=signal.get("rate"),
+                            frequency=signal.get("frequency"),
+                            amplitude=signal.get("amplitude"),
+                            offset=signal.get("offset"),
+                            step_size=signal.get("stepSize")
+                        )
+                    )
+                    plc.sensors.append(sensor)
+
+            factory.plcs.append(plc)
+            database._save_tenants()
+
+            return {
+                "id": plc.id,
+                "name": plc.name,
+                "description": plc.description,
+                "deviceType": "plc",
+                "signals": [
+                    {
+                        "name": sensor.signal_config.name,
+                        "unit": sensor.signal_config.unit,
+                        "value": sensor.signal_config.value,
+                        "generator": sensor.signal_config.generator,
+                        "isRunning": sensor.signal_config.is_running,
+                        "lastUpdate": int(sensor.signal_config.last_update * 1000)
+                    }
+                    for sensor in plc.sensors
+                ],
+                "is_active": plc.is_active,
+                "created_at": int(plc.created_at * 1000),
+                "updated_at": int(plc.updated_at * 1000)
+            }
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+    @app.delete("/api/simulator/devices/{device_id}")
+    async def delete_simulator_device(device_id: str):
+        """Delete a device (PLC)"""
+        # Find and remove the PLC from the hierarchy
+        tenants = database.get_all_tenants()
         for tenant in tenants:
             for manufacturer in tenant.manufacturers:
                 for factory in manufacturer.factories:
-                    total_plcs += len(factory.plcs)
-                    for plc in factory.plcs:
-                        total_sensors += len(plc.sensors)
+                    for i, plc in enumerate(factory.plcs):
+                        if plc.id == device_id:
+                            factory.plcs.pop(i)
+                            database._save_tenants()
+                            return {"message": f"Device {device_id} deleted"}
+
+        raise HTTPException(status_code=404, detail="Device not found")
+
+    @app.get("/api/simulator/status")
+    async def get_simulator_status():
+        """Get simulator status"""
+        tenants = database.get_all_tenants()
+        total_devices = 0
+        total_signals = 0
+
+        for tenant in tenants:
+            if tenant.is_active:
+                for manufacturer in tenant.manufacturers:
+                    if manufacturer.is_active:
+                        for factory in manufacturer.factories:
+                            if factory.is_active:
+                                for plc in factory.plcs:
+                                    if plc.is_active:
+                                        total_devices += 1
+                                        total_signals += len([s for s in plc.sensors if s.is_active])
 
         return {
-            "total_tenants": len(tenants),
-            "active_tenants": active_tenants,
-            "total_plcs": total_plcs,
-            "total_sensors": total_sensors,
-            "timestamp": datetime.now().isoformat()
+            "isRunning": True,
+            "activeDevices": total_devices,
+            "totalSignals": total_signals,
+            "lastUpdate": int(time.time() * 1000)
         }
 
     # Real-time data streaming endpoints

@@ -26,66 +26,278 @@ class SimulatorApp:
         self._initialize_demo_data()
 
     def _initialize_demo_data(self):
-        """Initialize demo data if database is empty"""
-        if self.db.get_all_tenants():
-            logger.info("Database already has data, skipping demo initialization")
+        """Initialize comprehensive demo data with multiple tenants, manufacturers, factories, and devices"""
+        existing_tenants = self.db.get_all_tenants()
+        
+        # Only skip if we have comprehensive demo data (more than just a basic demo tenant)
+        if existing_tenants and len(existing_tenants) > 1:
+            logger.info("Database already has comprehensive demo data, skipping initialization")
             return
         
-        logger.info("Initializing demo data for testing...")
+        # Clear existing minimal data and reinitialize with comprehensive demo data
+        if existing_tenants:
+            logger.info("Clearing existing minimal demo data and initializing comprehensive demo data...")
+            # Clear all existing data
+            self.db.tenants.clear()
+            self.db.save_tenants()
+        else:
+            logger.info("Initializing comprehensive demo data for testing...")
         
         # Import models
         from models import Tenant, Manufacturer, Factory, PLC, Sensor
         
-        # Create demo tenant
-        tenant = Tenant(id="demo-tenant", name="Demo Manufacturing Corp", description="Demo tenant for testing")
-        tenant = self.db.create_tenant(tenant)
-        
-        # Create manufacturer
-        manufacturer = Manufacturer(id="demo-mfg", name="Demo Manufacturing", description="Demo manufacturer")
-        tenant.manufacturers.append(manufacturer)
-        
-        # Create factory
-        factory = Factory(id="demo-factory", name="Main Production Facility", description="Demo factory in New York, NY")
-        manufacturer.factories.append(factory)
-        
-        # Create PLCs with sensors
-        plc1 = PLC(id="PLC-001", name="Siemens S7-1500", model="Siemens S7-1500", ip_address="192.168.1.10", description="Main PLC")
-        plc2 = PLC(id="PLC-002", name="Allen-Bradley ControlLogix", model="Allen-Bradley ControlLogix", ip_address="192.168.1.11", description="Backup PLC")
-        factory.plcs.extend([plc1, plc2])
-        
-        # Add sensors to PLCs
-        sensors_data = [
-            ("temperature", "Temperature Sensor", "°C", 25.0, "normal", 20.0, 30.0),
-            ("pressure", "Pressure Sensor", "bar", 5.0, "normal", 3.0, 7.0),
-            ("flow_rate", "Flow Rate Sensor", "L/min", 100.0, "normal", 80.0, 120.0),
-            ("vibration", "Vibration Sensor", "mm/s", 2.5, "normal", 1.0, 4.0),
+        # Create multiple tenants
+        tenants_data = [
+            {
+                "id": "acme-corp",
+                "name": "Acme Manufacturing Corp",
+                "description": "Leading manufacturer of industrial equipment",
+                "manufacturers": [
+                    {
+                        "id": "acme-motors",
+                        "name": "Acme Motor Division",
+                        "description": "High-performance motor manufacturing",
+                        "factories": [
+                            {
+                                "id": "acme-factory-ny",
+                                "name": "New York Production Facility",
+                                "description": "Main production facility in NYC",
+                                "location": {"x": 40.7128, "y": -74.0060, "address": "123 Industrial Blvd, NYC, NY"},
+                                "plcs": [
+                                    {
+                                        "id": "PLC-NY-001",
+                                        "name": "Siemens S7-1500 #1",
+                                        "description": "Assembly line controller",
+                                        "model": "Siemens S7-1500",
+                                        "ip_address": "192.168.1.10",
+                                        "position": {"x": 100, "y": 150},
+                                        "sensors": [
+                                            ("motor_speed", "Motor Speed", "RPM", 1750.0, "normal", 1700.0, 1800.0, {"mean": 1750.0, "std_dev": 25.0}),
+                                            ("motor_temp", "Motor Temperature", "°C", 65.0, "normal", 50.0, 80.0, {"mean": 65.0, "std_dev": 5.0}),
+                                            ("vibration", "Vibration Sensor", "mm/s", 1.2, "normal", 0.5, 2.0, {"mean": 1.2, "std_dev": 0.3}),
+                                            ("power_consumption", "Power Consumption", "kW", 15.5, "uniform", 12.0, 18.0, {}),
+                                        ]
+                                    },
+                                    {
+                                        "id": "PLC-NY-002", 
+                                        "name": "Allen-Bradley ControlLogix #1",
+                                        "description": "Quality control station",
+                                        "model": "Allen-Bradley ControlLogix",
+                                        "ip_address": "192.168.1.11",
+                                        "position": {"x": 300, "y": 200},
+                                        "sensors": [
+                                            ("pressure_main", "Main Pressure", "bar", 8.5, "normal", 7.0, 10.0, {"mean": 8.5, "std_dev": 0.8}),
+                                            ("flow_rate", "Flow Rate", "L/min", 120.0, "normal", 100.0, 140.0, {"mean": 120.0, "std_dev": 10.0}),
+                                            ("level_tank", "Tank Level", "%", 75.0, "uniform", 20.0, 90.0, {}),
+                                            ("ph_level", "pH Level", "pH", 7.2, "normal", 6.8, 7.6, {"mean": 7.2, "std_dev": 0.2}),
+                                        ]
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "acme-factory-la",
+                                "name": "Los Angeles Assembly Plant",
+                                "description": "West coast assembly facility",
+                                "location": {"x": 34.0522, "y": -118.2437, "address": "456 Production Ave, LA, CA"},
+                                "plcs": [
+                                    {
+                                        "id": "PLC-LA-001",
+                                        "name": "Schneider M580 #1",
+                                        "description": "Conveyor system controller",
+                                        "model": "Schneider M580",
+                                        "ip_address": "192.168.2.10",
+                                        "position": {"x": 150, "y": 100},
+                                        "sensors": [
+                                            ("conveyor_speed", "Conveyor Speed", "m/min", 25.0, "uniform", 20.0, 30.0, {}),
+                                            ("load_weight", "Load Weight", "kg", 45.0, "normal", 30.0, 60.0, {"mean": 45.0, "std_dev": 8.0}),
+                                            ("belt_tension", "Belt Tension", "N", 850.0, "normal", 800.0, 900.0, {"mean": 850.0, "std_dev": 25.0}),
+                                            ("motor_current", "Motor Current", "A", 12.5, "normal", 10.0, 15.0, {"mean": 12.5, "std_dev": 1.5}),
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "id": "tech-solutions",
+                "name": "Tech Solutions Inc",
+                "description": "Advanced technology manufacturing",
+                "manufacturers": [
+                    {
+                        "id": "tech-electronics",
+                        "name": "Electronics Division",
+                        "description": "PCB and electronics manufacturing",
+                        "factories": [
+                            {
+                                "id": "tech-factory-austin",
+                                "name": "Austin Tech Hub",
+                                "description": "R&D and production facility",
+                                "location": {"x": 30.2672, "y": -97.7431, "address": "789 Innovation Dr, Austin, TX"},
+                                "plcs": [
+                                    {
+                                        "id": "PLC-AUS-001",
+                                        "name": "Beckhoff CX9020 #1",
+                                        "description": "SMT line controller",
+                                        "model": "Beckhoff CX9020",
+                                        "ip_address": "192.168.3.10",
+                                        "position": {"x": 200, "y": 180},
+                                        "sensors": [
+                                            ("humidity", "Humidity", "%", 45.0, "normal", 30.0, 60.0, {"mean": 45.0, "std_dev": 5.0}),
+                                            ("temperature_oven", "Oven Temperature", "°C", 180.0, "normal", 170.0, 190.0, {"mean": 180.0, "std_dev": 5.0}),
+                                            ("air_quality", "Air Quality", "ppm", 15.0, "exponential", None, None, {"rate": 0.1}),
+                                            ("static_charge", "Static Charge", "V", 0.5, "normal", 0.0, 1.0, {"mean": 0.5, "std_dev": 0.2}),
+                                        ]
+                                    },
+                                    {
+                                        "id": "PLC-AUS-002",
+                                        "name": "Omron NJ501 #1",
+                                        "description": "Testing station controller",
+                                        "model": "Omron NJ501",
+                                        "ip_address": "192.168.3.11",
+                                        "position": {"x": 400, "y": 250},
+                                        "sensors": [
+                                            ("resistance", "Resistance", "Ω", 1000.0, "normal", 950.0, 1050.0, {"mean": 1000.0, "std_dev": 25.0}),
+                                            ("voltage", "Test Voltage", "V", 5.0, "uniform", 4.8, 5.2, {}),
+                                            ("current_test", "Test Current", "mA", 50.0, "normal", 40.0, 60.0, {"mean": 50.0, "std_dev": 5.0}),
+                                            ("frequency", "Signal Frequency", "MHz", 100.0, "sinusoidal", None, None, {"frequency": 0.01, "amplitude": 10.0, "offset": 100.0}),
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "id": "global-industries",
+                "name": "Global Industries Ltd",
+                "description": "Heavy machinery and equipment",
+                "manufacturers": [
+                    {
+                        "id": "global-machinery",
+                        "name": "Heavy Machinery Division",
+                        "description": "Large-scale industrial equipment",
+                        "factories": [
+                            {
+                                "id": "global-factory-chicago",
+                                "name": "Chicago Manufacturing Complex",
+                                "description": "Heavy equipment production",
+                                "location": {"x": 41.8781, "y": -87.6298, "address": "321 Heavy Ind Blvd, Chicago, IL"},
+                                "plcs": [
+                                    {
+                                        "id": "PLC-CHI-001",
+                                        "name": "Mitsubishi Q Series #1",
+                                        "description": "Press machine controller",
+                                        "model": "Mitsubishi Q Series",
+                                        "ip_address": "192.168.4.10",
+                                        "position": {"x": 250, "y": 120},
+                                        "sensors": [
+                                            ("force_pressure", "Press Force", "tons", 500.0, "normal", 450.0, 550.0, {"mean": 500.0, "std_dev": 25.0}),
+                                            ("hydraulic_pressure", "Hydraulic Pressure", "bar", 180.0, "uniform", 160.0, 200.0, {}),
+                                            ("oil_temp", "Oil Temperature", "°C", 70.0, "normal", 60.0, 80.0, {"mean": 70.0, "std_dev": 5.0}),
+                                            ("vibration_heavy", "Heavy Vibration", "mm/s", 8.5, "normal", 5.0, 12.0, {"mean": 8.5, "std_dev": 1.5}),
+                                        ]
+                                    },
+                                    {
+                                        "id": "PLC-CHI-002",
+                                        "name": "Rockwell Automation #1",
+                                        "description": "Assembly robot controller",
+                                        "model": "Rockwell Automation",
+                                        "ip_address": "192.168.4.11",
+                                        "position": {"x": 450, "y": 300},
+                                        "sensors": [
+                                            ("robot_position_x", "Robot X Position", "mm", 1250.0, "uniform", 1000.0, 1500.0, {}),
+                                            ("robot_position_y", "Robot Y Position", "mm", 800.0, "uniform", 500.0, 1000.0, {}),
+                                            ("gripper_force", "Gripper Force", "N", 250.0, "normal", 200.0, 300.0, {"mean": 250.0, "std_dev": 20.0}),
+                                            ("cycle_time", "Cycle Time", "seconds", 45.0, "normal", 40.0, 50.0, {"mean": 45.0, "std_dev": 3.0}),
+                                        ]
+                                    },
+                                    {
+                                        "id": "PLC-CHI-003",
+                                        "name": "Siemens S7-300 #1",
+                                        "description": "Welding station controller",
+                                        "model": "Siemens S7-300",
+                                        "ip_address": "192.168.4.12",
+                                        "position": {"x": 600, "y": 180},
+                                        "sensors": [
+                                            ("weld_current", "Weld Current", "A", 150.0, "uniform", 120.0, 180.0, {}),
+                                            ("weld_voltage", "Weld Voltage", "V", 25.0, "normal", 20.0, 30.0, {"mean": 25.0, "std_dev": 2.0}),
+                                            ("wire_feed", "Wire Feed Rate", "m/min", 8.0, "uniform", 6.0, 10.0, {}),
+                                            ("gas_flow", "Shield Gas Flow", "L/min", 18.0, "normal", 15.0, 20.0, {"mean": 18.0, "std_dev": 1.0}),
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            }
         ]
         
-        for plc in [plc1, plc2]:
-            for i, (sensor_name, description, unit, value, generator, min_val, max_val) in enumerate(sensors_data):
-                sensor_id = f"{sensor_name}_{plc.id}_{i}"
-                sensor = Sensor(
-                    id=sensor_id,
-                    name=f"{description} {plc.id}",
-                    description=description,
-                    unit=unit,
-                    value=value,
-                    signal_config=SignalConfig(
-                        name=sensor_name,
-                        unit=unit,
-                        value=value,
-                        generator=generator,
-                        min_value=min_val,
-                        max_value=max_val
-                    )
+        for tenant_data in tenants_data:
+            tenant = Tenant(
+                id=tenant_data["id"],
+                name=tenant_data["name"],
+                description=tenant_data["description"]
+            )
+            
+            for m_data in tenant_data["manufacturers"]:
+                manufacturer = Manufacturer(
+                    id=m_data["id"],
+                    name=m_data["name"],
+                    description=m_data["description"]
                 )
-                plc.sensors.append(sensor)
+                
+                for f_data in m_data["factories"]:
+                    factory = Factory(
+                        id=f_data["id"],
+                        name=f_data["name"],
+                        description=f_data["description"]
+                    )
+                    
+                    for p_data in f_data["plcs"]:
+                        plc = PLC(
+                            id=p_data["id"],
+                            name=p_data["name"],
+                            description=p_data["description"]
+                        )
+                        
+                        for sensor_data in p_data["sensors"]:
+                            sensor_name, description, unit, value, generator, min_val, max_val, params = sensor_data
+                            
+                            sensor_config = SignalConfig(
+                                name=sensor_name,
+                                unit=unit,
+                                value=value,
+                                generator=generator,
+                                **params
+                            )
+                            
+                            sensor = Sensor(
+                                id=f"{sensor_name}_{p_data['id']}",
+                                name=description,
+                                signal_config=sensor_config
+                            )
+                            plc.sensors.append(sensor)
+                        
+                        factory.plcs.append(plc)
+                    
+                    manufacturer.factories.append(factory)
+                
+                tenant.manufacturers.append(manufacturer)
+            
+            self.db.create_tenant(tenant)
         
-        # Save the updated tenant
-        self.db._save_tenants()
+        logger.info("Comprehensive demo data initialized successfully")
+        total_tenants = len(tenants_data)
+        total_manufacturers = sum(len(t["manufacturers"]) for t in tenants_data)
+        total_factories = sum(len(m["factories"]) for t in tenants_data for m in t["manufacturers"])
+        total_plcs = sum(len(f["plcs"]) for t in tenants_data for m in t["manufacturers"] for f in m["factories"])
+        total_sensors = sum(len(p["sensors"]) for t in tenants_data for m in t["manufacturers"] for f in m["factories"] for p in f["plcs"])
         
-        logger.info("Demo data initialized successfully")
-        logger.info(f"Created tenant: {tenant.name} with {len(manufacturer.factories)} factories and {sum(len(plc.sensors) for plc in factory.plcs)} sensors")
+        logger.info(f"Created {total_tenants} tenants, {total_manufacturers} manufacturers, {total_factories} factories, {total_plcs} PLCs, and {total_sensors} sensors")
 
     def list_devices(self, device_type=None, active_only=False):
         """Stub method for compatibility"""
@@ -168,11 +380,286 @@ class SimulatorApp:
         self.opcua_server: Optional[OPCUAServer] = None
         self.web_app = None
         self.running = False
+        self._initialize_demo_data()
 
     def list_devices(self, device_type=None, active_only=False):
         """Stub method for compatibility - returns empty list"""
         logger.warning("list_devices called but not implemented for multi-tenant architecture")
         return []
+
+    def _initialize_demo_data(self):
+        """Initialize comprehensive demo data with multiple tenants, manufacturers, factories, and devices"""
+        existing_tenants = self.db.get_all_tenants()
+        
+        # Only skip if we have comprehensive demo data (more than just a basic demo tenant)
+        if existing_tenants and len(existing_tenants) > 1:
+            logger.info("Database already has comprehensive demo data, skipping initialization")
+            return
+        
+        # Clear existing minimal data and reinitialize with comprehensive demo data
+        if existing_tenants:
+            logger.info("Clearing existing minimal demo data and initializing comprehensive demo data...")
+            # Clear all existing data
+            self.db.tenants.clear()
+            self.db.save_tenants()
+        else:
+            logger.info("Initializing comprehensive demo data for testing...")
+        
+        # Import models
+        from models import Tenant, Manufacturer, Factory, PLC, Sensor
+        
+        # Create multiple tenants
+        tenants_data = [
+            {
+                "id": "acme-corp",
+                "name": "Acme Manufacturing Corp",
+                "description": "Leading manufacturer of industrial equipment",
+                "manufacturers": [
+                    {
+                        "id": "acme-motors",
+                        "name": "Acme Motor Division",
+                        "description": "High-performance motor manufacturing",
+                        "factories": [
+                            {
+                                "id": "acme-factory-ny",
+                                "name": "New York Production Facility",
+                                "description": "Main production facility in NYC",
+                                "location": {"x": 40.7128, "y": -74.0060, "address": "123 Industrial Blvd, NYC, NY"},
+                                "plcs": [
+                                    {
+                                        "id": "PLC-NY-001",
+                                        "name": "Siemens S7-1500 #1",
+                                        "description": "Assembly line controller",
+                                        "model": "Siemens S7-1500",
+                                        "ip_address": "192.168.1.10",
+                                        "position": {"x": 100, "y": 150},
+                                        "sensors": [
+                                            ("motor_speed", "Motor Speed", "RPM", 1750.0, "normal", 1700.0, 1800.0, {"mean": 1750.0, "std_dev": 25.0}),
+                                            ("motor_temp", "Motor Temperature", "°C", 65.0, "normal", 50.0, 80.0, {"mean": 65.0, "std_dev": 5.0}),
+                                            ("vibration", "Vibration Sensor", "mm/s", 1.2, "normal", 0.5, 2.0, {"mean": 1.2, "std_dev": 0.3}),
+                                            ("power_consumption", "Power Consumption", "kW", 15.5, "uniform", 12.0, 18.0, {}),
+                                        ]
+                                    },
+                                    {
+                                        "id": "PLC-NY-002", 
+                                        "name": "Allen-Bradley ControlLogix #1",
+                                        "description": "Quality control station",
+                                        "model": "Allen-Bradley ControlLogix",
+                                        "ip_address": "192.168.1.11",
+                                        "position": {"x": 300, "y": 200},
+                                        "sensors": [
+                                            ("pressure_main", "Main Pressure", "bar", 8.5, "normal", 7.0, 10.0, {"mean": 8.5, "std_dev": 0.8}),
+                                            ("flow_rate", "Flow Rate", "L/min", 120.0, "normal", 100.0, 140.0, {"mean": 120.0, "std_dev": 10.0}),
+                                            ("level_tank", "Tank Level", "%", 75.0, "uniform", 20.0, 90.0, {}),
+                                            ("ph_level", "pH Level", "pH", 7.2, "normal", 6.8, 7.6, {"mean": 7.2, "std_dev": 0.2}),
+                                        ]
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "acme-factory-la",
+                                "name": "Los Angeles Assembly Plant",
+                                "description": "West coast assembly facility",
+                                "location": {"x": 34.0522, "y": -118.2437, "address": "456 Production Ave, LA, CA"},
+                                "plcs": [
+                                    {
+                                        "id": "PLC-LA-001",
+                                        "name": "Schneider M580 #1",
+                                        "description": "Conveyor system controller",
+                                        "model": "Schneider M580",
+                                        "ip_address": "192.168.2.10",
+                                        "position": {"x": 150, "y": 100},
+                                        "sensors": [
+                                            ("conveyor_speed", "Conveyor Speed", "m/min", 25.0, "uniform", 20.0, 30.0, {}),
+                                            ("load_weight", "Load Weight", "kg", 45.0, "normal", 30.0, 60.0, {"mean": 45.0, "std_dev": 8.0}),
+                                            ("belt_tension", "Belt Tension", "N", 850.0, "normal", 800.0, 900.0, {"mean": 850.0, "std_dev": 25.0}),
+                                            ("motor_current", "Motor Current", "A", 12.5, "normal", 10.0, 15.0, {"mean": 12.5, "std_dev": 1.5}),
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "id": "tech-solutions",
+                "name": "Tech Solutions Inc",
+                "description": "Advanced technology manufacturing",
+                "manufacturers": [
+                    {
+                        "id": "tech-electronics",
+                        "name": "Electronics Division",
+                        "description": "PCB and electronics manufacturing",
+                        "factories": [
+                            {
+                                "id": "tech-factory-austin",
+                                "name": "Austin Tech Hub",
+                                "description": "R&D and production facility",
+                                "location": {"x": 30.2672, "y": -97.7431, "address": "789 Innovation Dr, Austin, TX"},
+                                "plcs": [
+                                    {
+                                        "id": "PLC-AUS-001",
+                                        "name": "Beckhoff CX9020 #1",
+                                        "description": "SMT line controller",
+                                        "model": "Beckhoff CX9020",
+                                        "ip_address": "192.168.3.10",
+                                        "position": {"x": 200, "y": 180},
+                                        "sensors": [
+                                            ("humidity", "Humidity", "%", 45.0, "normal", 30.0, 60.0, {"mean": 45.0, "std_dev": 5.0}),
+                                            ("temperature_oven", "Oven Temperature", "°C", 180.0, "normal", 170.0, 190.0, {"mean": 180.0, "std_dev": 5.0}),
+                                            ("air_quality", "Air Quality", "ppm", 15.0, "exponential", None, None, {"rate": 0.1}),
+                                            ("static_charge", "Static Charge", "V", 0.5, "normal", 0.0, 1.0, {"mean": 0.5, "std_dev": 0.2}),
+                                        ]
+                                    },
+                                    {
+                                        "id": "PLC-AUS-002",
+                                        "name": "Omron NJ501 #1",
+                                        "description": "Testing station controller",
+                                        "model": "Omron NJ501",
+                                        "ip_address": "192.168.3.11",
+                                        "position": {"x": 400, "y": 250},
+                                        "sensors": [
+                                            ("resistance", "Resistance", "Ω", 1000.0, "normal", 950.0, 1050.0, {"mean": 1000.0, "std_dev": 25.0}),
+                                            ("voltage", "Test Voltage", "V", 5.0, "uniform", 4.8, 5.2, {}),
+                                            ("current_test", "Test Current", "mA", 50.0, "normal", 40.0, 60.0, {"mean": 50.0, "std_dev": 5.0}),
+                                            ("frequency", "Signal Frequency", "MHz", 100.0, "sinusoidal", None, None, {"frequency": 0.01, "amplitude": 10.0, "offset": 100.0}),
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "id": "global-industries",
+                "name": "Global Industries Ltd",
+                "description": "Heavy machinery and equipment",
+                "manufacturers": [
+                    {
+                        "id": "global-machinery",
+                        "name": "Heavy Machinery Division",
+                        "description": "Large-scale industrial equipment",
+                        "factories": [
+                            {
+                                "id": "global-factory-chicago",
+                                "name": "Chicago Manufacturing Complex",
+                                "description": "Heavy equipment production",
+                                "location": {"x": 41.8781, "y": -87.6298, "address": "321 Heavy Ind Blvd, Chicago, IL"},
+                                "plcs": [
+                                    {
+                                        "id": "PLC-CHI-001",
+                                        "name": "Mitsubishi Q Series #1",
+                                        "description": "Press machine controller",
+                                        "model": "Mitsubishi Q Series",
+                                        "ip_address": "192.168.4.10",
+                                        "position": {"x": 250, "y": 120},
+                                        "sensors": [
+                                            ("force_pressure", "Press Force", "tons", 500.0, "normal", 450.0, 550.0, {"mean": 500.0, "std_dev": 25.0}),
+                                            ("hydraulic_pressure", "Hydraulic Pressure", "bar", 180.0, "uniform", 160.0, 200.0, {}),
+                                            ("oil_temp", "Oil Temperature", "°C", 70.0, "normal", 60.0, 80.0, {"mean": 70.0, "std_dev": 5.0}),
+                                            ("vibration_heavy", "Heavy Vibration", "mm/s", 8.5, "normal", 5.0, 12.0, {"mean": 8.5, "std_dev": 1.5}),
+                                        ]
+                                    },
+                                    {
+                                        "id": "PLC-CHI-002",
+                                        "name": "Rockwell Automation #1",
+                                        "description": "Assembly robot controller",
+                                        "model": "Rockwell Automation",
+                                        "ip_address": "192.168.4.11",
+                                        "position": {"x": 450, "y": 300},
+                                        "sensors": [
+                                            ("robot_position_x", "Robot X Position", "mm", 1250.0, "uniform", 1000.0, 1500.0, {}),
+                                            ("robot_position_y", "Robot Y Position", "mm", 800.0, "uniform", 500.0, 1000.0, {}),
+                                            ("gripper_force", "Gripper Force", "N", 250.0, "normal", 200.0, 300.0, {"mean": 250.0, "std_dev": 20.0}),
+                                            ("cycle_time", "Cycle Time", "seconds", 45.0, "normal", 40.0, 50.0, {"mean": 45.0, "std_dev": 3.0}),
+                                        ]
+                                    },
+                                    {
+                                        "id": "PLC-CHI-003",
+                                        "name": "Siemens S7-300 #1",
+                                        "description": "Welding station controller",
+                                        "model": "Siemens S7-300",
+                                        "ip_address": "192.168.4.12",
+                                        "position": {"x": 600, "y": 180},
+                                        "sensors": [
+                                            ("weld_current", "Weld Current", "A", 150.0, "uniform", 120.0, 180.0, {}),
+                                            ("weld_voltage", "Weld Voltage", "V", 25.0, "normal", 20.0, 30.0, {"mean": 25.0, "std_dev": 2.0}),
+                                            ("wire_feed", "Wire Feed Rate", "m/min", 8.0, "uniform", 6.0, 10.0, {}),
+                                            ("gas_flow", "Shield Gas Flow", "L/min", 18.0, "normal", 15.0, 20.0, {"mean": 18.0, "std_dev": 1.0}),
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+        
+        for tenant_data in tenants_data:
+            tenant = Tenant(
+                id=tenant_data["id"],
+                name=tenant_data["name"],
+                description=tenant_data["description"]
+            )
+            
+            for m_data in tenant_data["manufacturers"]:
+                manufacturer = Manufacturer(
+                    id=m_data["id"],
+                    name=m_data["name"],
+                    description=m_data["description"]
+                )
+                
+                for f_data in m_data["factories"]:
+                    factory = Factory(
+                        id=f_data["id"],
+                        name=f_data["name"],
+                        description=f_data["description"]
+                    )
+                    
+                    for p_data in f_data["plcs"]:
+                        plc = PLC(
+                            id=p_data["id"],
+                            name=p_data["name"],
+                            description=p_data["description"]
+                        )
+                        
+                        for sensor_data in p_data["sensors"]:
+                            sensor_name, description, unit, value, generator, min_val, max_val, params = sensor_data
+                            
+                            sensor_config = SignalConfig(
+                                name=sensor_name,
+                                unit=unit,
+                                value=value,
+                                generator=generator,
+                                **params
+                            )
+                            
+                            sensor = Sensor(
+                                id=f"{sensor_name}_{p_data['id']}",
+                                name=description,
+                                signal_config=sensor_config
+                            )
+                            plc.sensors.append(sensor)
+                        
+                        factory.plcs.append(plc)
+                    
+                    manufacturer.factories.append(factory)
+                
+                tenant.manufacturers.append(manufacturer)
+            
+            self.db.create_tenant(tenant)
+        
+        logger.info("Comprehensive demo data initialized successfully")
+        total_tenants = len(tenants_data)
+        total_manufacturers = sum(len(t["manufacturers"]) for t in tenants_data)
+        total_factories = sum(len(m["factories"]) for t in tenants_data for m in t["manufacturers"])
+        total_plcs = sum(len(f["plcs"]) for t in tenants_data for m in t["manufacturers"] for f in m["factories"])
+        total_sensors = sum(len(p["sensors"]) for t in tenants_data for m in t["manufacturers"] for f in m["factories"] for p in f["plcs"])
+        
+        logger.info(f"Created {total_tenants} tenants, {total_manufacturers} manufacturers, {total_factories} factories, {total_plcs} PLCs, and {total_sensors} sensors")
 
     async def start_opcua_server(self, endpoint: str = "opc.tcp://0.0.0.0:4840/virtplc/"):
         """Start OPC-UA server"""

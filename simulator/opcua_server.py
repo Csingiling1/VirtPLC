@@ -60,6 +60,36 @@ class OPCUAServer:
             logger.info("OPC-UA server stopped")
 
     async def update_values(self):
+        """Update all sensor values in OPC-UA server"""
+        try:
+            if not self.server or not self.running:
+                return
+
+            # Update tenant sensor values
+            tenants = self.db.get_all_tenants()
+            for tenant in tenants:
+                for manufacturer in tenant.manufacturers:
+                    for factory in manufacturer.factories:
+                        for plc in factory.plcs:
+                            for sensor in plc.sensors:
+                                # Update sensor value in OPC-UA
+                                node_id = f"{tenant.id}.{manufacturer.id}.{factory.id}.{plc.id}.{sensor.id}"
+                                full_node_id = f"ns=2;s={node_id}"
+                                if full_node_id in self.nodes:
+                                    await self.nodes[full_node_id].write_value(sensor.signal_config.value)
+
+            # Update demo nodes for backward compatibility
+            await self._update_demo_nodes()
+
+        except Exception as e:
+            logger.error(f"Failed to update OPC-UA values: {e}")
+
+    async def _update_demo_nodes(self):
+        """Update demo nodes with current values"""
+        # This is for backward compatibility with the backend
+        pass
+
+    async def update_values(self):
         """Update sensor values in OPC-UA server"""
         if not self.running or not self.server:
             return
@@ -74,7 +104,7 @@ class OPCUAServer:
                                 node_id = f"ns=2;s={tenant.id}.{manufacturer.id}.{factory.id}.{plc.id}.{sensor.id}"
                                 if node_id in self.nodes:
                                     # Update sensor value
-                                    await self.nodes[node_id].write_value(sensor.value)
+                                    await self.nodes[node_id].write_value(sensor.signal_config.value)
 
             # Update demo nodes with simulated values
             await self._update_demo_values()
@@ -142,11 +172,11 @@ class OPCUAServer:
                             # Create sensor variable node
                             node_id = f"{tenant.id}.{manufacturer.id}.{factory.id}.{plc.id}.{sensor.id}"
                             # Use Double for numeric sensor values to match Python float writes
-                            variant_type = ua.VariantType.Double if isinstance(sensor.value, float) else ua.VariantType.Boolean
+                            variant_type = ua.VariantType.Double if isinstance(sensor.signal_config.value, float) else ua.VariantType.Boolean
                             sensor_node = await plc_node.add_variable(
                                 ns_idx,
                                 sensor.id,
-                                sensor.value,
+                                sensor.signal_config.value,
                                 variant_type
                             )
                             # Make it writable

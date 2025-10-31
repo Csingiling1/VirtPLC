@@ -13,9 +13,9 @@ const Login = lazy(() => import("./pages/Login"));
 const Register = lazy(() => import("./pages/Register"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Devices = lazy(() => import("./pages/Devices"));
+const FactoryView = lazy(() => import("./pages/FactoryView"));
 const Monitoring = lazy(() => import("./pages/Monitoring"));
 const History = lazy(() => import("./pages/History"));
-const Signals = lazy(() => import("./pages/Signals"));
 const Status = lazy(() => import("./pages/Status"));
 const AIAssistant = lazy(() => import("./pages/AIAssistant"));
 const NotFound = lazy(() => import("./pages/NotFound"));
@@ -51,6 +51,11 @@ const App = () => (
                   <Devices />
                 </ProtectedRoute>
               } />
+              <Route path="/factory-view" element={
+                <ProtectedRoute>
+                  <FactoryView />
+                </ProtectedRoute>
+              } />
               <Route path="/monitoring" element={
                 <ProtectedRoute>
                   <Monitoring />
@@ -59,11 +64,6 @@ const App = () => (
               <Route path="/history" element={
                 <ProtectedRoute>
                   <History />
-                </ProtectedRoute>
-              } />
-              <Route path="/signals" element={
-                <ProtectedRoute>
-                  <Signals />
                 </ProtectedRoute>
               } />
               <Route path="/status" element={

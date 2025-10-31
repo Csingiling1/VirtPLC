@@ -5,9 +5,9 @@ import {
   Server,
   Activity,
   History,
-  Radio,
   Settings,
   Bot,
+  Factory,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -21,9 +21,9 @@ const Layout = ({ children }: LayoutProps) => {
   const navItems = [
     { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { path: '/devices', icon: Server, label: 'Devices' },
+    { path: '/factory-view', icon: Factory, label: 'Factory View' },
     { path: '/monitoring', icon: Activity, label: 'Monitoring' },
     { path: '/history', icon: History, label: 'History' },
-    { path: '/signals', icon: Radio, label: 'Signals' },
     { path: '/status', icon: Settings, label: 'Status' },
     { path: '/ai-assistant', icon: Bot, label: 'AI Assistant' },
   ];
