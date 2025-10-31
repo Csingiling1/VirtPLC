@@ -19,9 +19,72 @@ logger = logging.getLogger(__name__)
 class SimulatorApp:
     """Simplified simulator app for multi-tenant testing"""
 
-    def __init__(self, db_path: str = "tenants.json"):
+    def __init__(self, db_path: str = "data/tenants.json"):
         self.db = MultiTenantDatabase(db_path)
         self.web_app = None
+        self._initialize_demo_data()
+
+    def _initialize_demo_data(self):
+        """Initialize demo data if database is empty"""
+        if self.db.get_all_tenants():
+            logger.info("Database already has data, skipping demo initialization")
+            return
+        
+        logger.info("Initializing demo data for testing...")
+        
+        # Import models
+        from models import Tenant, Manufacturer, Factory, PLC, Sensor
+        
+        # Create demo tenant
+        tenant = Tenant(id="demo-tenant", name="Demo Manufacturing Corp", description="Demo tenant for testing")
+        tenant = self.db.create_tenant(tenant)
+        
+        # Create manufacturer
+        manufacturer = Manufacturer(id="demo-mfg", name="Demo Manufacturing", description="Demo manufacturer")
+        tenant.manufacturers.append(manufacturer)
+        
+        # Create factory
+        factory = Factory(id="demo-factory", name="Main Production Facility", description="Demo factory in New York, NY")
+        manufacturer.factories.append(factory)
+        
+        # Create PLCs with sensors
+        plc1 = PLC(id="PLC-001", name="Siemens S7-1500", model="Siemens S7-1500", ip_address="192.168.1.10", description="Main PLC")
+        plc2 = PLC(id="PLC-002", name="Allen-Bradley ControlLogix", model="Allen-Bradley ControlLogix", ip_address="192.168.1.11", description="Backup PLC")
+        factory.plcs.extend([plc1, plc2])
+        
+        # Add sensors to PLCs
+        sensors_data = [
+            ("temperature", "Temperature Sensor", "°C", 25.0, "normal", 20.0, 30.0),
+            ("pressure", "Pressure Sensor", "bar", 5.0, "normal", 3.0, 7.0),
+            ("flow_rate", "Flow Rate Sensor", "L/min", 100.0, "normal", 80.0, 120.0),
+            ("vibration", "Vibration Sensor", "mm/s", 2.5, "normal", 1.0, 4.0),
+        ]
+        
+        for plc in [plc1, plc2]:
+            for i, (sensor_name, description, unit, value, generator, min_val, max_val) in enumerate(sensors_data):
+                sensor_id = f"{sensor_name}_{plc.id}_{i}"
+                sensor = Sensor(
+                    id=sensor_id,
+                    name=f"{description} {plc.id}",
+                    description=description,
+                    unit=unit,
+                    value=value,
+                    signal_config=SignalConfig(
+                        name=sensor_name,
+                        unit=unit,
+                        value=value,
+                        generator=generator,
+                        min_value=min_val,
+                        max_value=max_val
+                    )
+                )
+                plc.sensors.append(sensor)
+        
+        # Save the updated tenant
+        self.db._save_tenants()
+        
+        logger.info("Demo data initialized successfully")
+        logger.info(f"Created tenant: {tenant.name} with {len(manufacturer.factories)} factories and {sum(len(plc.sensors) for plc in factory.plcs)} sensors")
 
     def list_devices(self, device_type=None, active_only=False):
         """Stub method for compatibility"""
@@ -55,7 +118,7 @@ async def main():
     parser = argparse.ArgumentParser(description="VirtPLC Multi-Tenant Simulator")
     parser.add_argument("--host", default="0.0.0.0", help="Host to bind to")
     parser.add_argument("--port", type=int, default=8000, help="Port to bind to")
-    parser.add_argument("--db-path", default="tenants.json", help="Database file path")
+    parser.add_argument("--db-path", default="data/tenants.json", help="Database file path")
     # Accept old arguments for compatibility but ignore them
     parser.add_argument("--mode", default="web-only", help="Ignored for compatibility")
     parser.add_argument("--opcua-endpoint", default="", help="Ignored for compatibility")
