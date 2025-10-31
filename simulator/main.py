@@ -5,6 +5,7 @@ Simplified VirtPLC Multi-Tenant Simulator for testing collector integration
 
 import asyncio
 import logging
+import os
 from database import MultiTenantDatabase
 from web_api import create_app
 
@@ -136,17 +137,6 @@ async def main():
     logger.info(f"  - Web API: http://{args.host}:{args.port}")
     logger.info(f"  - Real-time data: http://{args.host}:{args.port}/api/stream/latest")
     
-    # Keep running
-    try:
-        while True:
-            await asyncio.sleep(1)
-    except KeyboardInterrupt:
-        logger.info("Shutting down...")
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
-
 import argparse
 import asyncio
 import logging
@@ -401,14 +391,14 @@ async def create_sample_devices(app: SimulatorApp):
 async def main():
     """Main CLI entry point"""
     parser = argparse.ArgumentParser(description="VirtPLC Enhanced Simulator")
-    parser.add_argument("--db", default="devices.json", help="Database file path")
+    parser.add_argument("--db", default="tenants.json", help="Database file path")
     parser.add_argument("--mode", choices=["cli", "web", "opcua", "simulate", "interactive", "server", "plc-server"],
-                       default="cli", help="Operation mode")
-    parser.add_argument("--host", default="0.0.0.0", help="Web server host")
-    parser.add_argument("--port", type=int, default=8080, help="Web server port")
-    parser.add_argument("--opcua-endpoint", default="opc.tcp://0.0.0.0:4840",
+                       default=os.getenv("SIMULATOR_MODE", "cli"), help="Operation mode")
+    parser.add_argument("--host", default=os.getenv("SIMULATOR_HOST", "0.0.0.0"), help="Web server host")
+    parser.add_argument("--port", type=int, default=int(os.getenv("SIMULATOR_PORT", "8080")), help="Web server port")
+    parser.add_argument("--opcua-endpoint", default=os.getenv("OPCUA_ENDPOINT", "opc.tcp://0.0.0.0:4840"),
                        help="OPC-UA server endpoint")
-    parser.add_argument("--update-interval", type=float, default=1.0,
+    parser.add_argument("--update-interval", type=float, default=float(os.getenv("UPDATE_INTERVAL", "1.0")),
                        help="Simulation update interval in seconds")
     parser.add_argument("--create-samples", action="store_true",
                        help="Create sample devices")
@@ -537,12 +527,6 @@ async def main():
                     elif args.mode == "plc-server":
                         # PLC replacement server mode - optimized for Spring backend integration
                         logger.info("Starting VirtPLC as PLC replacement server...")
-                        
-                        # Create sample devices if none exist
-                        devices = app.list_devices()
-                        if not devices:
-                            logger.info("No devices found, creating sample devices...")
-                            await create_sample_devices(app)
                         
                         # Start OPC-UA server for industrial protocols
                         await app.start_opcua_server(args.opcua_endpoint)

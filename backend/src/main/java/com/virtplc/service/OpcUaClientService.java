@@ -1,5 +1,6 @@
 package com.virtplc.service;
 
+import com.virtplc.grpc.GrpcDtos.SensorData;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.milo.opcua.sdk.client.OpcUaClient;
 import org.eclipse.milo.opcua.stack.core.types.builtin.DataValue;
@@ -13,7 +14,12 @@ import org.springframework.stereotype.Service;
 
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
+import reactor.core.publisher.Flux;
 
 /**
  * OPC UA Client service for connecting to PLC simulator.
@@ -38,11 +44,21 @@ public class OpcUaClientService {
     @PostConstruct
     public void initialize() {
         log.info("Initializing OPC UA Client for endpoint: {}", endpointUrl);
-        try {
-            connect();
-        } catch (Exception e) {
-            log.error("Failed to initialize OPC UA client: {}", e.getMessage());
+        for (int i = 0; i < 10; i++) {
+            try {
+                connect();
+                return;
+            } catch (Exception e) {
+                log.warn("Failed to initialize OPC UA client, retrying in 5s: {}", e.getMessage());
+                try {
+                    Thread.sleep(5000);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+            }
         }
+        log.error("Failed to initialize OPC UA client after retries");
     }
 
     @PreDestroy
@@ -169,5 +185,26 @@ public class OpcUaClientService {
                 log.error("Failed to reconnect to OPC UA server: {}", e.getMessage());
             }
         }
+    }
+
+    /**
+     * Subscribe to sensor data from OPC UA server (periodic read)
+     */
+    public Flux<SensorData> subscribeToSensorData(List<String> nodeIds) {
+        return Flux.interval(Duration.ofSeconds(1))
+                .flatMap(tick -> Flux.fromIterable(nodeIds)
+                        .map(nodeId -> {
+                            Object val = readValue(nodeId);
+                            if (val instanceof Number) {
+                                return SensorData.builder()
+                                        .sensorId(nodeId)
+                                        .value(((Number) val).doubleValue())
+                                        .timestamp(Instant.now().toEpochMilli())
+                                        .build();
+                            } else {
+                                return null;
+                            }
+                        })
+                        .filter(Objects::nonNull));
     }
 }

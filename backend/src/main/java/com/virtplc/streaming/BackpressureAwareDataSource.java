@@ -1,11 +1,13 @@
 package com.virtplc.streaming;
 
 import com.virtplc.grpc.GrpcDtos.SensorData;
+import com.virtplc.service.OpcUaClientService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
+import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
 
 import java.time.Instant;
 import java.util.List;
@@ -21,65 +23,47 @@ import java.util.concurrent.atomic.AtomicLong;
 public class BackpressureAwareDataSource {
 
     private final DataPipelineProcessor dataPipeline;
+    private final OpcUaClientService opcUaClient;
     private final Random random = new Random();
     private final AtomicLong sequenceGenerator = new AtomicLong(1);
 
-    private static final List<String> SENSOR_IDS = List.of(
-            "temperature_1", "pressure_1", "flow_rate_1", "voltage_1", "current_1",
-            "temperature_2", "pressure_2", "flow_rate_2", "voltage_2", "current_2");
+    // Node IDs can be configured via 'opcua.node.ids' (comma-separated). If not
+    // provided,
+    // we fall back to a sensible default used for testing.
+    @Value("${opcua.node.ids:}")
+    private String opcuaNodeIdsProperty;
+
+    private List<String> nodeIds;
+
+    @PostConstruct
+    public void initNodeIds() {
+        if (opcuaNodeIdsProperty != null && !opcuaNodeIdsProperty.isBlank()) {
+            nodeIds = List.of(opcuaNodeIdsProperty.split("\\s*,\\s*"));
+            log.info("Using configured OPC-UA node IDs: {}", nodeIds);
+        } else {
+            nodeIds = List.of(
+                    "ns=2;s=demo-tenant.demo-mfg.demo-factory.PLC-001.temperature_0",
+                    "ns=2;s=demo-tenant.demo-mfg.demo-factory.PLC-001.pressure_0",
+                    "ns=2;s=demo-tenant.demo-mfg.demo-factory.PLC-001.flow_rate_0",
+                    "ns=2;s=demo-tenant.demo-mfg.demo-factory.PLC-001.vibration_0",
+                    "ns=2;s=demo-tenant.demo-mfg.demo-factory.PLC-002.temperature_1",
+                    "ns=2;s=demo-tenant.demo-mfg.demo-factory.PLC-002.pressure_1",
+                    "ns=2;s=demo-tenant.demo-mfg.demo-factory.PLC-002.flow_rate_1",
+                    "ns=2;s=demo-tenant.demo-mfg.demo-factory.PLC-002.vibration_1");
+            log.info("Using default OPC-UA node IDs: {}", nodeIds);
+        }
+    }
 
     /**
      * Generate simulated sensor data stream with backpressure handling
      */
     public Flux<SensorData> generateSensorDataStream(int dataRatePerSecond) {
-        return Flux.interval(java.time.Duration.ofMillis(1000 / dataRatePerSecond))
-                .onBackpressureDrop(dropped -> log.warn("Data generation backpressure: dropped tick {}", dropped))
-                .flatMap(tick -> generateSensorDataBatch())
+        return opcUaClient.subscribeToSensorData(nodeIds)
+                .sample(java.time.Duration.ofMillis(1000 / dataRatePerSecond))
+                .onBackpressureDrop(dropped -> log.warn("Data generation backpressure: dropped data {}", dropped))
                 .transform(dataPipeline::processDataStream) // Apply pipeline processing with backpressure
                 .doOnNext(data -> log.debug("Generated sensor data: {} = {}", data.getSensorId(), data.getValue()))
                 .doOnError(error -> log.error("Error in data generation stream", error));
-    }
-
-    /**
-     * Generate a batch of sensor data
-     */
-    private Mono<SensorData> generateSensorDataBatch() {
-        return Mono.fromCallable(() -> {
-            String sensorId = SENSOR_IDS.get(random.nextInt(SENSOR_IDS.size()));
-            double value = generateRealisticValue(sensorId);
-            long timestamp = Instant.now().toEpochMilli();
-
-            return SensorData.builder()
-                    .sensorId(sensorId)
-                    .value(value)
-                    .timestamp(timestamp)
-                    .metadata(java.util.Map.of("source", "simulated", "quality", "good"))
-                    .build();
-        });
-    }
-
-    /**
-     * Generate realistic sensor values based on sensor type
-     */
-    private double generateRealisticValue(String sensorId) {
-        if (sensorId.startsWith("temperature")) {
-            // Temperature: 20-80°C with some noise
-            return 20 + random.nextDouble() * 60 + (random.nextDouble() - 0.5) * 5;
-        } else if (sensorId.startsWith("pressure")) {
-            // Pressure: 0-10 bar with noise
-            return random.nextDouble() * 10 + (random.nextDouble() - 0.5) * 0.5;
-        } else if (sensorId.startsWith("flow_rate")) {
-            // Flow rate: 0-100 L/min with noise
-            return random.nextDouble() * 100 + (random.nextDouble() - 0.5) * 10;
-        } else if (sensorId.startsWith("voltage")) {
-            // Voltage: 220-250V with noise
-            return 220 + random.nextDouble() * 30 + (random.nextDouble() - 0.5) * 5;
-        } else if (sensorId.startsWith("current")) {
-            // Current: 0-20A with noise
-            return random.nextDouble() * 20 + (random.nextDouble() - 0.5) * 2;
-        } else {
-            return random.nextDouble() * 100;
-        }
     }
 
     /**
@@ -94,7 +78,7 @@ public class BackpressureAwareDataSource {
             Flux<SensorData> simulatedExternalData = Flux.interval(java.time.Duration.ofMillis(500))
                     .map(tick -> {
                         String sensorId = sensorIds.get((int) (tick % sensorIds.size()));
-                        double value = generateRealisticValue(sensorId);
+                        double value = random.nextDouble() * 100;
 
                         return SensorData.builder()
                                 .sensorId(sensorId)
@@ -131,7 +115,7 @@ public class BackpressureAwareDataSource {
     public DataSourceStats getStats() {
         return new DataSourceStats(
                 sequenceGenerator.get(),
-                SENSOR_IDS.size(),
+                nodeIds.size(),
                 dataPipeline.getStats());
     }
 

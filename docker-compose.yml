@@ -44,7 +44,7 @@ services:
     networks:
       - virtplc-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/api/data/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -104,7 +104,7 @@ services:
       dockerfile: Dockerfile
       args:
         - VITE_WS_URL=ws://localhost:3002
-        - VITE_AI_API_URL=http://localhost:3001
+                - VITE_AI_API_URL=http://localhost:3001
         - VITE_API_BASE_URL=http://localhost:18080
     container_name: virtplc-frontend
     ports:
@@ -308,10 +308,10 @@ services:
       - simulator
       - backend
     environment:
-      - BACKEND_GRPC_HOST=backend
-      - BACKEND_GRPC_PORT=9090
-      - OPCUA_SIMULATOR_URL=http://simulator:8080
-      - TENANT_ID=tenant-demo
+      - SIMULATOR_URL=http://simulator:8080
+      - BACKEND_HOST=backend
+      - BACKEND_REST_PORT=8080
+      - TENANT_ID=demo-tenant
     ports:
       - "9100:9100"  # prometheus metrics
     networks:

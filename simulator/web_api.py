@@ -244,6 +244,11 @@ def create_app(database: MultiTenantDatabase) -> FastAPI:
             ]
         }
 
+    @app.get("/simulation/status")
+    async def simulation_status():
+        """Health check endpoint for Docker"""
+        return {"status": "healthy", "timestamp": int(time.time() * 1000)}
+
     @app.get("/tenants", response_model=List[TenantModel])
     async def list_tenants(active_only: bool = Query(False, description="Show only active tenants")):
         """List all tenants"""
