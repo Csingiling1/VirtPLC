@@ -10,7 +10,7 @@ import (
 	"os/signal"
 	"time"
 
-	pb "github.com/virtplc/collector/proto"
+	pb "github.com/virtplc/collector/pb"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/timestamppb"
 

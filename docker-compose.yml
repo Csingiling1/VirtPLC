@@ -9,6 +9,7 @@ services:
       - "18080:8080"   # REST API
       - "14840:4840"   # OPC-UA Server
       - "8000:8000"   # MCP Server
+      - "9091:9090"   # gRPC Server
     environment:
       - SPRING_PROFILES_ACTIVE=docker
       - SERVER_PORT=8080
@@ -299,6 +300,23 @@ services:
       retries: 3
       start_period: 120s
     restart: unless-stopped
+
+  collector:
+    build: ./collector
+    container_name: collector
+    depends_on:
+      - simulator
+      - backend
+    environment:
+      - BACKEND_GRPC_HOST=backend
+      - BACKEND_GRPC_PORT=9090
+      - OPCUA_SIMULATOR_URL=http://simulator:8080
+      - TENANT_ID=tenant-demo
+    ports:
+      - "9100:9100"  # prometheus metrics
+    networks:
+      - virtplc-network
+    restart: on-failure
 
 networks:
   virtplc-network:

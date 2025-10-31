@@ -1,19 +1,88 @@
 #!/usr/bin/env python3
 """
-VirtPLC Enhanced Simulator
-
-A comprehensive factory simulation tool that can run as:
-- CLI tool for device management and simulation
-- Web server for REST API and monitoring
-- OPC-UA server for industrial protocols
-
-Features:
-- CRUD operations for factory devices
-- Configurable signal generators (uniform, normal, exponential, etc.)
-- File-based persistence
-- REST API for integration with HMI and Spring backend
-- OPC-UA server for industrial communication
+Simplified VirtPLC Multi-Tenant Simulator for testing collector integration
 """
+
+import asyncio
+import logging
+from database import MultiTenantDatabase
+from web_api import create_app
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+
+class SimulatorApp:
+    """Simplified simulator app for multi-tenant testing"""
+
+    def __init__(self, db_path: str = "tenants.json"):
+        self.db = MultiTenantDatabase(db_path)
+        self.web_app = None
+
+    def list_devices(self, device_type=None, active_only=False):
+        """Stub method for compatibility"""
+        return []
+
+    async def start_web_server(self, host: str = "0.0.0.0", port: int = 8000):
+        """Start web server in background thread"""
+        import threading
+        import uvicorn
+
+        self.web_app = create_app(self.db)
+        
+        def run_server():
+            uvicorn.run(
+                self.web_app,
+                host=host,
+                port=port,
+                log_level="info"
+            )
+        
+        # Start server in background thread
+        server_thread = threading.Thread(target=run_server, daemon=True)
+        server_thread.start()
+        logger.info(f"Web server started in background thread at http://{host}:{port}")
+
+
+async def main():
+    """Main entry point - simplified for multi-tenant testing"""
+    import argparse
+    
+    parser = argparse.ArgumentParser(description="VirtPLC Multi-Tenant Simulator")
+    parser.add_argument("--host", default="0.0.0.0", help="Host to bind to")
+    parser.add_argument("--port", type=int, default=8000, help="Port to bind to")
+    parser.add_argument("--db-path", default="tenants.json", help="Database file path")
+    # Accept old arguments for compatibility but ignore them
+    parser.add_argument("--mode", default="web-only", help="Ignored for compatibility")
+    parser.add_argument("--opcua-endpoint", default="", help="Ignored for compatibility")
+    parser.add_argument("--update-interval", type=float, default=1.0, help="Ignored for compatibility")
+    
+    args = parser.parse_args()
+    
+    # Create app with multi-tenant database
+    app = SimulatorApp(args.db_path)
+    
+    # Start web server only
+    await app.start_web_server(args.host, args.port)
+    
+    logger.info("VirtPLC Multi-Tenant Simulator started!")
+    logger.info(f"  - Web API: http://{args.host}:{args.port}")
+    logger.info(f"  - Real-time data: http://{args.host}:{args.port}/api/stream/latest")
+    
+    # Keep running
+    try:
+        while True:
+            await asyncio.sleep(1)
+    except KeyboardInterrupt:
+        logger.info("Shutting down...")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
 
 import argparse
 import asyncio
@@ -23,8 +92,8 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-from database import DeviceDatabase
-from models import FactoryDevice, SignalConfig, SignalGenerator
+from database import MultiTenantDatabase
+from models import Tenant, Manufacturer, Factory, PLC, Sensor, SignalConfig, SignalGenerator
 from web_api import create_app
 from opcua_server import OPCUAServer
 from interactive_cli import InteractiveCLI
@@ -41,11 +110,16 @@ logger = logging.getLogger(__name__)
 class SimulatorApp:
     """Main simulator application"""
 
-    def __init__(self, db_path: str = "devices.json"):
-        self.db = DeviceDatabase(db_path)
+    def __init__(self, db_path: str = "tenants.json"):
+        self.db = MultiTenantDatabase(db_path)
         self.opcua_server: Optional[OPCUAServer] = None
         self.web_app = None
         self.running = False
+
+    def list_devices(self, device_type=None, active_only=False):
+        """Stub method for compatibility - returns empty list"""
+        logger.warning("list_devices called but not implemented for multi-tenant architecture")
+        return []
 
     async def start_opcua_server(self, endpoint: str = "opc.tcp://0.0.0.0:4840/virtplc/"):
         """Start OPC-UA server"""
@@ -111,43 +185,83 @@ class SimulatorApp:
             await self.opcua_server.stop()
         logger.info("Simulator stopped")
 
-    # Device CRUD operations
-    async def create_device(self, device_id: str, name: str, device_type: str = "generic",
-                     description: Optional[str] = None) -> FactoryDevice:
-        """Create a new device"""
-        device = FactoryDevice(
-            id=device_id,
-            name=name,
-            device_type=device_type,
-            description=description
-        )
-        created_device = self.db.create_device(device)
-        if self.opcua_server:
-            await self.opcua_server.add_device(created_device)
-        return created_device
+    # Multi-tenant operations
+    def initialize_sample_data(self):
+        """Initialize sample multi-tenant data"""
+        try:
+            # Create sample tenant
+            tenant = Tenant(
+                id="tenant-demo",
+                name="Demo Tenant",
+                description="Sample tenant for demonstration",
+                manufacturers=[
+                    Manufacturer(
+                        id="manufacturer-1",
+                        name="Demo Manufacturer",
+                        description="Sample manufacturer",
+                        factories=[
+                            Factory(
+                                id="factory-1",
+                                name="Demo Factory",
+                                description="Sample factory",
+                                plcs=[
+                                    PLC(
+                                        id="plc-1",
+                                        name="Demo PLC",
+                                        description="Sample PLC",
+                                        sensors=[
+                                            Sensor(
+                                                id="temp-1",
+                                                name="Temperature Sensor 1",
+                                                signal_config=SignalConfig(
+                                                    name="temperature",
+                                                    unit="°C",
+                                                    value=25.0,
+                                                    generator=SignalGenerator.NORMAL.value,
+                                                    mean=25.0,
+                                                    std_dev=2.0
+                                                )
+                                            ),
+                                            Sensor(
+                                                id="pressure-1",
+                                                name="Pressure Sensor 1",
+                                                signal_config=SignalConfig(
+                                                    name="pressure",
+                                                    unit="bar",
+                                                    value=1.0,
+                                                    generator=SignalGenerator.UNIFORM.value,
+                                                    min_value=0.8,
+                                                    max_value=1.2
+                                                )
+                                            ),
+                                            Sensor(
+                                                id="flow-1",
+                                                name="Flow Sensor 1",
+                                                signal_config=SignalConfig(
+                                                    name="flow_rate",
+                                                    unit="L/min",
+                                                    value=50.0,
+                                                    generator=SignalGenerator.NORMAL.value,
+                                                    mean=50.0,
+                                                    std_dev=5.0
+                                                )
+                                            )
+                                        ]
+                                    )
+                                ]
+                            )
+                        ]
+                    )
+                ]
+            )
+            self.db.create_tenant(tenant)
+            logger.info("Sample tenant data initialized")
+        except ValueError:
+            logger.info("Sample data already exists")
 
-    def list_devices(self, device_type: Optional[str] = None, active_only: bool = False):
-        """List devices"""
-        if device_type:
-            devices = self.db.get_devices_by_type(device_type)
-        elif active_only:
-            devices = self.db.get_active_devices()
-        else:
-            devices = self.db.get_all_devices()
-
-        return devices
-
-    def get_device(self, device_id: str) -> Optional[FactoryDevice]:
-        """Get device by ID"""
-        return self.db.get_device(device_id)
-
-    def update_device(self, device_id: str, **updates) -> Optional[FactoryDevice]:
-        """Update device"""
-        return self.db.update_device(device_id, updates)
-
-    def delete_device(self, device_id: str) -> bool:
-        """Delete device"""
-        return self.db.delete_device(device_id)
+    def update_simulation(self):
+        """Update all tenant signals"""
+        self.db.update_all_signals()
 
     def add_signal(self, device_id: str, name: str, unit: str, generator: str = "constant",
                    **params) -> bool:

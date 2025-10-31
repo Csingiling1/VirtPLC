@@ -12,9 +12,10 @@ COPY . .
 
 # Generate protobuf files
 RUN apk add --no-cache protobuf-dev && \
-    go install google.golang.org/protobuf/cmd/protoc-gen-go@latest && \
-    go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest && \
-    protoc --proto_path=../proto --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative ../proto/plcstream.proto
+    go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.31.0 && \
+    go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.3.0 && \
+    mkdir -p pb && \
+    protoc --proto_path=./proto --go_out=./pb --go_opt=paths=source_relative --go-grpc_out=./pb --go-grpc_opt=paths=source_relative ./proto/plcstream.proto
 
 # Build the binary
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o collector .

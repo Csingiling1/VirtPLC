@@ -15,6 +15,7 @@ import sys
 import time
 from datetime import datetime
 from typing import Optional, Dict, Any, List
+from database import MultiTenantDatabase
 
 try:
     import requests
@@ -152,8 +153,7 @@ Type 'help' or '?' for command list.
 
     def __init__(self, db_path: str = "devices.json"):
         super().__init__()
-        from database import DeviceDatabase
-        self.db = DeviceDatabase(db_path)
+        self.db = MultiTenantDatabase(db_path)
 
         # ASCII Art for different operations
         self.art = {
@@ -466,8 +466,8 @@ import time
 from datetime import datetime
 from typing import Optional, Dict, Any
 
-from database import DeviceDatabase
-from models import FactoryDevice, SignalConfig, SignalGenerator
+from database import MultiTenantDatabase
+from models import SignalConfig, SignalGenerator
 
 # Configure logging
 logging.basicConfig(level=logging.WARNING)  # Less verbose for interactive mode
@@ -494,7 +494,7 @@ Type 'help' or '?' for command list.
 
     def __init__(self, db_path: str = "devices.json"):
         super().__init__()
-        self.db = DeviceDatabase(db_path)
+        self.db = MultiTenantDatabase(db_path)
         self.simulator_thread: Optional[threading.Thread] = None
         self.simulator_running = False
         self.update_interval = 1.0

@@ -103,128 +103,150 @@ class SignalConfig:
 
 
 @dataclass
-class FactoryDevice:
-    """Factory device with multiple signals"""
+class Sensor:
+    """Individual sensor within a PLC"""
+    id: str
+    name: str
+    signal_config: SignalConfig
+    is_active: bool = True
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "id": self.id,
+            "name": self.name,
+            "signal_config": {
+                "name": self.signal_config.name,
+                "unit": self.signal_config.unit,
+                "value": self.signal_config.value,
+                "generator": self.signal_config.generator,
+                "is_running": self.signal_config.is_running,
+                "min_value": self.signal_config.min_value,
+                "max_value": self.signal_config.max_value,
+                "mean": self.signal_config.mean,
+                "std_dev": self.signal_config.std_dev,
+                "rate": self.signal_config.rate,
+                "frequency": self.signal_config.frequency,
+                "amplitude": self.signal_config.amplitude,
+                "offset": self.signal_config.offset,
+                "step_size": self.signal_config.step_size,
+            },
+            "is_active": self.is_active,
+        }
+
+
+@dataclass
+class PLC:
+    """Programmable Logic Controller within a factory"""
     id: str
     name: str
     description: Optional[str] = None
-    device_type: str = "generic"  # motor, conveyor, sensor, valve, etc.
-    signals: List[SignalConfig] = field(default_factory=list)
+    sensors: List[Sensor] = field(default_factory=list)
     is_active: bool = True
     created_at: float = field(default_factory=lambda: datetime.now().timestamp())
     updated_at: float = field(default_factory=lambda: datetime.now().timestamp())
 
-    def update_signals(self):
-        """Update all signals with new generated values"""
-        for signal in self.signals:
-            if signal.is_running:
-                signal.value = signal.generate_value()
-                signal.last_update = datetime.now().timestamp()
+    def update_sensors(self):
+        """Update all sensors with new generated values"""
+        for sensor in self.sensors:
+            if sensor.is_active and sensor.signal_config.is_running:
+                sensor.signal_config.value = sensor.signal_config.generate_value()
+                sensor.signal_config.last_update = datetime.now().timestamp()
         self.updated_at = datetime.now().timestamp()
-
-    def get_signal_value(self, signal_name: str) -> Optional[float]:
-        """Get value of a specific signal"""
-        for signal in self.signals:
-            if signal.name == signal_name:
-                return signal.value
-        return None
-
-    def set_signal_value(self, signal_name: str, value: float):
-        """Set value of a specific signal"""
-        for signal in self.signals:
-            if signal.name == signal_name:
-                signal.value = value
-                signal.last_update = datetime.now().timestamp()
-                break
-
-    def add_signal(self, name: str, unit: str, generator: str = SignalGenerator.CONSTANT.value, **params) -> bool:
-        """Add a new signal to the device"""
-        # Check if signal already exists
-        for signal in self.signals:
-            if signal.name == name:
-                return False  # Signal already exists
-
-        # Create new signal
-        signal = SignalConfig(
-            name=name,
-            unit=unit,
-            generator=generator,
-            **params
-        )
-        self.signals.append(signal)
-        self.updated_at = datetime.now().timestamp()
-        return True
-
-    def remove_signal(self, signal_name: str) -> bool:
-        """Remove a signal from the device"""
-        for i, signal in enumerate(self.signals):
-            if signal.name == signal_name:
-                self.signals.pop(i)
-                self.updated_at = datetime.now().timestamp()
-                return True
-        return False
 
     def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary for serialization"""
         return {
             "id": self.id,
             "name": self.name,
             "description": self.description,
-            "device_type": self.device_type,
-            "signals": [
-                {
-                    "name": s.name,
-                    "unit": s.unit,
-                    "value": s.value,
-                    "generator": s.generator,
-                    "is_running": s.is_running,
-                    "min_value": s.min_value,
-                    "max_value": s.max_value,
-                    "mean": s.mean,
-                    "std_dev": s.std_dev,
-                    "rate": s.rate,
-                    "frequency": s.frequency,
-                    "amplitude": s.amplitude,
-                    "offset": s.offset,
-                    "step_size": s.step_size,
-                }
-                for s in self.signals
-            ],
+            "sensors": [sensor.to_dict() for sensor in self.sensors],
             "is_active": self.is_active,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
         }
 
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'FactoryDevice':
-        """Create from dictionary"""
-        signals = []
-        for s_data in data.get("signals", []):
-            signal = SignalConfig(
-                name=s_data["name"],
-                unit=s_data["unit"],
-                value=s_data.get("value", 0.0),
-                generator=s_data.get("generator", SignalGenerator.CONSTANT.value),
-                is_running=s_data.get("is_running", True),
-                min_value=s_data.get("min_value"),
-                max_value=s_data.get("max_value"),
-                mean=s_data.get("mean"),
-                std_dev=s_data.get("std_dev"),
-                rate=s_data.get("rate"),
-                frequency=s_data.get("frequency"),
-                amplitude=s_data.get("amplitude"),
-                offset=s_data.get("offset"),
-                step_size=s_data.get("step_size"),
-            )
-            signals.append(signal)
 
-        return cls(
-            id=data["id"],
-            name=data["name"],
-            description=data.get("description"),
-            device_type=data.get("device_type", "generic"),
-            signals=signals,
-            is_active=data.get("is_active", True),
-            created_at=data.get("created_at", datetime.now().timestamp()),
-            updated_at=data.get("updated_at", datetime.now().timestamp()),
-        )
+@dataclass
+class Factory:
+    """Factory within a manufacturer"""
+    id: str
+    name: str
+    description: Optional[str] = None
+    plcs: List[PLC] = field(default_factory=list)
+    is_active: bool = True
+    created_at: float = field(default_factory=lambda: datetime.now().timestamp())
+    updated_at: float = field(default_factory=lambda: datetime.now().timestamp())
+
+    def update_plcs(self):
+        """Update all PLCs and their sensors"""
+        for plc in self.plcs:
+            plc.update_sensors()
+        self.updated_at = datetime.now().timestamp()
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "id": self.id,
+            "name": self.name,
+            "description": self.description,
+            "plcs": [plc.to_dict() for plc in self.plcs],
+            "is_active": self.is_active,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
+        }
+
+
+@dataclass
+class Manufacturer:
+    """Manufacturer within a tenant"""
+    id: str
+    name: str
+    description: Optional[str] = None
+    factories: List[Factory] = field(default_factory=list)
+    is_active: bool = True
+    created_at: float = field(default_factory=lambda: datetime.now().timestamp())
+    updated_at: float = field(default_factory=lambda: datetime.now().timestamp())
+
+    def update_factories(self):
+        """Update all factories and their PLCs"""
+        for factory in self.factories:
+            factory.update_plcs()
+        self.updated_at = datetime.now().timestamp()
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "id": self.id,
+            "name": self.name,
+            "description": self.description,
+            "factories": [factory.to_dict() for factory in self.factories],
+            "is_active": self.is_active,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
+        }
+
+
+@dataclass
+class Tenant:
+    """Top-level tenant containing manufacturers"""
+    id: str
+    name: str
+    description: Optional[str] = None
+    manufacturers: List[Manufacturer] = field(default_factory=list)
+    is_active: bool = True
+    created_at: float = field(default_factory=lambda: datetime.now().timestamp())
+    updated_at: float = field(default_factory=lambda: datetime.now().timestamp())
+
+    def update_manufacturers(self):
+        """Update all manufacturers and their factories"""
+        for manufacturer in self.manufacturers:
+            manufacturer.update_factories()
+        self.updated_at = datetime.now().timestamp()
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "id": self.id,
+            "name": self.name,
+            "description": self.description,
+            "manufacturers": [manufacturer.to_dict() for manufacturer in self.manufacturers],
+            "is_active": self.is_active,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
+        }

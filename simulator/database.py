@@ -1,5 +1,5 @@
 """
-File-based database for device persistence
+File-based database for multi-tenant factory simulation
 """
 
 import json
@@ -7,21 +7,21 @@ import os
 from typing import List, Dict, Any, Optional
 from pathlib import Path
 import logging
-from models import FactoryDevice
+from models import Tenant, Manufacturer, Factory, PLC, Sensor, SignalConfig, SignalGenerator
 
 logger = logging.getLogger(__name__)
 
 
-class DeviceDatabase:
-    """File-based database for factory devices"""
+class MultiTenantDatabase:
+    """File-based database for multi-tenant factory simulation"""
 
-    def __init__(self, db_path: str = "devices.json"):
+    def __init__(self, db_path: str = "tenants.json"):
         self.db_path = Path(db_path)
-        self.devices: Dict[str, FactoryDevice] = {}
-        self._load_devices()
+        self.tenants: Dict[str, Tenant] = {}
+        self._load_tenants()
 
-    def _load_devices(self):
-        """Load devices from file"""
+    def _load_tenants(self):
+        """Load tenants from file"""
         if self.db_path.exists():
             try:
                 # Check if it's a directory instead of a file
@@ -32,118 +32,158 @@ class DeviceDatabase:
                     self.db_path.touch()  # Create empty file
                     logger.info(f"Created new empty database file at {self.db_path}")
                     return
-                
+
                 with open(self.db_path, 'r') as f:
                     data = json.load(f)
-                    for device_data in data.get("devices", []):
-                        device = FactoryDevice.from_dict(device_data)
-                        self.devices[device.id] = device
-                logger.info(f"Loaded {len(self.devices)} devices from {self.db_path}")
+                    for tenant_data in data.get("tenants", []):
+                        tenant = self._tenant_from_dict(tenant_data)
+                        self.tenants[tenant.id] = tenant
+                logger.info(f"Loaded {len(self.tenants)} tenants from {self.db_path}")
             except Exception as e:
-                logger.error(f"Error loading devices: {e}")
+                logger.error(f"Error loading tenants: {e}")
         else:
             logger.info(f"Database file {self.db_path} not found, starting with empty database")
 
-    def _save_devices(self):
-        """Save devices to file"""
+    def _tenant_from_dict(self, data: Dict[str, Any]) -> Tenant:
+        """Create tenant from dictionary"""
+        manufacturers = []
+        for m_data in data.get("manufacturers", []):
+            manufacturer = self._manufacturer_from_dict(m_data)
+            manufacturers.append(manufacturer)
+
+        return Tenant(
+            id=data["id"],
+            name=data["name"],
+            description=data.get("description"),
+            manufacturers=manufacturers,
+            is_active=data.get("is_active", True),
+            created_at=data.get("created_at", 0),
+            updated_at=data.get("updated_at", 0),
+        )
+
+    def _manufacturer_from_dict(self, data: Dict[str, Any]) -> Manufacturer:
+        """Create manufacturer from dictionary"""
+        factories = []
+        for f_data in data.get("factories", []):
+            factory = self._factory_from_dict(f_data)
+            factories.append(factory)
+
+        return Manufacturer(
+            id=data["id"],
+            name=data["name"],
+            description=data.get("description"),
+            factories=factories,
+            is_active=data.get("is_active", True),
+            created_at=data.get("created_at", 0),
+            updated_at=data.get("updated_at", 0),
+        )
+
+    def _factory_from_dict(self, data: Dict[str, Any]) -> Factory:
+        """Create factory from dictionary"""
+        plcs = []
+        for p_data in data.get("plcs", []):
+            plc = self._plc_from_dict(p_data)
+            plcs.append(plc)
+
+        return Factory(
+            id=data["id"],
+            name=data["name"],
+            description=data.get("description"),
+            plcs=plcs,
+            is_active=data.get("is_active", True),
+            created_at=data.get("created_at", 0),
+            updated_at=data.get("updated_at", 0),
+        )
+
+    def _plc_from_dict(self, data: Dict[str, Any]) -> PLC:
+        """Create PLC from dictionary"""
+        sensors = []
+        for s_data in data.get("sensors", []):
+            sensor = self._sensor_from_dict(s_data)
+            sensors.append(sensor)
+
+        return PLC(
+            id=data["id"],
+            name=data["name"],
+            description=data.get("description"),
+            sensors=sensors,
+            is_active=data.get("is_active", True),
+            created_at=data.get("created_at", 0),
+            updated_at=data.get("updated_at", 0),
+        )
+
+    def _sensor_from_dict(self, data: Dict[str, Any]) -> Sensor:
+        """Create sensor from dictionary"""
+        s_config = data.get("signal_config", {})
+        signal_config = SignalConfig(
+            name=s_config.get("name", ""),
+            unit=s_config.get("unit", ""),
+            value=s_config.get("value", 0.0),
+            generator=s_config.get("generator", SignalGenerator.CONSTANT.value),
+            is_running=s_config.get("is_running", True),
+            min_value=s_config.get("min_value"),
+            max_value=s_config.get("max_value"),
+            mean=s_config.get("mean"),
+            std_dev=s_config.get("std_dev"),
+            rate=s_config.get("rate"),
+            frequency=s_config.get("frequency"),
+            amplitude=s_config.get("amplitude"),
+            offset=s_config.get("offset"),
+            step_size=s_config.get("step_size"),
+        )
+
+        return Sensor(
+            id=data["id"],
+            name=data["name"],
+            signal_config=signal_config,
+            is_active=data.get("is_active", True),
+        )
+
+    def _save_tenants(self):
+        """Save tenants to file"""
         try:
             data = {
-                "devices": [device.to_dict() for device in self.devices.values()]
+                "tenants": [tenant.to_dict() for tenant in self.tenants.values()]
             }
-            logger.info(f"Saving {len(self.devices)} devices to {self.db_path}")
+            logger.info(f"Saving {len(self.tenants)} tenants to {self.db_path}")
             with open(self.db_path, 'w') as f:
                 json.dump(data, f, indent=2)
-            logger.info(f"Saved {len(self.devices)} devices to {self.db_path}")
+            logger.info(f"Saved {len(self.tenants)} tenants to {self.db_path}")
         except Exception as e:
-            logger.error(f"Error saving devices: {e}")
+            logger.error(f"Error saving tenants: {e}")
             import traceback
             logger.error(traceback.format_exc())
 
-    def create_device(self, device: FactoryDevice) -> FactoryDevice:
-        """Create a new device"""
-        if device.id in self.devices:
-            raise ValueError(f"Device with id {device.id} already exists")
-        self.devices[device.id] = device
-        self._save_devices()
-        logger.info(f"Created device: {device.name} ({device.id})")
-        return device
+    def create_tenant(self, tenant: Tenant) -> Tenant:
+        """Create a new tenant"""
+        if tenant.id in self.tenants:
+            raise ValueError(f"Tenant with id {tenant.id} already exists")
+        self.tenants[tenant.id] = tenant
+        self._save_tenants()
+        logger.info(f"Created tenant: {tenant.name} ({tenant.id})")
+        return tenant
 
-    def get_device(self, device_id: str) -> Optional[FactoryDevice]:
-        """Get device by ID"""
-        return self.devices.get(device_id)
+    def get_tenant(self, tenant_id: str) -> Optional[Tenant]:
+        """Get tenant by ID"""
+        return self.tenants.get(tenant_id)
 
-    def get_all_devices(self) -> List[FactoryDevice]:
-        """Get all devices"""
-        return list(self.devices.values())
-
-    def update_device(self, device_id: str, updates: Dict[str, Any]) -> Optional[FactoryDevice]:
-        """Update device properties"""
-        device = self.devices.get(device_id)
-        if not device:
-            return None
-
-        # Update device properties
-        for key, value in updates.items():
-            if key == "name":
-                device.name = value
-            elif key == "description":
-                device.description = value
-            elif key == "device_type":
-                device.device_type = value
-            elif key == "is_active":
-                device.is_active = value
-            elif key == "signals":
-                # Handle signal updates
-                device.signals = [FactoryDevice.from_dict({"signals": [s]})["signals"][0] for s in value]
-
-        device.updated_at = FactoryDevice.__annotations__.get('updated_at', lambda: 0)()
-        self._save_devices()
-        logger.info(f"Updated device: {device.name} ({device.id})")
-        return device
-
-    def delete_device(self, device_id: str) -> bool:
-        """Delete device"""
-        if device_id in self.devices:
-            device = self.devices.pop(device_id)
-            self._save_devices()
-            logger.info(f"Deleted device: {device.name} ({device.id})")
-            return True
-        return False
-
-    def get_devices_by_type(self, device_type: str) -> List[FactoryDevice]:
-        """Get devices by type"""
-        return [d for d in self.devices.values() if d.device_type == device_type]
-
-    def get_active_devices(self) -> List[FactoryDevice]:
-        """Get active devices"""
-        return [d for d in self.devices.values() if d.is_active]
+    def get_all_tenants(self) -> List[Tenant]:
+        """Get all tenants"""
+        return list(self.tenants.values())
 
     def update_all_signals(self):
-        """Update signals for all active devices"""
-        for device in self.get_active_devices():
-            device.update_signals()
-        self._save_devices()
+        """Update signals for all active tenants"""
+        for tenant in self.get_active_tenants():
+            tenant.update_manufacturers()
+        self._save_tenants()
 
-    def add_signal(self, device_id: str, signal_name: str, unit: str, generator: str = "constant", **params) -> bool:
-        """Add a signal to a device"""
-        device = self.devices.get(device_id)
-        if not device:
-            return False
+    def get_active_tenants(self) -> List[Tenant]:
+        """Get active tenants"""
+        return [t for t in self.tenants.values() if t.is_active]
 
-        if device.add_signal(signal_name, unit, generator, **params):
-            self._save_devices()
-            logger.info(f"Added signal {signal_name} to device {device_id}")
-            return True
-        return False
-
-    def remove_signal(self, device_id: str, signal_name: str) -> bool:
-        """Remove a signal from a device"""
-        device = self.devices.get(device_id)
-        if not device:
-            return False
-
-        if device.remove_signal(signal_name):
-            self._save_devices()
-            logger.info(f"Removed signal {signal_name} from device {device_id}")
-            return True
-        return False
+    def get_tenant_hierarchy(self, tenant_id: str) -> Optional[Dict[str, Any]]:
+        """Get full tenant hierarchy as nested dict"""
+        tenant = self.tenants.get(tenant_id)
+        if not tenant:
+            return None
+        return tenant.to_dict()
