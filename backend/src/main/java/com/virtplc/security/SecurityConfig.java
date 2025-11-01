@@ -34,6 +34,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/data/health").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/api/data/latest").permitAll()
                         .requestMatchers("/api/data/latest").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/data/ingest").permitAll()
 
                         // Protected endpoints
                         .anyRequest().authenticated())

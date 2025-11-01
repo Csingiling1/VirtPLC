@@ -24,6 +24,7 @@ class SimulatorApp:
         self.db = MultiTenantDatabase(db_path)
         self.web_app = None
         self._initialize_demo_data()
+        self._add_factory_shapes()
 
     def _initialize_demo_data(self):
         """Initialize comprehensive demo data with multiple tenants, manufacturers, factories, and devices"""
@@ -299,7 +300,41 @@ class SimulatorApp:
         
         logger.info(f"Created {total_tenants} tenants, {total_manufacturers} manufacturers, {total_factories} factories, {total_plcs} PLCs, and {total_sensors} sensors")
 
-    def list_devices(self, device_type=None, active_only=False):
+    def _add_factory_shapes(self):
+        """Add shapes and dimensions to factories"""
+        logger.info("Starting to add factory shapes...")
+        tenants = self.db.get_all_tenants()
+        logger.info(f"Found {len(tenants)} tenants")
+        
+        # Define factory shapes and colors
+        factory_configs = {
+            "acme-factory-ny": {"shape": "L", "width": 120, "height": 90, "width_meters": 120.0, "height_meters": 90.0, "wireframe_color": "#ef4444"},
+            "acme-factory-la": {"shape": "rectangle", "width": 100, "height": 80, "width_meters": 100.0, "height_meters": 80.0, "wireframe_color": "#f59e0b"},
+            "tech-factory-austin": {"shape": "I", "width": 80, "height": 120, "width_meters": 80.0, "height_meters": 120.0, "wireframe_color": "#10b981"},
+            "global-factory-chicago": {"shape": "Z", "width": 150, "height": 100, "width_meters": 150.0, "height_meters": 100.0, "wireframe_color": "#8b5cf6"},
+        }
+        
+        shapes_assigned = 0
+        for tenant in tenants:
+            logger.info(f"Processing tenant: {tenant.id}")
+            for manufacturer in tenant.manufacturers:
+                logger.info(f"Processing manufacturer: {manufacturer.id}")
+                for factory in manufacturer.factories:
+                    logger.info(f"Processing factory: {factory.id}")
+                    if factory.id in factory_configs:
+                        config = factory_configs[factory.id]
+                        factory.shape = config["shape"]
+                        factory.width = config["width"]
+                        factory.height = config["height"]
+                        factory.width_meters = config["width_meters"]
+                        factory.height_meters = config["height_meters"]
+                        factory.wireframe_color = config["wireframe_color"]
+                        shapes_assigned += 1
+                        logger.info(f"Assigned shape {config['shape']} to factory {factory.id}")
+        
+        # Save the updated data
+        self.db.save_tenants()
+        logger.info(f"Factory shapes and dimensions added for {shapes_assigned} factories")
         """Stub method for compatibility"""
         return []
 
@@ -376,11 +411,13 @@ class SimulatorApp:
     """Main simulator application"""
 
     def __init__(self, db_path: str = "tenants.json"):
+        print("DEBUG: SimulatorApp __init__ called")
         self.db = MultiTenantDatabase(db_path)
         self.opcua_server: Optional[OPCUAServer] = None
         self.web_app = None
         self.running = False
         self._initialize_demo_data()
+        self._add_factory_shapes()
 
     def list_devices(self, device_type=None, active_only=False):
         """Stub method for compatibility - returns empty list"""
@@ -392,7 +429,7 @@ class SimulatorApp:
         existing_tenants = self.db.get_all_tenants()
         
         # Only skip if we have comprehensive demo data (more than just a basic demo tenant)
-        if existing_tenants and len(existing_tenants) > 1:
+        if existing_tenants and len(existing_tenants) >= 3:  # We expect 3 tenants
             logger.info("Database already has comprehensive demo data, skipping initialization")
             return
         
@@ -660,6 +697,42 @@ class SimulatorApp:
         total_sensors = sum(len(p["sensors"]) for t in tenants_data for m in t["manufacturers"] for f in m["factories"] for p in f["plcs"])
         
         logger.info(f"Created {total_tenants} tenants, {total_manufacturers} manufacturers, {total_factories} factories, {total_plcs} PLCs, and {total_sensors} sensors")
+
+    def _add_factory_shapes(self):
+        """Add shapes and dimensions to factories"""
+        logger.info("Starting to add factory shapes...")
+        tenants = self.db.get_all_tenants()
+        logger.info(f"Found {len(tenants)} tenants")
+        
+        # Define factory shapes and colors
+        factory_configs = {
+            "acme-factory-ny": {"shape": "L", "width": 120, "height": 90, "width_meters": 120.0, "height_meters": 90.0, "wireframe_color": "#ef4444"},
+            "acme-factory-la": {"shape": "rectangle", "width": 100, "height": 80, "width_meters": 100.0, "height_meters": 80.0, "wireframe_color": "#f59e0b"},
+            "tech-factory-austin": {"shape": "I", "width": 80, "height": 120, "width_meters": 80.0, "height_meters": 120.0, "wireframe_color": "#10b981"},
+            "global-factory-chicago": {"shape": "Z", "width": 150, "height": 100, "width_meters": 150.0, "height_meters": 100.0, "wireframe_color": "#8b5cf6"},
+        }
+        
+        shapes_assigned = 0
+        for tenant in tenants:
+            logger.info(f"Processing tenant: {tenant.id}")
+            for manufacturer in tenant.manufacturers:
+                logger.info(f"Processing manufacturer: {manufacturer.id}")
+                for factory in manufacturer.factories:
+                    logger.info(f"Processing factory: {factory.id}")
+                    if factory.id in factory_configs:
+                        config = factory_configs[factory.id]
+                        factory.shape = config["shape"]
+                        factory.width = config["width"]
+                        factory.height = config["height"]
+                        factory.width_meters = config["width_meters"]
+                        factory.height_meters = config["height_meters"]
+                        factory.wireframe_color = config["wireframe_color"]
+                        shapes_assigned += 1
+                        logger.info(f"Assigned shape {config['shape']} to factory {factory.id}")
+        
+        # Save the updated data
+        self.db._save_tenants()
+        logger.info(f"Factory shapes and dimensions added for {shapes_assigned} factories")
 
     async def start_opcua_server(self, endpoint: str = "opc.tcp://0.0.0.0:4840/virtplc/"):
         """Start OPC-UA server"""

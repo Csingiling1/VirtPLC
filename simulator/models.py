@@ -175,6 +175,13 @@ class Factory:
     is_active: bool = True
     created_at: float = field(default_factory=lambda: datetime.now().timestamp())
     updated_at: float = field(default_factory=lambda: datetime.now().timestamp())
+    # Factory layout properties
+    shape: str = "rectangle"  # rectangle, L, I, Z, U, T shapes
+    width: int = 100  # Width in meters
+    height: int = 80  # Height in meters
+    width_meters: float = 50.0  # Actual width in meters for visualization
+    height_meters: float = 40.0  # Actual height in meters for visualization
+    wireframe_color: str = "#3b82f6"  # Blue color for wireframe
 
     def update_plcs(self):
         """Update all PLCs and their sensors"""
@@ -191,6 +198,12 @@ class Factory:
             "is_active": self.is_active,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
+            "shape": self.shape,
+            "width": self.width,
+            "height": self.height,
+            "width_meters": self.width_meters,
+            "height_meters": self.height_meters,
+            "wireframe_color": self.wireframe_color,
         }
 
 

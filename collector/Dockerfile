@@ -1,37 +1,29 @@
 # Build stage
-FROM elixir:alpine AS builder
+FROM golang:1.21-alpine AS builder
 
 WORKDIR /app
 
-# Install hex and rebar
-RUN mix local.hex --force && \
-    mix local.rebar --force
+# Copy go mod and sum files
+COPY go.mod ./
 
-# Copy mix files
-COPY mix.exs mix.lock ./
+# Download dependencies
+RUN go mod download
 
-# Get dependencies
-RUN MIX_ENV=prod mix deps.get --only prod
+# Copy source code
+COPY main.go .
 
-# Copy source
-COPY lib lib
-
-# Compile
-RUN MIX_ENV=prod mix compile
+# Build the application
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o collector main.go
 
 # Final stage
-FROM elixir:alpine
+FROM alpine:latest
 
-WORKDIR /app
+RUN apk --no-cache add ca-certificates
 
-# Install hex in runtime
-RUN mix local.hex --force
+WORKDIR /root/
 
-# Copy compiled app
-COPY --from=builder /app/_build/prod /app/_build/prod
-COPY --from=builder /app/deps /app/deps
-COPY --from=builder /app/lib /app/lib
-COPY --from=builder /app/mix.exs /app/mix.exs
+# Copy the binary from builder stage
+COPY --from=builder /app/collector .
 
-# Start the collector
-CMD ["mix", "run", "--no-halt"]
+# Run the binary
+CMD ["./collector"]

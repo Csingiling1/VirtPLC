@@ -3,6 +3,7 @@ import Layout from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { useToast } from '@/hooks/use-toast';
+import { Server } from 'lucide-react';
 
 interface HierarchicalSensorData {
   timestamp: number;
@@ -172,6 +173,44 @@ const Monitoring = () => {
               </ResponsiveContainer>
             </CardContent>
           </Card>
+
+          {/* Device-specific monitoring */}
+          {historicalData.length > 0 && historicalData[historicalData.length - 1].tenants?.map((tenant) =>
+            tenant.manufacturers?.map((manufacturer) =>
+              manufacturer.factories?.map((factory) =>
+                factory.plcs?.map((plc) => (
+                  <Card key={plc.id}>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Server className="h-5 w-5" />
+                        {plc.name}
+                      </CardTitle>
+                      <p className="text-sm text-muted-foreground">
+                        {factory.name} • {manufacturer.name} • {tenant.name}
+                      </p>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {plc.sensors?.map((sensor) => (
+                          <div key={sensor.id} className="text-center">
+                            <div className="text-2xl font-bold text-primary">
+                              {sensor.value.toFixed(1)}
+                            </div>
+                            <div className="text-sm text-muted-foreground">
+                              {sensor.name}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {sensor.unit}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              )
+            )
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Card>

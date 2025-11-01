@@ -93,6 +93,12 @@ class MultiTenantDatabase:
             is_active=data.get("is_active", True),
             created_at=data.get("created_at", 0),
             updated_at=data.get("updated_at", 0),
+            shape=data.get("shape"),
+            width=data.get("width"),
+            height=data.get("height"),
+            width_meters=data.get("width_meters", 50.0),
+            height_meters=data.get("height_meters", 40.0),
+            wireframe_color=data.get("wireframe_color"),
         )
 
     def _plc_from_dict(self, data: Dict[str, Any]) -> PLC:

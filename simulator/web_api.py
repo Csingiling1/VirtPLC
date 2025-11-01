@@ -598,6 +598,8 @@ def create_app(database: MultiTenantDatabase) -> FastAPI:
 
                                         for sensor in plc.sensors:
                                             if sensor.is_active:
+                                                # Update sensor value using the signal generator
+                                                sensor.signal_config.value = sensor.signal_config.generate_value()
                                                 sensor_data = {
                                                     "id": sensor.id,
                                                     "name": sensor.name,

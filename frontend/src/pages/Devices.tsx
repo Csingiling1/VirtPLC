@@ -30,10 +30,64 @@ const Devices = () => {
   });
   const { toast } = useToast();
 
+  interface HierarchicalData {
+    tenants: Array<{
+      manufacturers: Array<{
+        factories: Array<{
+          name: string;
+          plcs: Array<{
+            id: string;
+            name: string;
+            description?: string;
+            sensors: Array<{
+              name: string;
+              unit: string;
+              value: number;
+              timestamp: number;
+            }>;
+          }>;
+        }>;
+      }>;
+    }>;
+  }
+
   const fetchDevices = useCallback(async () => {
     try {
-      const data = await simulatorApi.getDevices();
-      setDevices(Array.isArray(data) ? data : []);
+      // Fetch hierarchical data from simulator
+      const response = await fetch('http://localhost:5000/api/stream/latest');
+      const data: HierarchicalData = await response.json();
+
+      // Extract PLCs from hierarchical structure
+      const extractedDevices: SimulatorDevice[] = [];
+      if (data.tenants) {
+        data.tenants.forEach((tenant) => {
+          tenant.manufacturers?.forEach((manufacturer) => {
+            manufacturer.factories?.forEach((factory) => {
+              factory.plcs?.forEach((plc) => {
+                extractedDevices.push({
+                  id: plc.id,
+                  name: plc.name,
+                  description: plc.description || `${plc.name} in ${factory.name}`,
+                  deviceType: 'plc',
+                  signals: plc.sensors?.map((sensor) => ({
+                    name: sensor.name,
+                    unit: sensor.unit,
+                    value: sensor.value,
+                    generator: 'constant', // Default
+                    isRunning: true,
+                    lastUpdate: sensor.timestamp
+                  })) || [],
+                  is_active: true,
+                  created_at: Date.now(),
+                  updated_at: Date.now()
+                });
+              });
+            });
+          });
+        });
+      }
+
+      setDevices(extractedDevices);
       setIsLoading(false);
     } catch (error) {
       console.error('Failed to fetch devices:', error);
