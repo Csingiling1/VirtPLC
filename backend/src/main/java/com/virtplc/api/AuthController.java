@@ -31,24 +31,30 @@ public class AuthController {
 
             String token = authService.generateToken(user);
 
+            java.util.HashMap<String, Object> userMap = new java.util.HashMap<>();
+            userMap.put("id", user.getId());
+            userMap.put("email", user.getEmail());
+            userMap.put("firstName", user.getFirstName());
+            userMap.put("lastName", user.getLastName());
+            userMap.put("role", user.getRole().name());
+            userMap.put("company", user.getCompany() != null ? Map.of(
+                    "id", user.getCompany().getId(),
+                    "name", user.getCompany().getName(),
+                    "domain", user.getCompany().getDomain()) : null);
+            userMap.put("manufacturer", user.getManufacturer() != null ? Map.of(
+                    "id", user.getManufacturer().getId(),
+                    "name", user.getManufacturer().getName(),
+                    "manufacturerId", user.getManufacturer().getManufacturerId()) : null);
+
             return ResponseEntity.ok(Map.of(
                     "message", "User registered successfully",
                     "token", token,
-                    "user", Map.of(
-                            "id", user.getId(),
-                            "email", user.getEmail(),
-                            "firstName", user.getFirstName(),
-                            "lastName", user.getLastName(),
-                            "role", user.getRole().name(),
-                            "company", Map.of(
-                                    "id", user.getCompany().getId(),
-                                    "name", user.getCompany().getName(),
-                                    "domain", user.getCompany().getDomain()))));
+                    "user", userMap));
         } catch (Exception e) {
-            log.error("Registration error: {}", e.getMessage());
+            log.error("Registration error: {}", e.getMessage(), e);
             return ResponseEntity.badRequest().body(Map.of(
                     "error", "Registration failed",
-                    "message", e.getMessage()));
+                    "message", e.getMessage() != null ? e.getMessage() : "Unknown error"));
         }
     }
 
@@ -65,24 +71,30 @@ public class AuthController {
             User user = userOpt.get();
             String token = authService.generateToken(user);
 
+            java.util.HashMap<String, Object> userMap = new java.util.HashMap<>();
+            userMap.put("id", user.getId());
+            userMap.put("email", user.getEmail());
+            userMap.put("firstName", user.getFirstName());
+            userMap.put("lastName", user.getLastName());
+            userMap.put("role", user.getRole().name());
+            userMap.put("company", user.getCompany() != null ? Map.of(
+                    "id", user.getCompany().getId(),
+                    "name", user.getCompany().getName(),
+                    "domain", user.getCompany().getDomain()) : null);
+            userMap.put("manufacturer", user.getManufacturer() != null ? Map.of(
+                    "id", user.getManufacturer().getId(),
+                    "name", user.getManufacturer().getName(),
+                    "manufacturerId", user.getManufacturer().getManufacturerId()) : null);
+
             return ResponseEntity.ok(Map.of(
                     "message", "Login successful",
                     "token", token,
-                    "user", Map.of(
-                            "id", user.getId(),
-                            "email", user.getEmail(),
-                            "firstName", user.getFirstName(),
-                            "lastName", user.getLastName(),
-                            "role", user.getRole().name(),
-                            "company", Map.of(
-                                    "id", user.getCompany().getId(),
-                                    "name", user.getCompany().getName(),
-                                    "domain", user.getCompany().getDomain()))));
+                    "user", userMap));
         } catch (Exception e) {
-            log.error("Login error: {}", e.getMessage());
+            log.error("Login error: {}", e.getMessage(), e);
             return ResponseEntity.badRequest().body(Map.of(
                     "error", "Login failed",
-                    "message", e.getMessage()));
+                    "message", e.getMessage() != null ? e.getMessage() : "Unknown error"));
         }
     }
 
@@ -101,22 +113,30 @@ public class AuthController {
             }
 
             User user = userOpt.get();
+
+            java.util.HashMap<String, Object> userMap = new java.util.HashMap<>();
+            userMap.put("id", user.getId());
+            userMap.put("email", user.getEmail());
+            userMap.put("firstName", user.getFirstName());
+            userMap.put("lastName", user.getLastName());
+            userMap.put("role", user.getRole().name());
+            userMap.put("company", user.getCompany() != null ? Map.of(
+                    "id", user.getCompany().getId(),
+                    "name", user.getCompany().getName(),
+                    "domain", user.getCompany().getDomain()) : null);
+            userMap.put("manufacturer", user.getManufacturer() != null ? Map.of(
+                    "id", user.getManufacturer().getId(),
+                    "name", user.getManufacturer().getName(),
+                    "manufacturerId", user.getManufacturer().getManufacturerId()) : null);
+
             return ResponseEntity.ok(Map.of(
                     "valid", true,
-                    "user", Map.of(
-                            "id", user.getId(),
-                            "email", user.getEmail(),
-                            "firstName", user.getFirstName(),
-                            "lastName", user.getLastName(),
-                            "role", user.getRole().name(),
-                            "company", Map.of(
-                                    "id", user.getCompany().getId(),
-                                    "name", user.getCompany().getName(),
-                                    "domain", user.getCompany().getDomain()))));
+                    "user", userMap));
         } catch (Exception e) {
+            log.error("Token validation error: {}", e.getMessage(), e);
             return ResponseEntity.badRequest().body(Map.of(
                     "valid", false,
-                    "error", e.getMessage()));
+                    "error", e.getMessage() != null ? e.getMessage() : "Unknown error"));
         }
     }
 

@@ -6,6 +6,7 @@ import { SensorData } from '@/types';
 import { Activity, Gauge, ThermometerSun, AlertCircle, CheckCircle, Building, Factory, MapPin, Server } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface HierarchicalSensorData {
   tenants: Array<{
@@ -40,13 +41,31 @@ const Dashboard = () => {
   const [sensorData, setSensorData] = useState<HierarchicalSensorData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
+  const { user } = useAuth();
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         const response = await fetch('http://localhost:5000/api/stream/latest');
         const data = await response.json();
-        setSensorData(data);
+
+        // Filter data by user's manufacturer if not admin
+        let filteredData = data;
+        if (user && user.role !== 'ADMIN' && user.manufacturer) {
+          const userManufacturerId = user.manufacturer.manufacturerId;
+
+          filteredData = {
+            ...data,
+            tenants: data.tenants.map((tenant: any) => ({
+              ...tenant,
+              manufacturers: tenant.manufacturers.filter(
+                (m: any) => m.id === userManufacturerId
+              )
+            })).filter((tenant: any) => tenant.manufacturers.length > 0)
+          };
+        }
+
+        setSensorData(filteredData);
         setIsLoading(false);
       } catch (error) {
         console.error('Failed to fetch data:', error);
@@ -71,7 +90,7 @@ const Dashboard = () => {
     const interval = setInterval(fetchData, 2000);
 
     return () => clearInterval(interval);
-  }, [toast, isLoading]);
+  }, [toast, isLoading, user]);
 
   if (isLoading) {
     return (
@@ -93,8 +112,16 @@ const Dashboard = () => {
     <Layout>
       <div className="p-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">Company Name Dashboard</h1>
-          <p className="text-muted-foreground">Real-time factory monitoring and control</p>
+          <h1 className="text-3xl font-bold mb-2">
+            {user?.manufacturer?.name || user?.company?.name || 'Dashboard'}
+          </h1>
+          <p className="text-muted-foreground">
+            {user?.manufacturer
+              ? `${user.manufacturer.name} - Real-time factory monitoring`
+              : user?.role === 'ADMIN'
+                ? 'System Administrator - All Factories'
+                : 'Real-time factory monitoring and control'}
+          </p>
         </div>
 
         {sensorData?.tenants ? (

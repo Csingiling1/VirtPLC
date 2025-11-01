@@ -1,6 +1,7 @@
 package com.virtplc.service;
 
 import com.virtplc.model.Company;
+import com.virtplc.model.Manufacturer;
 import com.virtplc.model.SensorData;
 import com.virtplc.model.SensorDataEntity;
 import com.virtplc.opcua.NodeManager;
@@ -41,13 +42,13 @@ public class DataService {
      * Data source is determined by the 'data.source' property (simulator or plc).
      */
     @Transactional
-    public SensorData getLatestData(Company company) {
-        log.debug("Fetching latest sensor data from: {} for company: {}", dataSourceService.getDataSourceName(),
-                company != null ? company.getName() : "all");
+    public SensorData getLatestData(List<Manufacturer> manufacturers) {
+        log.debug("Fetching latest sensor data from: {} for manufacturers: {}",
+                dataSourceService.getDataSourceName(),
+                manufacturers != null ? (manufacturers.isEmpty() ? "none" : manufacturers.size() + " manufacturers")
+                        : "all");
 
-        SensorData sensorData;
-
-        // Use the configured data source (simulator or PLC)
+        SensorData sensorData; // Use the configured data source (simulator or PLC)
         if (dataSourceService.isAvailable()) {
             log.debug("Using {} as data source", dataSourceService.getDataSourceName());
             Map<String, Object> sourceData = dataSourceService.getLatestSensorData();
@@ -97,12 +98,13 @@ public class DataService {
         }
 
         // Persist to TimescaleDB
-        if (company != null) {
+        Company company = getCompanyFromManufacturers(manufacturers);
+        if (company != null || manufacturers == null) { // Persist for admin (manufacturers=null) or when company found
             try {
                 SensorDataEntity entity = convertToEntity(sensorData, company);
                 sensorDataRepository.save(entity);
                 log.debug("Persisted sensor data to TimescaleDB: {} for company: {}", entity.getTimestamp(),
-                        company.getName());
+                        company != null ? company.getName() : "admin");
             } catch (Exception e) {
                 log.error("Failed to persist sensor data to TimescaleDB", e);
             }
@@ -111,14 +113,60 @@ public class DataService {
         return sensorData;
     }
 
+    private Company getCompanyFromManufacturers(List<Manufacturer> manufacturers) {
+        if (manufacturers == null || manufacturers.isEmpty()) {
+            return null; // Admin case
+        }
+        // Assume all manufacturers belong to the same company
+        return manufacturers.get(0).getCompany();
+    }
+
     /**
      * Get historical data for a time range from TimescaleDB.
      */
-    public List<SensorData> getDataRange(Company company, Long startTime, Long endTime) {
-        log.debug("Fetching data range from TimescaleDB: {} to {} for company: {}", startTime, endTime,
-                company.getName());
+    public List<SensorData> getDataRange(List<Manufacturer> manufacturers, Long startTime, Long endTime) {
+        if (manufacturers == null) {
+            // Admin user - get all data
+            return getAllDataRange(startTime, endTime);
+        } else {
+            // Non-admin user - get data for their manufacturers
+            return getDataRangeForManufacturers(manufacturers, startTime, endTime);
+        }
+    }
+
+    private List<SensorData> getAllDataRange(Long startTime, Long endTime) {
+        log.debug("Fetching all data range from TimescaleDB: {} to {}", startTime, endTime);
 
         try {
+            List<SensorDataEntity> entities = sensorDataRepository.findByTimestampBetween(
+                    LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(startTime), ZoneOffset.UTC),
+                    LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(endTime), ZoneOffset.UTC));
+
+            return entities.stream()
+                    .map(this::convertToSensorData)
+                    .collect(Collectors.toList());
+
+        } catch (Exception e) {
+            log.error("Failed to query TimescaleDB for all historical data", e);
+            return List.of();
+        }
+    }
+
+    private List<SensorData> getDataRangeForManufacturers(List<Manufacturer> manufacturers, Long startTime,
+            Long endTime) {
+        log.debug("Fetching data range from TimescaleDB: {} to {} for {} manufacturers", startTime, endTime,
+                manufacturers.size());
+
+        try {
+            // Get companies from manufacturers
+            List<Company> companies = manufacturers.stream()
+                    .map(Manufacturer::getCompany)
+                    .distinct()
+                    .collect(Collectors.toList());
+
+            // For now, assume all manufacturers belong to the same company
+            Company company = companies.get(0);
+
             List<SensorDataEntity> entities = sensorDataRepository.findByCompanyAndTimestampBetween(
                     company,
                     LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(startTime), ZoneOffset.UTC),
@@ -130,7 +178,6 @@ public class DataService {
 
         } catch (Exception e) {
             log.error("Failed to query TimescaleDB for historical data", e);
-            // Return empty list on error
             return List.of();
         }
     }

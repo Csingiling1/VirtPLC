@@ -15,7 +15,7 @@ services:
       - SERVER_PORT=8080
       - OPCUA_SERVER_ENABLED=false
       - OPCUA_SERVER_NAMESPACE=http://virtplc.simulator
-      - OPCUA_CLIENT_ENABLED=true
+      - OPCUA_CLIENT_ENABLED=false
       - OPCUA_CLIENT_ENDPOINT=opc.tcp://simulator:4840/virtplc/
       - OPCUA_CLIENT_REQUEST_TIMEOUT=5000
       - OPCUA_CLIENT_SESSION_TIMEOUT=60000
@@ -38,8 +38,6 @@ services:
       postgres:
         condition: service_healthy
       timescale:
-        condition: service_healthy
-      simulator:
         condition: service_healthy
     networks:
       - virtplc-network

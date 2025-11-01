@@ -1,0 +1,16 @@
+System Admin: admin@virtplc.com / admin123 (ADMIN role - sees all factories)
+Acme Manufacturing Corp (acme-motors)
+john.smith@acme.com / acme123 (MANUFACTURER_ADMIN)
+sarah.johnson@acme.com / acme123 (MANAGER)
+mike.davis@acme.com / acme123 (OPERATOR)
+Factories: New York, Los Angeles
+Tech Solutions Inc (tech-electronics)
+emily.chen@techsolutions.com / tech123 (MANUFACTURER_ADMIN)
+david.rodriguez@techsolutions.com / tech123 (MANAGER)
+anna.kim@techsolutions.com / tech123 (OPERATOR)
+Factory: Austin Tech Hub
+Global Industries Ltd (global-machinery)
+robert.brown@globalind.com / global123 (MANUFACTURER_ADMIN)
+lisa.martinez@globalind.com / global123 (MANAGER)
+james.anderson@globalind.com / global123 (OPERATOR)
+Factory: Chicago (with intentionally failure-prone hydraulic and temperature sensors)

@@ -44,7 +44,8 @@ public class DataCollectionService {
                 try {
                     // Get latest data for each company (this will read from OPC UA and persist to
                     // TimescaleDB)
-                    dataService.getLatestData(company);
+                    // Pass null for manufacturers to indicate admin access (collect for all)
+                    dataService.getLatestData(null);
                     log.debug("Successfully collected and stored sensor data for company: {}", company.getName());
                 } catch (Exception e) {
                     log.error("Failed to collect sensor data for company: {}", company.getName(), e);

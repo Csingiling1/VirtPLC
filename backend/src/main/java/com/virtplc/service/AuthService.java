@@ -60,19 +60,24 @@ public class AuthService {
                     return companyRepository.save(newCompany);
                 });
 
-        // Create user
+        // Create user - first user of company becomes ADMIN, others become
+        // MANUFACTURER_ADMIN
+        long companyUserCount = userRepository.countByCompanyId(company.getId());
+        User.Role userRole = (companyUserCount == 0) ? User.Role.ADMIN : User.Role.MANUFACTURER_ADMIN;
+
         User user = User.builder()
                 .email(email)
                 .password(passwordEncoder.encode(password))
                 .firstName(firstName)
                 .lastName(lastName)
-                .role(User.Role.ADMIN) // First user of company is admin
+                .role(userRole)
                 .company(company)
+                .manufacturer(null) // Will be assigned later when linking to manufacturer
                 .active(true)
                 .build();
 
         User savedUser = userRepository.save(user);
-        log.info("Registered new user: {} for company: {}", email, companyName);
+        log.info("Registered new user: {} for company: {} with role: {}", email, companyName, userRole);
         return savedUser;
     }
 
@@ -104,9 +109,9 @@ public class AuthService {
         return Jwts.builder()
                 .subject(user.getEmail())
                 .claim("userId", user.getId())
-                .claim("companyId", user.getCompany().getId())
+                .claim("companyId", user.getCompany() != null ? user.getCompany().getId() : null)
                 .claim("role", user.getRole().name())
-                .claim("companyDomain", user.getCompany().getDomain())
+                .claim("companyDomain", user.getCompany() != null ? user.getCompany().getDomain() : null)
                 .issuedAt(now)
                 .expiration(expiryDate)
                 .signWith(getSigningKey())

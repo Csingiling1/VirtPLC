@@ -58,6 +58,10 @@ class PLCModel(BaseModel):
     description: Optional[str] = None
     sensors: List[SensorModel] = []
     is_active: bool = True
+    x_position: Optional[float] = None
+    y_position: Optional[float] = None
+    width: Optional[float] = None
+    height: Optional[float] = None
 
 
 class FactoryCreateModel(BaseModel):
@@ -73,6 +77,12 @@ class FactoryModel(BaseModel):
     description: Optional[str] = None
     plcs: List[PLCModel] = []
     is_active: bool = True
+    shape: Optional[str] = None
+    width: Optional[int] = None
+    height: Optional[int] = None
+    width_meters: Optional[float] = None
+    height_meters: Optional[float] = None
+    wireframe_color: Optional[str] = None
 
 
 class ManufacturerCreateModel(BaseModel):
@@ -338,6 +348,44 @@ def create_app(database: MultiTenantDatabase) -> FastAPI:
         if not tenant:
             raise HTTPException(status_code=404, detail="Tenant not found")
         return TenantModel(**tenant.to_dict())
+
+    @app.get("/api/simulator/factories")
+    async def get_simulator_factories():
+        """Get all factories with their metadata for visualization"""
+        tenants = database.get_all_tenants()
+        factories = []
+
+        for tenant in tenants:
+            if not tenant.is_active:
+                continue
+
+            for manufacturer in tenant.manufacturers:
+                if not manufacturer.is_active:
+                    continue
+
+                for factory in manufacturer.factories:
+                    if not factory.is_active:
+                        continue
+
+                    # Convert factory to visualization format
+                    factory_data = {
+                        "id": factory.id,
+                        "name": factory.name,
+                        "description": factory.description,
+                        "tenantId": tenant.id,
+                        "manufacturerId": manufacturer.id,
+                        "widthMeters": factory.width_meters,
+                        "heightMeters": factory.height_meters,
+                        "shape": factory.shape,
+                        "wireframeColor": factory.wireframe_color,
+                        "deviceCount": len(factory.plcs),
+                        "isActive": factory.is_active,
+                        "createdAt": int(factory.created_at * 1000),
+                        "updatedAt": int(factory.updated_at * 1000)
+                    }
+                    factories.append(factory_data)
+
+        return factories
 
     # Simulator API endpoints (flat device representation for frontend compatibility)
     @app.get("/api/simulator/devices")
@@ -704,8 +752,10 @@ def create_app(database: MultiTenantDatabase) -> FastAPI:
                 logger.error(f"Error in broadcast task: {e}")
                 await asyncio.sleep(5.0)
 
-    # Start background task
-    asyncio.create_task(broadcast_simulation_data())
+    @app.on_event("startup")
+    async def startup_event():
+        """Start background tasks on app startup"""
+        asyncio.create_task(broadcast_simulation_data())
 
     return app
 

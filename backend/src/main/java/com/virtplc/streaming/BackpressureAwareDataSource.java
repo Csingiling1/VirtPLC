@@ -4,6 +4,7 @@ import com.virtplc.grpc.GrpcDtos.SensorData;
 import com.virtplc.service.OpcUaClientService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -20,6 +21,7 @@ import java.util.concurrent.atomic.AtomicLong;
 @Slf4j
 @Component
 @RequiredArgsConstructor
+@ConditionalOnProperty(name = "opcua.client.enabled", havingValue = "true")
 public class BackpressureAwareDataSource {
 
     private final DataPipelineProcessor dataPipeline;

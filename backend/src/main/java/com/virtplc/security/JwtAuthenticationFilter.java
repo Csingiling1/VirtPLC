@@ -53,9 +53,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 SecurityContextHolder.getContext().setAuthentication(authToken);
 
                 // Add company context to request attributes for multi-tenancy
-                request.setAttribute("companyId", user.getCompany().getId());
-                request.setAttribute("companyDomain", user.getCompany().getDomain());
+                // Admin users have null company (access to all data)
+                if (user.getCompany() != null) {
+                    request.setAttribute("companyId", user.getCompany().getId());
+                    request.setAttribute("companyDomain", user.getCompany().getDomain());
+                }
                 request.setAttribute("userId", user.getId());
+                request.setAttribute("userRole", user.getRole().toString());
             }
         } catch (Exception e) {
             log.error("Cannot set user authentication: {}", e.getMessage());

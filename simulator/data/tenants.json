@@ -1,0 +1,814 @@
+{
+  "tenants": [
+    {
+      "id": "acme-corp",
+      "name": "Acme Manufacturing Corp",
+      "description": "Leading manufacturer of industrial equipment",
+      "manufacturers": [
+        {
+          "id": "acme-motors",
+          "name": "Acme Motor Division",
+          "description": "High-performance motor manufacturing",
+          "factories": [
+            {
+              "id": "acme-factory-ny",
+              "name": "New York Production Facility",
+              "description": "Main production facility in NYC",
+              "plcs": [
+                {
+                  "id": "PLC-NY-001",
+                  "name": "Siemens S7-1500 #1",
+                  "description": "Assembly line controller",
+                  "sensors": [
+                    {
+                      "id": "motor_speed_PLC-NY-001",
+                      "name": "Motor Speed",
+                      "signal_config": {
+                        "name": "motor_speed",
+                        "unit": "RPM",
+                        "value": 1750.0,
+                        "generator": "normal",
+                        "is_running": true,
+                        "min_value": null,
+                        "max_value": null,
+                        "mean": 1750.0,
+                        "std_dev": 25.0,
+                        "rate": null,
+                        "frequency": null,
+                        "amplitude": null,
+                        "offset": null,
+                        "step_size": null
+                      },
+                      "is_active": true
+                    },
+                    {
+                      "id": "motor_temp_PLC-NY-001",
+                      "name": "Motor Temperature",
+                      "signal_config": {
+                        "name": "motor_temp",
+                        "unit": "\u00b0C",
+                        "value": 65.0,
+                        "generator": "normal",
+                        "is_running": true,
+                        "min_value": null,
+                        "max_value": null,
+                        "mean": 65.0,
+                        "std_dev": 5.0,
+                        "rate": null,
+                        "frequency": null,
+                        "amplitude": null,
+                        "offset": null,
+                        "step_size": null
+                      },
+                      "is_active": true
+                    },
+                    {
+                      "id": "vibration_PLC-NY-001",
+                      "name": "Vibration Sensor",
+                      "signal_config": {
+                        "name": "vibration",
+                        "unit": "mm/s",
+                        "value": 1.2,
+                        "generator": "normal",
+                        "is_running": true,
+                        "min_value": null,
+                        "max_value": null,
+                        "mean": 1.2,
+                        "std_dev": 0.3,
+                        "rate": null,
+                        "frequency": null,
+                        "amplitude": null,
+                        "offset": null,
+                        "step_size": null
+                      },
+                      "is_active": true
+                    },
+                    {
+                      "id": "power_consumption_PLC-NY-001",
+                      "name": "Power Consumption",
+                      "signal_config": {
+                        "name": "power_consumption",
+                        "unit": "kW",
+                        "value": 15.5,
+                        "generator": "uniform",
+                        "is_running": true,
+                        "min_value": null,
+                        "max_value": null,
+                        "mean": null,
+                        "std_dev": null,
+                        "rate": null,
+                        "frequency": null,
+                        "amplitude": null,
+                        "offset": null,
+                        "step_size": null
+                      },
+                      "is_active": true
+                    }
+                  ],
+                  "is_active": true,
+                  "created_at": 1762029021.611147,
+                  "updated_at": 1762029021.611147,
+                  "x_position": 120.0,
+                  "y_position": 720.0,
+                  "width": 2.5,
+                  "height": 1.8
+                },
+                {
+                  "id": "PLC-NY-002",
+                  "name": "Allen-Bradley ControlLogix #1",
+                  "description": "Quality control station",
+                  "sensors": [
+                    {
+                      "id": "pressure_main_PLC-NY-002",
+                      "name": "Main Pressure",
+                      "signal_config": {
+                        "name": "pressure_main",
+                        "unit": "bar",
+                        "value": 8.5,
+                        "generator": "normal",
+                        "is_running": true,
+                        "min_value": null,
+                        "max_value": null,
+                        "mean": 8.5,
+                        "std_dev": 0.8,
+                        "rate": null,
+                        "frequency": null,
+                        "amplitude": null,
+                        "offset": null,
+                        "step_size": null
+                      },
+                      "is_active": true
+                    },
+                    {
+                      "id": "flow_rate_PLC-NY-002",
+                      "name": "Flow Rate",
+                      "signal_config": {
+                        "name": "flow_rate",
+                        "unit": "L/min",
+                        "value": 120.0,
+                        "generator": "normal",
+                        "is_running": true,
+                        "min_value": null,
+                        "max_value": null,
+                        "mean": 120.0,
+                        "std_dev": 10.0,
+                        "rate": null,
+                        "frequency": null,
+                        "amplitude": null,
+                        "offset": null,
+                        "step_size": null
+                      },
+                      "is_active": true
+                    },
+                    {
+                      "id": "level_tank_PLC-NY-002",
+                      "name": "Tank Level",
+                      "signal_config": {
+                        "name": "level_tank",
+                        "unit": "%",
+                        "value": 75.0,
+                        "generator": "uniform",
+                        "is_running": true,
+                        "min_value": null,
+                        "max_value": null,
+                        "mean": null,
+                        "std_dev": null,
+                        "rate": null,
+                        "frequency": null,
+                        "amplitude": null,
+                        "offset": null,
+                        "step_size": null
+                      },
+                      "is_active": true
+                    },
+                    {
+                      "id": "ph_level_PLC-NY-002",
+                      "name": "pH Level",
+                      "signal_config": {
+                        "name": "ph_level",
+                        "unit": "pH",
+                        "value": 7.2,
+                        "generator": "normal",
+                        "is_running": true,
+                        "min_value": null,
+                        "max_value": null,
+                        "mean": 7.2,
+                        "std_dev": 0.2,
+                        "rate": null,
+                        "frequency": null,
+                        "amplitude": null,
+                        "offset": null,
+                        "step_size": null
+                      },
+                      "is_active": true
+                    }
+                  ],
+                  "is_active": true,
+                  "created_at": 1762029021.611164,
+                  "updated_at": 1762029021.611165,
+                  "x_position": 120.0,
+                  "y_position": 90.0,
+                  "width": 2.5,
+                  "height": 1.8
+                }
+              ],
+              "is_active": true,
+              "created_at": 1762029021.611135,
+              "updated_at": 1762029021.611135,
+              "shape": "L",
+              "width": 120,
+              "height": 90,
+              "width_meters": 120.0,
+              "height_meters": 90.0,
+              "wireframe_color": "#ef4444"
+            },
+            {
+              "id": "acme-factory-la",
+              "name": "Los Angeles Assembly Plant",
+              "description": "West coast assembly facility",
+              "plcs": [
+                {
+                  "id": "PLC-LA-001",
+                  "name": "Schneider M580 #1",
+                  "description": "Conveyor system controller",
+                  "sensors": [
+                    {
+                      "id": "conveyor_speed_PLC-LA-001",
+                      "name": "Conveyor Speed",
+                      "signal_config": {
+                        "name": "conveyor_speed",
+                        "unit": "m/min",
+                        "value": 25.0,
+                        "generator": "uniform",
+                        "is_running": true,
+                        "min_value": null,
+                        "max_value": null,
+                        "mean": null,
+                        "std_dev": null,
+                        "rate": null,
+                        "frequency": null,
+                        "amplitude": null,
+                        "offset": null,
+                        "step_size": null
+                      },
+                      "is_active": true
+                    },
+                    {
+                      "id": "load_weight_PLC-LA-001",
+                      "name": "Load Weight",
+                      "signal_config": {
+                        "name": "load_weight",
+                        "unit": "kg",
+                        "value": 45.0,
+                        "generator": "normal",
+                        "is_running": true,
+                        "min_value": null,
+                        "max_value": null,
+                        "mean": 45.0,
+                        "std_dev": 8.0,
+                        "rate": null,
+                        "frequency": null,
+                        "amplitude": null,
+                        "offset": null,
+                        "step_size": null
+                      },
+                      "is_active": true
+                    },
+                    {
+                      "id": "belt_tension_PLC-LA-001",
+                      "name": "Belt Tension",
+                      "signal_config": {
+                        "name": "belt_tension",
+                        "unit": "N",
+                        "value": 850.0,
+                        "generator": "normal",
+                        "is_running": true,
+                        "min_value": null,
+                        "max_value": null,
+                        "mean": 850.0,
+                        "std_dev": 25.0,
+                        "rate": null,
+                        "frequency": null,
+                        "amplitude": null,
+                        "offset": null,
+                        "step_size": null
+                      },
+                      "is_active": true
+                    },
+                    {
+                      "id": "motor_current_PLC-LA-001",
+                      "name": "Motor Current",
+                      "signal_config": {
+                        "name": "motor_current",
+                        "unit": "A",
+                        "value": 12.5,
+                        "generator": "normal",
+                        "is_running": true,
+                        "min_value": null,
+                        "max_value": null,
+                        "mean": 12.5,
+                        "std_dev": 1.5,
+                        "rate": null,
+                        "frequency": null,
+                        "amplitude": null,
+                        "offset": null,
+                        "step_size": null
+                      },
+                      "is_active": true
+                    }
+                  ],
+                  "is_active": true,
+                  "created_at": 1762029021.61118,
+                  "updated_at": 1762029021.61118,
+                  "x_position": 500.0,
+                  "y_position": 400.0,
+                  "width": 2.5,
+                  "height": 1.8
+                }
+              ],
+              "is_active": true,
+              "created_at": 1762029021.611176,
+              "updated_at": 1762029021.611176,
+              "shape": "rectangle",
+              "width": 100,
+              "height": 80,
+              "width_meters": 100.0,
+              "height_meters": 80.0,
+              "wireframe_color": "#f59e0b"
+            }
+          ],
+          "is_active": true,
+          "created_at": 1762029021.611131,
+          "updated_at": 1762029021.611131
+        }
+      ],
+      "is_active": true,
+      "created_at": 1762029021.611124,
+      "updated_at": 1762029021.611127
+    },
+    {
+      "id": "tech-solutions",
+      "name": "Tech Solutions Inc",
+      "description": "Advanced technology manufacturing",
+      "manufacturers": [
+        {
+          "id": "tech-electronics",
+          "name": "Electronics Division",
+          "description": "PCB and electronics manufacturing",
+          "factories": [
+            {
+              "id": "tech-factory-austin",
+              "name": "Austin Tech Hub",
+              "description": "R&D and production facility",
+              "plcs": [
+                {
+                  "id": "PLC-AUS-001",
+                  "name": "Beckhoff CX9020 #1",
+                  "description": "SMT line controller",
+                  "sensors": [
+                    {
+                      "id": "humidity_PLC-AUS-001",
+                      "name": "Humidity",
+                      "signal_config": {
+                        "name": "humidity",
+                        "unit": "%",
+                        "value": 45.0,
+                        "generator": "normal",
+                        "is_running": true,
+                        "min_value": null,
+                        "max_value": null,
+                        "mean": 45.0,
+                        "std_dev": 5.0,
+                        "rate": null,
+                        "frequency": null,
+                        "amplitude": null,
+                        "offset": null,
+                        "step_size": null
+                      },
+                      "is_active": true
+                    },
+                    {
+                      "id": "temperature_oven_PLC-AUS-001",
+                      "name": "Oven Temperature",
+                      "signal_config": {
+                        "name": "temperature_oven",
+                        "unit": "\u00b0C",
+                        "value": 180.0,
+                        "generator": "normal",
+                        "is_running": true,
+                        "min_value": null,
+                        "max_value": null,
+                        "mean": 180.0,
+                        "std_dev": 5.0,
+                        "rate": null,
+                        "frequency": null,
+                        "amplitude": null,
+                        "offset": null,
+                        "step_size": null
+                      },
+                      "is_active": true
+                    },
+                    {
+                      "id": "air_quality_PLC-AUS-001",
+                      "name": "Air Quality",
+                      "signal_config": {
+                        "name": "air_quality",
+                        "unit": "ppm",
+                        "value": 15.0,
+                        "generator": "exponential",
+                        "is_running": true,
+                        "min_value": null,
+                        "max_value": null,
+                        "mean": null,
+                        "std_dev": null,
+                        "rate": 0.1,
+                        "frequency": null,
+                        "amplitude": null,
+                        "offset": null,
+                        "step_size": null
+                      },
+                      "is_active": true
+                    },
+                    {
+                      "id": "static_charge_PLC-AUS-001",
+                      "name": "Static Charge",
+                      "signal_config": {
+                        "name": "static_charge",
+                        "unit": "V",
+                        "value": 0.5,
+                        "generator": "normal",
+                        "is_running": true,
+                        "min_value": null,
+                        "max_value": null,
+                        "mean": 0.5,
+                        "std_dev": 0.2,
+                        "rate": null,
+                        "frequency": null,
+                        "amplitude": null,
+                        "offset": null,
+                        "step_size": null
+                      },
+                      "is_active": true
+                    }
+                  ],
+                  "is_active": true,
+                  "created_at": 1762029021.611686,
+                  "updated_at": 1762029021.611687,
+                  "x_position": 400.0,
+                  "y_position": 120.0,
+                  "width": 2.5,
+                  "height": 1.8
+                },
+                {
+                  "id": "PLC-AUS-002",
+                  "name": "Omron NJ501 #1",
+                  "description": "Testing station controller",
+                  "sensors": [
+                    {
+                      "id": "resistance_PLC-AUS-002",
+                      "name": "Resistance",
+                      "signal_config": {
+                        "name": "resistance",
+                        "unit": "\u03a9",
+                        "value": 1000.0,
+                        "generator": "normal",
+                        "is_running": true,
+                        "min_value": null,
+                        "max_value": null,
+                        "mean": 1000.0,
+                        "std_dev": 25.0,
+                        "rate": null,
+                        "frequency": null,
+                        "amplitude": null,
+                        "offset": null,
+                        "step_size": null
+                      },
+                      "is_active": true
+                    },
+                    {
+                      "id": "voltage_PLC-AUS-002",
+                      "name": "Test Voltage",
+                      "signal_config": {
+                        "name": "voltage",
+                        "unit": "V",
+                        "value": 5.0,
+                        "generator": "uniform",
+                        "is_running": true,
+                        "min_value": null,
+                        "max_value": null,
+                        "mean": null,
+                        "std_dev": null,
+                        "rate": null,
+                        "frequency": null,
+                        "amplitude": null,
+                        "offset": null,
+                        "step_size": null
+                      },
+                      "is_active": true
+                    },
+                    {
+                      "id": "current_test_PLC-AUS-002",
+                      "name": "Test Current",
+                      "signal_config": {
+                        "name": "current_test",
+                        "unit": "mA",
+                        "value": 50.0,
+                        "generator": "normal",
+                        "is_running": true,
+                        "min_value": null,
+                        "max_value": null,
+                        "mean": 50.0,
+                        "std_dev": 5.0,
+                        "rate": null,
+                        "frequency": null,
+                        "amplitude": null,
+                        "offset": null,
+                        "step_size": null
+                      },
+                      "is_active": true
+                    },
+                    {
+                      "id": "frequency_PLC-AUS-002",
+                      "name": "Signal Frequency",
+                      "signal_config": {
+                        "name": "frequency",
+                        "unit": "MHz",
+                        "value": 100.0,
+                        "generator": "sinusoidal",
+                        "is_running": true,
+                        "min_value": null,
+                        "max_value": null,
+                        "mean": null,
+                        "std_dev": null,
+                        "rate": null,
+                        "frequency": 0.01,
+                        "amplitude": 10.0,
+                        "offset": 100.0,
+                        "step_size": null
+                      },
+                      "is_active": true
+                    }
+                  ],
+                  "is_active": true,
+                  "created_at": 1762029021.611693,
+                  "updated_at": 1762029021.611693,
+                  "x_position": 400.0,
+                  "y_position": 1080.0,
+                  "width": 2.5,
+                  "height": 1.8
+                }
+              ],
+              "is_active": true,
+              "created_at": 1762029021.611677,
+              "updated_at": 1762029021.611677,
+              "shape": "I",
+              "width": 80,
+              "height": 120,
+              "width_meters": 80.0,
+              "height_meters": 120.0,
+              "wireframe_color": "#10b981"
+            }
+          ],
+          "is_active": true,
+          "created_at": 1762029021.611675,
+          "updated_at": 1762029021.611676
+        }
+      ],
+      "is_active": true,
+      "created_at": 1762029021.611674,
+      "updated_at": 1762029021.611674
+    },
+    {
+      "id": "global-industries",
+      "name": "Global Industries Ltd",
+      "description": "Heavy machinery and equipment",
+      "manufacturers": [
+        {
+          "id": "global-machinery",
+          "name": "Heavy Machinery Division",
+          "description": "Large-scale industrial equipment",
+          "factories": [
+            {
+              "id": "global-factory-chicago",
+              "name": "Chicago Manufacturing Complex",
+              "description": "Heavy equipment production",
+              "plcs": [
+                {
+                  "id": "PLC-CHI-001",
+                  "name": "Mitsubishi Q Series #1",
+                  "description": "Press machine controller",
+                  "sensors": [
+                    {
+                      "id": "press_force_PLC-CHI-001",
+                      "name": "Press Force",
+                      "signal_config": {
+                        "name": "press_force",
+                        "unit": "tons",
+                        "value": 500.0,
+                        "generator": "normal",
+                        "is_running": true,
+                        "min_value": null,
+                        "max_value": null,
+                        "mean": 500.0,
+                        "std_dev": 25.0,
+                        "rate": null,
+                        "frequency": null,
+                        "amplitude": null,
+                        "offset": null,
+                        "step_size": null
+                      },
+                      "is_active": true
+                    },
+                    {
+                      "id": "hydraulic_pressure_PLC-CHI-001",
+                      "name": "Hydraulic Pressure",
+                      "signal_config": {
+                        "name": "hydraulic_pressure",
+                        "unit": "bar",
+                        "value": 120.0,
+                        "generator": "normal",
+                        "is_running": true,
+                        "min_value": null,
+                        "max_value": null,
+                        "mean": 120.0,
+                        "std_dev": 10.0,
+                        "rate": null,
+                        "frequency": null,
+                        "amplitude": null,
+                        "offset": null,
+                        "step_size": null
+                      },
+                      "is_active": true
+                    },
+                    {
+                      "id": "material_thickness_PLC-CHI-001",
+                      "name": "Material Thickness",
+                      "signal_config": {
+                        "name": "material_thickness",
+                        "unit": "mm",
+                        "value": 5.0,
+                        "generator": "uniform",
+                        "is_running": true,
+                        "min_value": null,
+                        "max_value": null,
+                        "mean": null,
+                        "std_dev": null,
+                        "rate": null,
+                        "frequency": null,
+                        "amplitude": null,
+                        "offset": null,
+                        "step_size": null
+                      },
+                      "is_active": true
+                    },
+                    {
+                      "id": "cycle_time_PLC-CHI-001",
+                      "name": "Cycle Time",
+                      "signal_config": {
+                        "name": "cycle_time",
+                        "unit": "s",
+                        "value": 45.0,
+                        "generator": "normal",
+                        "is_running": true,
+                        "min_value": null,
+                        "max_value": null,
+                        "mean": 45.0,
+                        "std_dev": 3.0,
+                        "rate": null,
+                        "frequency": null,
+                        "amplitude": null,
+                        "offset": null,
+                        "step_size": null
+                      },
+                      "is_active": true
+                    }
+                  ],
+                  "is_active": true,
+                  "created_at": 1762029021.612382,
+                  "updated_at": 1762029021.612382,
+                  "x_position": 150.0,
+                  "y_position": 100.0,
+                  "width": 2.5,
+                  "height": 1.8
+                },
+                {
+                  "id": "PLC-CHI-002",
+                  "name": "Siemens S7-400 #1",
+                  "description": "Welding station controller",
+                  "sensors": [
+                    {
+                      "id": "weld_current_PLC-CHI-002",
+                      "name": "Weld Current",
+                      "signal_config": {
+                        "name": "weld_current",
+                        "unit": "A",
+                        "value": 150.0,
+                        "generator": "normal",
+                        "is_running": true,
+                        "min_value": null,
+                        "max_value": null,
+                        "mean": 150.0,
+                        "std_dev": 15.0,
+                        "rate": null,
+                        "frequency": null,
+                        "amplitude": null,
+                        "offset": null,
+                        "step_size": null
+                      },
+                      "is_active": true
+                    },
+                    {
+                      "id": "weld_voltage_PLC-CHI-002",
+                      "name": "Weld Voltage",
+                      "signal_config": {
+                        "name": "weld_voltage",
+                        "unit": "V",
+                        "value": 25.0,
+                        "generator": "normal",
+                        "is_running": true,
+                        "min_value": null,
+                        "max_value": null,
+                        "mean": 25.0,
+                        "std_dev": 2.5,
+                        "rate": null,
+                        "frequency": null,
+                        "amplitude": null,
+                        "offset": null,
+                        "step_size": null
+                      },
+                      "is_active": true
+                    },
+                    {
+                      "id": "wire_feed_PLC-CHI-002",
+                      "name": "Wire Feed Rate",
+                      "signal_config": {
+                        "name": "wire_feed",
+                        "unit": "m/min",
+                        "value": 8.0,
+                        "generator": "uniform",
+                        "is_running": true,
+                        "min_value": null,
+                        "max_value": null,
+                        "mean": null,
+                        "std_dev": null,
+                        "rate": null,
+                        "frequency": null,
+                        "amplitude": null,
+                        "offset": null,
+                        "step_size": null
+                      },
+                      "is_active": true
+                    },
+                    {
+                      "id": "gas_flow_PLC-CHI-002",
+                      "name": "Shield Gas Flow",
+                      "signal_config": {
+                        "name": "gas_flow",
+                        "unit": "L/min",
+                        "value": 18.0,
+                        "generator": "normal",
+                        "is_running": true,
+                        "min_value": null,
+                        "max_value": null,
+                        "mean": 18.0,
+                        "std_dev": 1.0,
+                        "rate": null,
+                        "frequency": null,
+                        "amplitude": null,
+                        "offset": null,
+                        "step_size": null
+                      },
+                      "is_active": true
+                    }
+                  ],
+                  "is_active": true,
+                  "created_at": 1762029021.612388,
+                  "updated_at": 1762029021.612389,
+                  "x_position": 750.0,
+                  "y_position": 500.0,
+                  "width": 2.5,
+                  "height": 1.8
+                }
+              ],
+              "is_active": true,
+              "created_at": 1762029021.612377,
+              "updated_at": 1762029021.612377,
+              "shape": "Z",
+              "width": 150,
+              "height": 100,
+              "width_meters": 150.0,
+              "height_meters": 100.0,
+              "wireframe_color": "#8b5cf6"
+            }
+          ],
+          "is_active": true,
+          "created_at": 1762029021.612375,
+          "updated_at": 1762029021.612376
+        }
+      ],
+      "is_active": true,
+      "created_at": 1762029021.612374,
+      "updated_at": 1762029021.612374
+    }
+  ]
+}

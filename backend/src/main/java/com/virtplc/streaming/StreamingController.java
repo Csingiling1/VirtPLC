@@ -3,6 +3,7 @@ package com.virtplc.streaming;
 import com.virtplc.grpc.GrpcDtos.SensorData;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
@@ -14,6 +15,7 @@ import reactor.core.publisher.Flux;
 @RestController
 @RequestMapping("/api/streaming")
 @RequiredArgsConstructor
+@ConditionalOnProperty(name = "opcua.client.enabled", havingValue = "true")
 public class StreamingController {
 
     private final BackpressureAwareDataSource dataSource;

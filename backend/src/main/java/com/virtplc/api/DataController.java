@@ -1,6 +1,7 @@
 package com.virtplc.api;
 
 import com.virtplc.model.Company;
+import com.virtplc.model.Manufacturer;
 import com.virtplc.model.SensorData;
 import com.virtplc.repository.CompanyRepository;
 import com.virtplc.service.DataService;
@@ -32,6 +33,7 @@ public class DataController {
     public ResponseEntity<SensorData> getLatestData(HttpServletRequest request) {
         log.debug("GET /api/data/latest");
 
+        // Latest data is real-time and not filtered by user permissions
         SensorData sensorData = dataService.getLatestData(null);
         return ResponseEntity.ok(sensorData);
     }
@@ -49,26 +51,43 @@ public class DataController {
             HttpServletRequest request) {
         log.debug("GET /api/data/range?startTime={}&endTime={}", startTime, endTime);
 
-        Company company = getCompanyFromRequest(request);
-        if (company == null) {
+        List<Manufacturer> manufacturers = getManufacturersFromRequest(request);
+        if (manufacturers != null && manufacturers.isEmpty()) {
             return ResponseEntity.badRequest().build();
         }
 
-        List<SensorData> data = dataService.getDataRange(company, startTime, endTime);
+        List<SensorData> data = dataService.getDataRange(manufacturers, startTime, endTime);
         return ResponseEntity.ok(data);
     }
 
     /**
-     * Extract company from authenticated user request attributes.
+     * Extract manufacturers from authenticated user request attributes.
+     * Admin users get all manufacturers, non-admin users get manufacturers from
+     * their company.
      */
-    private Company getCompanyFromRequest(HttpServletRequest request) {
-        Long companyId = (Long) request.getAttribute("companyId");
-        if (companyId == null) {
-            log.error("No company ID found in request attributes");
-            return null;
+    private List<Manufacturer> getManufacturersFromRequest(HttpServletRequest request) {
+        String userRole = (String) request.getAttribute("userRole");
+
+        // Admin users can access all manufacturers
+        if ("ADMIN".equals(userRole)) {
+            // For admin, return all manufacturers (we'll need to update DataService to
+            // handle this)
+            return null; // Special case for admin
         }
 
-        return companyRepository.findById(companyId).orElse(null);
+        Long companyId = (Long) request.getAttribute("companyId");
+        if (companyId == null) {
+            log.error("No company ID found in request attributes for non-admin user");
+            return List.of();
+        }
+
+        Company company = companyRepository.findById(companyId).orElse(null);
+        if (company == null) {
+            log.error("Company not found for ID: {}", companyId);
+            return List.of();
+        }
+
+        return company.getManufacturers();
     }
 
     /**

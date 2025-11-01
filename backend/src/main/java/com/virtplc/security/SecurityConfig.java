@@ -35,6 +35,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/api/data/latest").permitAll()
                         .requestMatchers("/api/data/latest").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/data/ingest").permitAll()
+                        .requestMatchers("/mcp/**").permitAll() // MCP endpoints for AI service
 
                         // Protected endpoints
                         .anyRequest().authenticated())

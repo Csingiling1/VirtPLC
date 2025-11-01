@@ -3,6 +3,7 @@ import Layout from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 import { Server } from 'lucide-react';
 
 interface HierarchicalSensorData {
@@ -36,14 +37,32 @@ const Monitoring = () => {
   const [historicalData, setHistoricalData] = useState<HierarchicalSensorData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
+  const { user } = useAuth();
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         const response = await fetch('http://localhost:5000/api/stream/latest');
         const data: HierarchicalSensorData = await response.json();
+
+        // Filter data by user's manufacturer if not admin
+        let filteredData = data;
+        if (user && user.role !== 'ADMIN' && user.manufacturer) {
+          const userManufacturerId = user.manufacturer.manufacturerId;
+
+          filteredData = {
+            ...data,
+            tenants: data.tenants.map(tenant => ({
+              ...tenant,
+              manufacturers: tenant.manufacturers.filter(
+                m => m.id === userManufacturerId
+              )
+            })).filter(tenant => tenant.manufacturers.length > 0)
+          };
+        }
+
         setHistoricalData((prev) => {
-          const newData = [...prev, data];
+          const newData = [...prev, filteredData];
           return newData.slice(-20); // Keep last 20 data points
         });
         setIsLoading(false);
@@ -70,7 +89,7 @@ const Monitoring = () => {
     const interval = setInterval(fetchData, 2000);
 
     return () => clearInterval(interval);
-  }, [toast, isLoading]);
+  }, [toast, isLoading, user]);
 
   interface ChartDataPoint {
     time: string;

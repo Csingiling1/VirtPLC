@@ -144,6 +144,12 @@ class PLC:
     is_active: bool = True
     created_at: float = field(default_factory=lambda: datetime.now().timestamp())
     updated_at: float = field(default_factory=lambda: datetime.now().timestamp())
+    # Position within factory (in meters from top-left corner)
+    x_position: float = 0.0
+    y_position: float = 0.0
+    # Physical dimensions (in meters)
+    width: float = 2.0
+    height: float = 1.5
 
     def update_sensors(self):
         """Update all sensors with new generated values"""
@@ -162,6 +168,10 @@ class PLC:
             "is_active": self.is_active,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
+            "x_position": self.x_position,
+            "y_position": self.y_position,
+            "width": self.width,
+            "height": self.height,
         }
 
 

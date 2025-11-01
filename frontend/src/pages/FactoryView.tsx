@@ -74,8 +74,8 @@ const FactoryView = () => {
     useEffect(() => {
         const fetchFactoryData = async () => {
             try {
-                // Fetch tenants data to get factory information
-                const tenantsResponse = await api.get('/api/simulator/tenants');
+                // Fetch tenants data to get factory information (filtered by user's manufacturer)
+                const tenantsResponse = await api.get('/api/simulator/tenants/my-data');
                 const tenants = tenantsResponse.data;
 
                 if (tenants && tenants.length > 0) {
@@ -383,74 +383,74 @@ const FactoryView = () => {
                                     onMouseLeave={handleMouseUp}
                                     onWheel={handleWheel}
                                 >
-                                        <div
-                                            className="relative w-full h-full"
-                                            style={{
-                                                transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoom})`,
-                                                transformOrigin: 'center',
-                                                transition: isDragging ? 'none' : 'transform 0.1s ease-out',
-                                            }}
-                                        >
-                                    {/* Factory Shape Overlay */}
-                                    {factoryData && renderFactoryShape(
-                                        factoryData.shape || 'rectangle',
-                                        factoryLayout.width,
-                                        factoryLayout.height,
-                                        factoryData.wireframe_color || '#666666'
-                                    )}
+                                    <div
+                                        className="relative w-full h-full"
+                                        style={{
+                                            transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoom})`,
+                                            transformOrigin: 'center',
+                                            transition: isDragging ? 'none' : 'transform 0.1s ease-out',
+                                        }}
+                                    >
+                                        {/* Factory Shape Overlay */}
+                                        {factoryData && renderFactoryShape(
+                                            factoryData.shape || 'rectangle',
+                                            factoryLayout.width,
+                                            factoryLayout.height,
+                                            factoryData.wireframe_color || '#666666'
+                                        )}
 
-                                    {devices.map((device) => {
-                                        // Ensure devices stay within factory bounds (in pixels)
-                                        const maxX = factoryLayout.width - device.width;
-                                        const maxY = factoryLayout.height - device.height;
-                                        const clampedX = Math.max(0, Math.min(device.x, maxX));
-                                        const clampedY = Math.max(0, Math.min(device.y, maxY));
+                                        {devices.map((device) => {
+                                            // Ensure devices stay within factory bounds (in pixels)
+                                            const maxX = factoryLayout.width - device.width;
+                                            const maxY = factoryLayout.height - device.height;
+                                            const clampedX = Math.max(0, Math.min(device.x, maxX));
+                                            const clampedY = Math.max(0, Math.min(device.y, maxY));
 
-                                        return (
-                                            <div
-                                                key={device.id}
-                                                className="absolute cursor-pointer transition-all duration-200 hover:scale-105 z-10"
-                                                style={{
-                                                    left: `${(clampedX / factoryLayout.width) * 100}%`,
-                                                    top: `${(clampedY / factoryLayout.height) * 100}%`,
-                                                    width: `${device.width}px`,
-                                                    height: `${device.height}px`,
-                                                }}
-                                                onMouseEnter={() => setHoveredDevice(device)}
-                                                onMouseLeave={() => setHoveredDevice(null)}
-                                                onClick={() => setSelectedDevice(device)}
-                                            >
+                                            return (
                                                 <div
-                                                    className="w-full h-full rounded flex items-center justify-center text-white font-bold shadow-lg border-2 border-white"
-                                                    style={{ backgroundColor: getDeviceColor(device.type, device.sensors) }}
+                                                    key={device.id}
+                                                    className="absolute cursor-pointer transition-all duration-200 hover:scale-105 z-10"
+                                                    style={{
+                                                        left: `${(clampedX / factoryLayout.width) * 100}%`,
+                                                        top: `${(clampedY / factoryLayout.height) * 100}%`,
+                                                        width: `${device.width}px`,
+                                                        height: `${device.height}px`,
+                                                    }}
+                                                    onMouseEnter={() => setHoveredDevice(device)}
+                                                    onMouseLeave={() => setHoveredDevice(null)}
+                                                    onClick={() => setSelectedDevice(device)}
                                                 >
-                                                    {getDeviceIcon(device.type)}
+                                                    <div
+                                                        className="w-full h-full rounded flex items-center justify-center text-white font-bold shadow-lg border-2 border-white"
+                                                        style={{ backgroundColor: getDeviceColor(device.type, device.sensors) }}
+                                                    >
+                                                        {getDeviceIcon(device.type)}
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        );
-                                    })}
+                                            );
+                                        })}
 
-                                    {/* Hover Tooltip */}
-                                    {/* Hover Tooltip */}
-                                    {hoveredDevice && (() => {
-                                        const tooltipX = Math.max(0, Math.min(hoveredDevice.x, factoryLayout.width - 60));
-                                        const tooltipY = Math.max(0, Math.min(hoveredDevice.y, factoryLayout.height - 40));
-                                        return (
-                                            <div
-                                                className="absolute bg-black text-white px-3 py-2 rounded-lg text-sm pointer-events-none z-20 shadow-lg"
-                                                style={{
-                                                    left: `${(tooltipX / factoryLayout.width) * 100}%`,
-                                                    top: `${(tooltipY / factoryLayout.height) * 100}%`,
-                                                    transform: 'translateX(10px) translateY(-100%)',
-                                                }}
-                                            >
-                                                <div className="font-semibold">{hoveredDevice.name}</div>
-                                                <div className="text-xs opacity-90">{hoveredDevice.type.toUpperCase()}</div>
-                                            </div>
-                                        );
-                                    })()}
-                                        </div>
+                                        {/* Hover Tooltip */}
+                                        {/* Hover Tooltip */}
+                                        {hoveredDevice && (() => {
+                                            const tooltipX = Math.max(0, Math.min(hoveredDevice.x, factoryLayout.width - 60));
+                                            const tooltipY = Math.max(0, Math.min(hoveredDevice.y, factoryLayout.height - 40));
+                                            return (
+                                                <div
+                                                    className="absolute bg-black text-white px-3 py-2 rounded-lg text-sm pointer-events-none z-20 shadow-lg"
+                                                    style={{
+                                                        left: `${(tooltipX / factoryLayout.width) * 100}%`,
+                                                        top: `${(tooltipY / factoryLayout.height) * 100}%`,
+                                                        transform: 'translateX(10px) translateY(-100%)',
+                                                    }}
+                                                >
+                                                    <div className="font-semibold">{hoveredDevice.name}</div>
+                                                    <div className="text-xs opacity-90">{hoveredDevice.type.toUpperCase()}</div>
+                                                </div>
+                                            );
+                                        })()}
                                     </div>
+                                </div>
 
                                 {/* Legend */}
                                 <div className="mt-4 flex flex-wrap gap-4 text-sm">

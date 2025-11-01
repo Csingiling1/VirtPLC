@@ -50,6 +50,10 @@ public class Company {
     @ToString.Exclude
     private List<User> users;
 
+    @OneToMany(mappedBy = "company", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @ToString.Exclude
+    private List<Manufacturer> manufacturers;
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();

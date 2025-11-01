@@ -12,7 +12,6 @@ const LandingPage = lazy(() => import("./pages/LandingPage"));
 const Login = lazy(() => import("./pages/Login"));
 const Register = lazy(() => import("./pages/Register"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
-const Devices = lazy(() => import("./pages/Devices"));
 const FactoryView = lazy(() => import("./pages/FactoryView"));
 const Monitoring = lazy(() => import("./pages/Monitoring"));
 const History = lazy(() => import("./pages/History"));
@@ -44,11 +43,6 @@ const App = () => (
               <Route path="/dashboard" element={
                 <ProtectedRoute>
                   <Dashboard />
-                </ProtectedRoute>
-              } />
-              <Route path="/devices" element={
-                <ProtectedRoute>
-                  <Devices />
                 </ProtectedRoute>
               } />
               <Route path="/factory-view" element={

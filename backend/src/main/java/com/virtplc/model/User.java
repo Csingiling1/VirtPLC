@@ -46,9 +46,13 @@ public class User {
     @Column
     private LocalDateTime updatedAt;
 
-    @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "company_id", nullable = false)
+    @ManyToOne(fetch = FetchType.EAGER, optional = true)
+    @JoinColumn(name = "company_id", nullable = true)
     private Company company;
+
+    @ManyToOne(fetch = FetchType.EAGER, optional = true)
+    @JoinColumn(name = "manufacturer_id", nullable = true)
+    private Manufacturer manufacturer;
 
     @PrePersist
     protected void onCreate() {
@@ -62,9 +66,10 @@ public class User {
     }
 
     public enum Role {
-        ADMIN,
-        MANAGER,
-        OPERATOR,
-        VIEWER
+        ADMIN, // System admin - sees everything
+        MANUFACTURER_ADMIN, // Manufacturer admin - sees all factories in their manufacturer
+        MANAGER, // Factory manager
+        OPERATOR, // Factory operator
+        VIEWER // Read-only viewer
     }
 }

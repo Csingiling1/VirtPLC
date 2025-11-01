@@ -1,4 +1,4 @@
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import {
   LayoutDashboard,
@@ -8,8 +8,20 @@ import {
   Settings,
   Bot,
   Factory,
+  LogOut,
+  User,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/contexts/AuthContext';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -17,10 +29,21 @@ interface LayoutProps {
 
 const Layout = ({ children }: LayoutProps) => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/');
+  };
+
+  const getInitials = () => {
+    if (!user) return '?';
+    return `${user.firstName[0]}${user.lastName[0]}`.toUpperCase();
+  };
 
   const navItems = [
     { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-    { path: '/devices', icon: Server, label: 'Devices' },
     { path: '/factory-view', icon: Factory, label: 'Factory View' },
     { path: '/monitoring', icon: Activity, label: 'Monitoring' },
     { path: '/history', icon: History, label: 'History' },
@@ -58,6 +81,47 @@ const Layout = ({ children }: LayoutProps) => {
             );
           })}
         </nav>
+
+        {/* User Profile Section */}
+        <div className="p-4 border-t border-border">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="w-full justify-start gap-3">
+                <Avatar className="h-8 w-8">
+                  <AvatarFallback>{getInitials()}</AvatarFallback>
+                </Avatar>
+                <div className="flex flex-col items-start flex-1 min-w-0">
+                  <span className="text-sm font-medium truncate w-full">
+                    {user?.firstName} {user?.lastName}
+                  </span>
+                  <span className="text-xs text-muted-foreground truncate w-full">
+                    {user?.role}
+                  </span>
+                </div>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel>My Account</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <div className="px-2 py-1.5 text-sm">
+                <div className="font-medium">{user?.email}</div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  {user?.company?.name || 'No Company'}
+                </div>
+                {user?.manufacturer && (
+                  <div className="text-xs text-muted-foreground">
+                    {user.manufacturer.name}
+                  </div>
+                )}
+              </div>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleLogout}>
+                <LogOut className="mr-2 h-4 w-4" />
+                <span>Log out</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </aside>
 
       {/* Main Content */}

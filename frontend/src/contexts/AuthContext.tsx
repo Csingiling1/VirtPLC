@@ -1,6 +1,18 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { api } from '@/lib/api';
 
+interface ApiError {
+    isNetworkError?: boolean;
+    response?: {
+        status: number;
+        data?: {
+            message?: string;
+        };
+    };
+    request?: unknown;
+    message?: string;
+}
+
 interface User {
     id: number;
     email: string;
@@ -11,7 +23,12 @@ interface User {
         id: number;
         name: string;
         domain: string;
-    };
+    } | null;
+    manufacturer?: {
+        id: number;
+        name: string;
+        manufacturerId: string;
+    } | null;
 }
 
 interface AuthContextType {
@@ -83,8 +100,44 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
             // Set default axios header for future requests
             api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-        } catch (error) {
-            throw new Error('Login failed. Please check your credentials.');
+        } catch (error: unknown) {
+            console.error('Login error:', error);
+
+            // Handle different types of errors
+            const err = error as ApiError;
+
+            if (err.isNetworkError) {
+                throw new Error('Cannot connect to the server. Please check your internet connection and ensure the backend is running.');
+            }
+
+            if (err.response) {
+                // Server responded with error status
+                const status = err.response.status;
+                const data = err.response.data;
+
+                switch (status) {
+                    case 400:
+                        throw new Error(data?.message || 'Invalid email or password format.');
+                    case 401:
+                        throw new Error('Invalid email or password. Please check your credentials.');
+                    case 403:
+                        throw new Error('Account is disabled or access is forbidden.');
+                    case 404:
+                        throw new Error('Authentication service not found. Please contact support.');
+                    case 429:
+                        throw new Error('Too many login attempts. Please try again later.');
+                    case 500:
+                        throw new Error('Server error. Please try again later or contact support.');
+                    default:
+                        throw new Error(data?.message || `Login failed with status ${status}.`);
+                }
+            } else if (err.request) {
+                // Network error (CORS, no response, etc.)
+                throw new Error('Network error: Cannot reach the authentication server. This might be a CORS issue or the server is down.');
+            } else {
+                // Other error
+                throw new Error('An unexpected error occurred during login.');
+            }
         }
     };
 
@@ -98,8 +151,40 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
             // Set default axios header for future requests
             api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-        } catch (error) {
-            throw new Error('Registration failed. Please try again.');
+        } catch (error: unknown) {
+            console.error('Registration error:', error);
+
+            // Handle different types of errors
+            const err = error as ApiError;
+
+            if (err.isNetworkError) {
+                throw new Error('Cannot connect to the server. Please check your internet connection and ensure the backend is running.');
+            }
+
+            if (err.response) {
+                // Server responded with error status
+                const status = err.response.status;
+                const data = err.response.data;
+
+                switch (status) {
+                    case 400:
+                        throw new Error(data?.message || 'Invalid registration data. Please check all fields.');
+                    case 409:
+                        throw new Error('Email already exists. Please use a different email address.');
+                    case 422:
+                        throw new Error(data?.message || 'Validation failed. Please check your input.');
+                    case 500:
+                        throw new Error('Server error during registration. Please try again later.');
+                    default:
+                        throw new Error(data?.message || `Registration failed with status ${status}.`);
+                }
+            } else if (err.request) {
+                // Network error (CORS, no response, etc.)
+                throw new Error('Network error: Cannot reach the registration server. This might be a CORS issue or the server is down.');
+            } else {
+                // Other error
+                throw new Error('An unexpected error occurred during registration.');
+            }
         }
     };
 

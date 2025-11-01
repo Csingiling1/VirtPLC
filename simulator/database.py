@@ -116,6 +116,8 @@ class MultiTenantDatabase:
             is_active=data.get("is_active", True),
             created_at=data.get("created_at", 0),
             updated_at=data.get("updated_at", 0),
+            x_position=data.get("x_position", 0.0),
+            y_position=data.get("y_position", 0.0),
         )
 
     def _sensor_from_dict(self, data: Dict[str, Any]) -> Sensor:

@@ -2,10 +2,13 @@ package com.virtplc.api;
 
 import com.virtplc.model.SimulatorDevice;
 import com.virtplc.model.SignalConfig;
+import com.virtplc.model.User;
 import com.virtplc.service.SimulatorService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -139,5 +142,46 @@ public class SimulatorController {
         boolean success = simulatorService.updateSimulation();
         return success ? ResponseEntity.ok().build()
                 : ResponseEntity.internalServerError().build();
+    }
+
+    /**
+     * Get tenants from simulator
+     */
+    @GetMapping("/tenants")
+    public ResponseEntity<List<Map<String, Object>>> getTenants() {
+        List<Map<String, Object>> tenants = simulatorService.getTenants();
+        return ResponseEntity.ok(tenants);
+    }
+
+    /**
+     * Get filtered tenants based on authenticated user's manufacturer
+     * Non-admin users only see their manufacturer's data
+     */
+    @GetMapping("/tenants/my-data")
+    public ResponseEntity<List<Map<String, Object>>> getMyTenantData() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        
+        if (authentication == null || !(authentication.getPrincipal() instanceof User)) {
+            return ResponseEntity.status(401).build();
+        }
+
+        User user = (User) authentication.getPrincipal();
+        List<Map<String, Object>> tenants = simulatorService.getTenants();
+        
+        // ADMIN sees everything
+        if (user.getRole() == User.Role.ADMIN) {
+            return ResponseEntity.ok(tenants);
+        }
+        
+        // Non-admin users only see their manufacturer's data
+        if (user.getManufacturer() != null) {
+            String userManufacturerId = user.getManufacturer().getManufacturerId();
+            List<Map<String, Object>> filteredTenants = simulatorService.filterTenantsByManufacturer(
+                tenants, userManufacturerId);
+            return ResponseEntity.ok(filteredTenants);
+        }
+        
+        // User has no manufacturer assigned - return empty
+        return ResponseEntity.ok(List.of());
     }
 }
