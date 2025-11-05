@@ -1,0 +1,33 @@
+# 2025-11-05 — Accenture megbeszélés
+## Összefoglaló
+Teams-es Unreal bevezető.
+Rövid megbeszélés és demo arról, hogy eddig mit készítettünk.  
+Áttekintettük az architektúrát, valamint a gépek és eszközök elosztását.
+---
+## Jegyzetek
+- **Unreal bevezető**
+  - Küldtek egy GitHub linket, amit pluginként kell hozzáadni az Unreal-hez.
+  - Pluginok:
+    - MQTT
+    - JSON plugin
+  - Egyik *topic*-on várjuk az üzeneteket, egy másikon küldjük (így elkerülhető az endless loop).
+- **Demo és megbeszélés**
+  - Gyors bemutató az eddig elkészített részekről.
+  - Architektúra felrajzolása.
+---
+## Hardver / Eszközök
+- **AI gép:** Szereztek egy gépet az AI-hoz.
+  - Memória még szükséges a *Historian* és egyéb modulokhoz.
+  - Tárolás: Kristófnál.
+- **NUC:** távolról elérhető AnyDesk-el.
+- **Tablet:** fognak küldeni Németországból.
+- **Gépek felosztása:**
+  - **Desktop gép:** AI & Historian
+  - **NUC:** frontend
+  - **Tablet** 
+  - **Unreal:** egyelőre saját gépen fut
+---
+## Megjegyzések
+- UI fejlesztéshez **UI Expert** használata javasolt a kliensekhez.  
+- **Port:** 14840 (OPC)  
+- Kommunikáció: **MQTT** vagy **OPC UA** (utóbbi lassabb).
