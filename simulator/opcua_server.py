@@ -36,6 +36,8 @@ class OPCUAServer:
             # Register namespace
             uri = "http://virtplc.simulator"
             idx = await self.server.register_namespace(uri)
+            self.ns_idx = idx
+            logger.info(f"Registered namespace '{uri}' with index {idx}")
 
             # Create object node
             objects = self.server.get_objects_node()
@@ -46,11 +48,27 @@ class OPCUAServer:
 
             logger.info(f"OPC-UA server started at {self.endpoint}")
             self.running = True
+            
+            # Start update loop
+            asyncio.create_task(self._update_loop())
+            
             await self.server.start()
 
         except Exception as e:
             logger.error(f"Failed to start OPC-UA server: {e}")
             raise
+
+    async def _update_loop(self):
+        """Update OPC-UA values periodically"""
+        logger.info("OPC-UA update loop started")
+        while self.running:
+            try:
+                logger.debug("Calling update_values()")
+                await self.update_values()
+                await asyncio.sleep(1.0)  # Update every second
+            except Exception as e:
+                logger.error(f"Failed to update OPC-UA values: {e}")
+                await asyncio.sleep(1.0)
 
     async def stop(self):
         """Stop the OPC-UA server"""
@@ -61,6 +79,7 @@ class OPCUAServer:
 
     async def update_values(self):
         """Update all sensor values in OPC-UA server"""
+        logger.debug("update_values() called")
         try:
             if not self.server or not self.running:
                 return
@@ -74,12 +93,12 @@ class OPCUAServer:
                             for sensor in plc.sensors:
                                 # Update sensor value in OPC-UA
                                 node_id = f"{tenant.id}.{manufacturer.id}.{factory.id}.{plc.id}.{sensor.id}"
-                                full_node_id = f"ns=2;s={node_id}"
+                                full_node_id = f"ns={self.ns_idx};s={node_id}"
                                 if full_node_id in self.nodes:
                                     await self.nodes[full_node_id].write_value(sensor.signal_config.value)
 
             # Update demo nodes for backward compatibility
-            await self._update_demo_nodes()
+            await self._update_demo_values()
 
         except Exception as e:
             logger.error(f"Failed to update OPC-UA values: {e}")
@@ -88,28 +107,6 @@ class OPCUAServer:
         """Update demo nodes with current values"""
         # This is for backward compatibility with the backend
         pass
-
-    async def update_values(self):
-        """Update sensor values in OPC-UA server"""
-        if not self.running or not self.server:
-            return
-
-        try:
-            tenants = self.db.get_all_tenants()
-            for tenant in tenants:
-                for manufacturer in tenant.manufacturers:
-                    for factory in manufacturer.factories:
-                        for plc in factory.plcs:
-                            for sensor in plc.sensors:
-                                node_id = f"ns=2;s={tenant.id}.{manufacturer.id}.{factory.id}.{plc.id}.{sensor.id}"
-                                if node_id in self.nodes:
-                                    # Update sensor value
-                                    await self.nodes[node_id].write_value(sensor.signal_config.value)
-
-            # Update demo nodes with simulated values
-            await self._update_demo_values()
-        except Exception as e:
-            logger.error(f"Failed to update OPC-UA values: {e}")
 
     async def _update_demo_values(self):
         """Update demo nodes with simulated values"""
@@ -133,18 +130,39 @@ class OPCUAServer:
         sensor1_value = 25.5 + 5 * (0.5 - random.random())
         sensor2_value = (current_time % 10) > 5  # Boolean alternating
 
+        # Simulate motor running status (most of the time running)
+        motor1_running = random.random() > 0.05  # 95% uptime
+        motor2_running = random.random() > 0.08  # 92% uptime
+        conveyor_running = motor1_running  # Conveyor follows motor1
+
+        # Simulate faults (rare)
+        motor1_fault = random.random() < 0.02  # 2% fault rate
+        motor2_fault = random.random() < 0.03  # 3% fault rate
+
         updates = [
             ("Motor1.Speed", motor1_speed),
             ("Motor1.Temperature", motor1_temp),
+            ("Motor1.Running", motor1_running),
+            ("Motor1.Fault", motor1_fault),
             ("Motor2.Speed", motor2_speed),
             ("Motor2.Temperature", motor2_temp),
+            ("Motor2.Running", motor2_running),
+            ("Motor2.Fault", motor2_fault),
             ("Conveyor1.Speed", conveyor_speed),
+            ("Conveyor1.Running", conveyor_running),
             ("Sensor1.Value", sensor1_value),
             ("Sensor2.Value", sensor2_value),
         ]
 
+        # Debug logging every 3 seconds
+        import time
+        current_time = time.time()
+        if not hasattr(self, '_last_debug_time') or (current_time - self._last_debug_time) > 3:
+            logger.info(f"DEBUG: Setting demo values - Motor1.Speed: {motor1_speed:.2f}, Motor1.Temp: {motor1_temp:.2f}, Motor1.Run: {motor1_running}, Motor1.Fault: {motor1_fault}, Motor2.Speed: {motor2_speed:.2f}, Motor2.Temp: {motor2_temp:.2f}, Motor2.Run: {motor2_running}, Motor2.Fault: {motor2_fault}, Conveyor1.Speed: {conveyor_speed:.2f}, Conveyor1.Run: {conveyor_running}, Sensor1.Value: {sensor1_value:.2f}, Sensor2.Value: {sensor2_value}")
+            self._last_debug_time = current_time
+
         for node_name, value in updates:
-            full_node_id = f"ns=2;s={node_name}"
+            full_node_id = f"ns={self.ns_idx};s={node_name}"
             if full_node_id in self.nodes:
                 await self.nodes[full_node_id].write_value(value)
 
@@ -183,7 +201,7 @@ class OPCUAServer:
                             await sensor_node.set_writable()
 
                             # Store node reference for updates
-                            full_node_id = f"ns=2;s={node_id}"
+                            full_node_id = f"ns={ns_idx};s={node_id}"
                             self.nodes[full_node_id] = sensor_node
 
                             logger.debug(f"Created OPC-UA node: {full_node_id}")
@@ -196,19 +214,26 @@ class OPCUAServer:
         demo_nodes = [
             ("Motor1.Speed", 1500.0, ua.VariantType.Double),
             ("Motor1.Temperature", 75.0, ua.VariantType.Double),
+            ("Motor1.Running", True, ua.VariantType.Boolean),
+            ("Motor1.Fault", False, ua.VariantType.Boolean),
             ("Motor2.Speed", 1200.0, ua.VariantType.Double),
             ("Motor2.Temperature", 68.0, ua.VariantType.Double),
+            ("Motor2.Running", True, ua.VariantType.Boolean),
+            ("Motor2.Fault", False, ua.VariantType.Boolean),
             ("Conveyor1.Speed", 2.5, ua.VariantType.Double),
+            ("Conveyor1.Running", True, ua.VariantType.Boolean),
             ("Sensor1.Value", 25.5, ua.VariantType.Double),
             ("Sensor2.Value", True, ua.VariantType.Boolean),
         ]
 
         for node_name, initial_value, variant_type in demo_nodes:
-            node = await parent_node.add_variable(ns_idx, node_name, initial_value, variant_type)
+            # Create node with explicit string-based node ID
+            node_id = ua.NodeId(node_name, ns_idx)
+            node = await parent_node.add_variable(node_id, node_name, initial_value, variant_type)
             await node.set_writable()
-            full_node_id = f"ns=2;s={node_name}"
+            full_node_id = f"ns={ns_idx};s={node_name}"
             self.nodes[full_node_id] = node
-            logger.debug(f"Created demo OPC-UA node: {full_node_id}")
+            logger.info(f"Created demo OPC-UA node: {full_node_id} -> actual node_id: {node.nodeid}")
 
     def get_sensor_node_ids(self) -> List[str]:
         """Get list of all sensor node IDs for backend to read"""

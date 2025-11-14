@@ -650,6 +650,18 @@ class SimulatorApp:
             log_level="info"
         )
 
+    async def start_opcua_server(self, endpoint: str = "opc.tcp://0.0.0.0:4840/virtplc/"):
+        """Start OPC-UA server"""
+        from opcua_server import OPCUAServer
+        
+        logger.info(f"Starting OPC-UA server at {endpoint}")
+        opcua_server = OPCUAServer(self.db, endpoint)
+        await opcua_server.start()
+        
+        # Keep the server running
+        while True:
+            await asyncio.sleep(1)
+
 def main():
     """Main entry point - simplified for multi-tenant testing"""
     import argparse
@@ -658,18 +670,27 @@ def main():
     parser.add_argument("--host", default="0.0.0.0", help="Host to bind to")
     parser.add_argument("--port", type=int, default=8000, help="Port to bind to")
     parser.add_argument("--db-path", default="data/tenants.json", help="Database file path")
-    # Accept old arguments for compatibility but ignore them
-    parser.add_argument("--mode", default="web-only", help="Ignored for compatibility")
-    parser.add_argument("--opcua-endpoint", default="", help="Ignored for compatibility")
-    parser.add_argument("--update-interval", type=float, default=1.0, help="Ignored for compatibility")
+    parser.add_argument("--mode", default=os.getenv("SIMULATOR_MODE", "web-only"), help="Mode: web-only or plc-server")
+    parser.add_argument("--opcua-endpoint", default="opc.tcp://0.0.0.0:4840/virtplc/", help="OPC-UA endpoint")
     
     args = parser.parse_args()
     
     # Create app with multi-tenant database
     app = SimulatorApp(args.db_path)
     
-    # Start web server (blocking)
-    app.start_web_server(args.host, args.port)
+    if args.mode == "plc-server":
+        # Start OPC-UA server in a separate thread
+        logger.info(f"Starting OPC-UA server in plc-server mode at {args.opcua_endpoint}")
+        import threading
+        opcua_thread = threading.Thread(target=lambda: asyncio.run(app.start_opcua_server(args.opcua_endpoint)))
+        opcua_thread.daemon = True
+        opcua_thread.start()
+        
+        # Start web server (blocking)
+        app.start_web_server(args.host, args.port)
+    else:
+        # Start web server only (blocking)
+        app.start_web_server(args.host, args.port)
 
 
 if __name__ == "__main__":

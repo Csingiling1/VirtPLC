@@ -38,7 +38,8 @@ public class CorsConfig {
                 "http://127.0.0.1:8088",
                 "http://192.168.2.145:3000",
                 "http://192.168.2.145:8080",
-                "http://192.168.2.145:8088"));
+                "http://192.168.2.145:8088",
+                "http://frontend:3000"));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
         configuration.setAllowCredentials(true);

@@ -48,64 +48,46 @@ async def chat_message(request: ChatRequest):
         elif "sensor" in message_lower:
             symbols = ["Sensor1", "Sensor2"]
         
-        # Get TimescaleDB context via backend REST API instead of MCP
+        # Get TimescaleDB context via MCP client
         context_parts = []
         
         try:
-            import httpx
-            backend_url = "http://backend:8080"
+            # Get latest sensor readings via MCP
+            latest_readings = await mcp_client.get_latest_sensor_readings(limit=50)
+            if latest_readings:
+                context_parts.append("## Current Sensor Data (Latest Readings)")
+                # Group by symbol for better organization
+                symbol_data = {}
+                for reading in latest_readings:
+                    symbol = reading.get('symbol', 'Unknown')
+                    if symbol not in symbol_data:
+                        symbol_data[symbol] = []
+                    symbol_data[symbol].append(reading)
+                
+                for symbol, readings in symbol_data.items():
+                    context_parts.append(f"### Equipment: {symbol}")
+                    for reading in readings[:5]:  # Show up to 5 metrics per symbol
+                        metric = reading.get('metric_type', 'Unknown')
+                        value = reading.get('value', 'N/A')
+                        unit = reading.get('unit', '')
+                        timestamp = reading.get('timestamp', 'Unknown')
+                        context_parts.append(f"- {metric}: {value} {unit} (timestamp: {timestamp})")
+                    if len(readings) > 5:
+                        context_parts.append(f"- ... and {len(readings) - 5} more metrics")
             
-            # Get latest data from backend
-            async with httpx.AsyncClient() as client:
-                # Get latest readings
-                latest_response = await client.get(f"{backend_url}/api/data/latest", timeout=10.0)
-                if latest_response.status_code == 200:
-                    latest_data = latest_response.json()
-                    context_parts.append("## Current Sensor Data (Latest Readings)")
-                    if isinstance(latest_data, list):
-                        # Group by symbol for better organization
-                        symbol_data = {}
-                        for reading in latest_data:
-                            symbol = reading.get('symbol', 'Unknown')
-                            if symbol not in symbol_data:
-                                symbol_data[symbol] = []
-                            symbol_data[symbol].append(reading)
-                        
-                        for symbol, readings in symbol_data.items():
-                            context_parts.append(f"### Equipment: {symbol}")
-                            for reading in readings[:5]:  # Show up to 5 metrics per symbol
-                                metric = reading.get('metricType', 'Unknown')
-                                value = reading.get('value', 'N/A')
-                                unit = reading.get('unit', '')
-                                timestamp = reading.get('timestamp', 'Unknown')
-                                context_parts.append(f"- {metric}: {value} {unit} (timestamp: {timestamp})")
-                            if len(readings) > 5:
-                                context_parts.append(f"- ... and {len(readings) - 5} more metrics")
-                
-                # Get recent historical data (last 24 hours)
-                end_time = int(datetime.utcnow().timestamp() * 1000)
-                start_time = end_time - (24 * 60 * 60 * 1000)  # 24 hours ago
-                
-                range_response = await client.get(
-                    f"{backend_url}/api/data/range",
-                    params={"startTime": start_time, "endTime": end_time},
-                    timeout=10.0
-                )
-                if range_response.status_code == 200:
-                    range_data = range_response.json()
-                    context_parts.append("\n## Recent Historical Data (Last 24 Hours)")
-                    if isinstance(range_data, list):
-                        # Group by symbol and show summary
-                        symbol_counts = {}
-                        for reading in range_data:
-                            symbol = reading.get('symbol', 'Unknown')
-                            symbol_counts[symbol] = symbol_counts.get(symbol, 0) + 1
-                        
-                        for symbol, count in symbol_counts.items():
-                            context_parts.append(f"- {symbol}: {count} readings in last 24 hours")
-                
+            # Get equipment status via MCP
+            status_data = await mcp_client.get_equipment_status()
+            if status_data:
+                context_parts.append("\n## Equipment Status (Last Hour)")
+                for status in status_data[:10]:  # Limit to 10 status readings
+                    symbol = status.get('symbol', 'Unknown')
+                    metric = status.get('metric_type', 'Unknown')
+                    value = status.get('value', 'N/A')
+                    timestamp = status.get('timestamp', 'Unknown')
+                    context_parts.append(f"- {symbol} {metric}: {value} (at {timestamp})")
+            
         except Exception as e:
-            logger.warning(f"Failed to get backend data: {e}")
+            logger.warning(f"Failed to get MCP data: {e}")
             context_parts.append("## Data Access Note: Could not retrieve live TimescaleDB data")
         
         # Build context string
