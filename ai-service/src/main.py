@@ -81,7 +81,7 @@ async def health_check():
         "version": "1.0.0",
         "services": {
             "mcp": "connected" if mcp_client.enabled else "disabled",
-            "timescale": "connected" if timebase_service.client else "disconnected",
+            "database": "connected" if mcp_client.enabled else "disconnected",
             "ollama": settings.ollama_host
         }
     }

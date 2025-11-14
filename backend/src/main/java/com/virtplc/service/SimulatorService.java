@@ -23,7 +23,7 @@ public class SimulatorService {
 
     public SimulatorService(
             RestTemplate restTemplate,
-            @Value("${simulator.base-url:http://localhost:8000}") String simulatorBaseUrl) {
+            @Value("${simulator.base-url:http://localhost:5000}") String simulatorBaseUrl) {
         this.restTemplate = restTemplate;
         this.simulatorBaseUrl = simulatorBaseUrl;
     }
@@ -180,5 +180,53 @@ public class SimulatorService {
             log.error("Failed to update simulation: {}", e.getMessage());
             return false;
         }
+    }
+
+    /**
+     * Get tenants from simulator
+     */
+    @SuppressWarnings("unchecked")
+    public List<Map<String, Object>> getTenants() {
+        try {
+            String url = simulatorBaseUrl + "/tenants";
+            ResponseEntity<List<Map<String, Object>>> response = restTemplate.getForEntity(url,
+                    (Class<List<Map<String, Object>>>) (Class<?>) List.class);
+            return response.getBody() != null ? response.getBody() : Collections.emptyList();
+        } catch (RestClientException e) {
+            log.error("Failed to get tenants from simulator: {}", e.getMessage());
+            return Collections.emptyList();
+        }
+    }
+
+    /**
+     * Filter tenants by manufacturer ID
+     * Filters the tenant hierarchy to only include the specified manufacturer and its factories/PLCs/sensors
+     */
+    @SuppressWarnings("unchecked")
+    public List<Map<String, Object>> filterTenantsByManufacturer(
+            List<Map<String, Object>> tenants, 
+            String manufacturerId) {
+        
+        return tenants.stream()
+            .map(tenant -> {
+                Map<String, Object> filteredTenant = new java.util.HashMap<>(tenant);
+                List<Map<String, Object>> manufacturers = 
+                    (List<Map<String, Object>>) tenant.get("manufacturers");
+                
+                if (manufacturers != null) {
+                    List<Map<String, Object>> filteredManufacturers = manufacturers.stream()
+                        .filter(m -> manufacturerId.equals(m.get("id")))
+                        .collect(java.util.stream.Collectors.toList());
+                    
+                    filteredTenant.put("manufacturers", filteredManufacturers);
+                }
+                
+                return filteredTenant;
+            })
+            .filter(tenant -> {
+                List<?> manufacturers = (List<?>) tenant.get("manufacturers");
+                return manufacturers != null && !manufacturers.isEmpty();
+            })
+            .collect(java.util.stream.Collectors.toList());
     }
 }

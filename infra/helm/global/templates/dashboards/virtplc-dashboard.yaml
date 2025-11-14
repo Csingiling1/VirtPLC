@@ -1,0 +1,158 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "virtplc-global.fullname" . }}-grafana-dashboard
+  labels:
+    {{- include "virtplc-global.labels" . | nindent 4 }}
+    grafana_dashboard: "1"
+data:
+  virtplc-overview.json: |
+    {
+      "dashboard": {
+        "title": "VirtPLC Overview",
+        "tags": ["virtplc", "overview"],
+        "timezone": "browser",
+        "panels": [
+          {
+            "title": "Factory Status",
+            "type": "stat",
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+            "targets": [
+              {
+                "expr": "up{job=\"virtplc-backend\"}",
+                "legendFormat": "{{factory}}",
+                "refId": "A"
+              }
+            ],
+            "fieldConfig": {
+              "defaults": {
+                "mappings": [
+                  {
+                    "options": {
+                      "0": {
+                        "text": "DOWN",
+                        "color": "red"
+                      },
+                      "1": {
+                        "text": "UP",
+                        "color": "green"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "title": "Backend Response Time",
+            "type": "graph",
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+            "targets": [
+              {
+                "expr": "histogram_quantile(0.95, rate(http_server_requests_duration_seconds_bucket{job=\"virtplc-backend\"}[5m]))",
+                "legendFormat": "95th percentile",
+                "refId": "A"
+              },
+              {
+                "expr": "histogram_quantile(0.50, rate(http_server_requests_duration_seconds_bucket{job=\"virtplc-backend\"}[5m]))",
+                "legendFormat": "50th percentile",
+                "refId": "B"
+              }
+            ]
+          },
+          {
+            "title": "Database Connections",
+            "type": "graph",
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+            "targets": [
+              {
+                "expr": "postgresql_connections_active{job=\"virtplc-postgresql\"}",
+                "legendFormat": "Active connections - {{factory}}",
+                "refId": "A"
+              },
+              {
+                "expr": "postgresql_connections_idle{job=\"virtplc-postgresql\"}",
+                "legendFormat": "Idle connections - {{factory}}",
+                "refId": "B"
+              }
+            ]
+          },
+          {
+            "title": "JVM Memory Usage",
+            "type": "graph",
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+            "targets": [
+              {
+                "expr": "jvm_memory_used_bytes{job=\"virtplc-backend\"} / jvm_memory_max_bytes{job=\"virtplc-backend\"} * 100",
+                "legendFormat": "Heap usage % - {{factory}}",
+                "refId": "A"
+              }
+            ]
+          },
+          {
+            "title": "AI Service Requests",
+            "type": "graph",
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+            "targets": [
+              {
+                "expr": "rate(http_requests_total{job=\"virtplc-ai-service\"}[5m])",
+                "legendFormat": "Requests per second",
+                "refId": "A"
+              }
+            ]
+          },
+          {
+            "title": "PLC Connection Status",
+            "type": "table",
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+            "targets": [
+              {
+                "expr": "virtplc_plc_connection_status{job=\"virtplc-backend\"}",
+                "legendFormat": "{{plc_id}}",
+                "refId": "A"
+              }
+            ],
+            "fieldConfig": {
+              "defaults": {
+                "mappings": [
+                  {
+                    "options": {
+                      "0": {
+                        "text": "Disconnected",
+                        "color": "red"
+                      },
+                      "1": {
+                        "text": "Connected",
+                        "color": "green"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "title": "Factory Resource Usage",
+            "type": "bargauge",
+            "gridPos": {"h": 8, "w": 24, "x": 0, "y": 24},
+            "targets": [
+              {
+                "expr": "sum(rate(container_cpu_usage_seconds_total{pod=~\"virtplc-.*-backend-.*\", container!=\"\"}[5m])) by (namespace)",
+                "legendFormat": "{{namespace}}",
+                "refId": "A"
+              }
+            ]
+          }
+        ],
+        "time": {
+          "from": "now-1h",
+          "to": "now"
+        },
+        "refresh": "30s",
+        "schemaVersion": 27,
+        "version": 0,
+        "links": []
+      }
+    }

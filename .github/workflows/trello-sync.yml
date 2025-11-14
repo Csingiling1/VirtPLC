@@ -1,0 +1,75 @@
+name: Trello Card Sync
+
+on:
+  push:
+    branches: [main, release, develop]
+  pull_request:
+    types: [opened, closed, reopened]
+
+jobs:
+  sync-commit-to-trello:
+    name: Sync Commit to Trello
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+
+    steps:
+      - name: Extract Trello Card and Comment
+        env:
+          TRELLO_API_KEY: ${{ secrets.TRELLO_API_KEY }}
+          TRELLO_TOKEN: ${{ secrets.TRELLO_TOKEN }}
+        run: |
+          COMMIT_MSG="${{ github.event.head_commit.message }}"
+          COMMIT_URL="${{ github.event.head_commit.url }}"
+          COMMIT_AUTHOR="${{ github.event.head_commit.author.name }}"
+
+          CARD_ID=$(echo "$COMMIT_MSG" | grep -oP '(?:https://trello\.com/c/|#)([a-zA-Z0-9]+)' | tail -1 | sed 's/.*\///' | sed 's/#//')
+
+          if [ -n "$CARD_ID" ]; then
+            echo "Found Trello card: $CARD_ID"
+            
+            COMMENT="Commit by ${COMMIT_AUTHOR} on branch ${{ github.ref_name }}: ${COMMIT_MSG:0:200}. View at ${COMMIT_URL}"
+            
+            curl -X POST "https://api.trello.com/1/cards/${CARD_ID}/actions/comments" \
+              -d "key=${TRELLO_API_KEY}" \
+              -d "token=${TRELLO_TOKEN}" \
+              --data-urlencode "text=${COMMENT}"
+          fi
+
+  sync-pr-to-trello:
+    name: Sync PR to Trello
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Update Trello on PR Event
+        env:
+          TRELLO_API_KEY: ${{ secrets.TRELLO_API_KEY }}
+          TRELLO_TOKEN: ${{ secrets.TRELLO_TOKEN }}
+          TRELLO_DONE_LIST_ID: ${{ secrets.TRELLO_DONE_LIST_ID }}
+        run: |
+          PR_TITLE="${{ github.event.pull_request.title }}"
+          PR_BODY="${{ github.event.pull_request.body }}"
+          PR_URL="${{ github.event.pull_request.html_url }}"
+          PR_MERGED="${{ github.event.pull_request.merged }}"
+
+          CARD_ID=$(echo "$PR_TITLE $PR_BODY" | grep -oP '(?:https://trello\.com/c/|#)([a-zA-Z0-9]+)' | head -1 | sed 's/.*\///' | sed 's/#//')
+
+          if [ -n "$CARD_ID" ]; then
+            if [ "$PR_MERGED" = "true" ]; then
+              COMMENT="PR #${{ github.event.pull_request.number }} merged! View at ${PR_URL}"
+              
+              if [ -n "$TRELLO_DONE_LIST_ID" ]; then
+                curl -X PUT "https://api.trello.com/1/cards/${CARD_ID}" \
+                  -d "key=${TRELLO_API_KEY}" \
+                  -d "token=${TRELLO_TOKEN}" \
+                  -d "idList=${TRELLO_DONE_LIST_ID}"
+              fi
+            else
+              COMMENT="PR #${{ github.event.pull_request.number }} ${{ github.event.action }}: ${PR_TITLE}. View at ${PR_URL}"
+            fi
+            
+            curl -X POST "https://api.trello.com/1/cards/${CARD_ID}/actions/comments" \
+              -d "key=${TRELLO_API_KEY}" \
+              -d "token=${TRELLO_TOKEN}" \
+              --data-urlencode "text=${COMMENT}"
+          fi

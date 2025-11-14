@@ -9,12 +9,13 @@ services:
       - "18080:8080"   # REST API
       - "14840:4840"   # OPC-UA Server
       - "8000:8000"   # MCP Server
+      - "9091:9090"   # gRPC Server
     environment:
       - SPRING_PROFILES_ACTIVE=docker
       - SERVER_PORT=8080
       - OPCUA_SERVER_ENABLED=false
       - OPCUA_SERVER_NAMESPACE=http://virtplc.simulator
-      - OPCUA_CLIENT_ENABLED=true
+      - OPCUA_CLIENT_ENABLED=false
       - OPCUA_CLIENT_ENDPOINT=opc.tcp://simulator:4840/virtplc/
       - OPCUA_CLIENT_REQUEST_TIMEOUT=5000
       - OPCUA_CLIENT_SESSION_TIMEOUT=60000
@@ -38,12 +39,10 @@ services:
         condition: service_healthy
       timescale:
         condition: service_healthy
-      simulator:
-        condition: service_healthy
     networks:
       - virtplc-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/api/data/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -102,12 +101,13 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        - VITE_API_BASE_URL=http://localhost:18080
         - VITE_WS_URL=ws://localhost:3002
-        - VITE_AI_API_URL=http://localhost:3001
+                - VITE_AI_API_URL=http://localhost:3001
+        - VITE_API_BASE_URL=http://localhost:18080
     container_name: virtplc-frontend
     ports:
       - "3000:3000"
+    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "3000"]
     depends_on:
       - backend
       - ai-service
@@ -162,7 +162,7 @@ services:
       - WS_PORT=3002
       - BACKEND_API_URL=http://backend:8080
       - MCP_ENABLED=true
-      - MCP_SERVER_URL=http://backend:8000
+      - MCP_SERVER_URL=http://db-mcp-server:9092/sse
       - OLLAMA_HOST=http://ollama:11434
       # - OLLAMA_MODEL=llama3:8b
       - OLLAMA_MODEL=qwen2:0.5b
@@ -297,6 +297,49 @@ services:
       timeout: 10s
       retries: 3
       start_period: 120s
+    restart: unless-stopped
+
+  collector:
+    build: ./collector
+    container_name: collector
+    depends_on:
+      - simulator
+      - timescale
+    environment:
+      - TIMESCALE_HOST=timescale
+      - TIMESCALE_PORT=5432
+      - TIMESCALE_USER=virtplc
+      - TIMESCALE_PASSWORD=changeme
+      - TIMESCALE_DB=virtplc_ts
+      - OPCUA_ENDPOINT=opc.tcp://simulator:4840/virtplc/
+      - COLLECTION_INTERVAL=1000
+    ports:
+      - "9100:9100"  # prometheus metrics
+    networks:
+      - virtplc-network
+    restart: on-failure
+
+  # Database MCP Server for AI access to TimescaleDB
+  db-mcp-server:
+    image: freepeak/db-mcp-server:latest
+    container_name: virtplc-db-mcp-server
+    ports:
+      - "9092:9092"
+    volumes:
+      - ./db-mcp-config.json:/app/config.json:ro
+    environment:
+      - MCP_SERVER_PORT=9092
+      - MCP_SERVER_CONFIG=/app/config.json
+    depends_on:
+      timescale:
+        condition: service_healthy
+    networks:
+      - virtplc-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9092/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     restart: unless-stopped
 
 networks:

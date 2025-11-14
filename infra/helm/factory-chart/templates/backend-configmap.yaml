@@ -1,0 +1,79 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "virtplc-factory.fullname" . }}-backend-config
+  labels:
+    {{- include "virtplc-factory.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
+data:
+  application.yml: |
+    server:
+      port: {{ .Values.backend.service.targetPort }}
+      servlet:
+        context-path: /api
+
+    spring:
+      application:
+        name: virtplc-backend-{{ .Values.factory.name }}
+      profiles:
+        active: prod,k8s
+      datasource:
+        url: jdbc:postgresql://{{ include "virtplc-factory.fullname" . }}-postgresql:5432/{{ .Values.postgresql.database }}
+        username: {{ .Values.postgresql.username }}
+        password: ${POSTGRES_PASSWORD}
+        driver-class-name: org.postgresql.Driver
+        hikari:
+          maximum-pool-size: 20
+          minimum-idle: 5
+          idle-timeout: 300000
+          max-lifetime: 1200000
+          connection-timeout: 20000
+      jpa:
+        hibernate:
+          ddl-auto: validate
+        show-sql: false
+        properties:
+          hibernate:
+            dialect: org.hibernate.dialect.PostgreSQLDialect
+            format_sql: true
+      flyway:
+        enabled: true
+        locations: classpath:db/migration
+        baseline-on-migrate: true
+
+    management:
+      endpoints:
+        web:
+          exposure:
+            include: health,info,metrics,prometheus
+      endpoint:
+        health:
+          show-details: when-authorized
+      metrics:
+        export:
+          prometheus:
+            enabled: true
+
+    logging:
+      level:
+        com.deginandor.virtplc: INFO
+        org.springframework.security: DEBUG
+        org.hibernate.SQL: DEBUG
+        org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+      pattern:
+        console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+        file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+      file:
+        name: /app/logs/virtplc-backend.log
+
+    virtplc:
+      factory:
+        name: {{ .Values.factory.name }}
+        timezone: {{ .Values.factory.timezone }}
+      plc:
+        connection-timeout: 5000
+        retry-attempts: 3
+        retry-delay: 1000
+      monitoring:
+        enabled: true
+        interval: 30000

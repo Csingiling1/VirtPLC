@@ -1,8 +1,11 @@
 package com.virtplc.service;
 
+import com.virtplc.model.Company;
+import com.virtplc.model.Manufacturer;
 import com.virtplc.model.SensorData;
 import com.virtplc.model.SensorDataEntity;
 import com.virtplc.opcua.NodeManager;
+import com.virtplc.repository.CompanyRepository;
 import com.virtplc.repository.SensorDataRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,21 +31,24 @@ import java.util.stream.Collectors;
 public class DataService {
 
     private final SensorDataRepository sensorDataRepository;
+    private final CompanyRepository companyRepository;
     private final DataSourceService dataSourceService;
     private final FlexibleDataMapper dataMapper;
     private final Optional<NodeManager> nodeManager;
 
     /**
-     * Get the latest sensor data from the configured data source and persist to TimescaleDB.
+     * Get the latest sensor data from the configured data source and persist to
+     * TimescaleDB.
      * Data source is determined by the 'data.source' property (simulator or plc).
      */
     @Transactional
-    public SensorData getLatestData() {
-        log.debug("Fetching latest sensor data from: {}", dataSourceService.getDataSourceName());
+    public SensorData getLatestData(List<Manufacturer> manufacturers) {
+        log.debug("Fetching latest sensor data from: {} for manufacturers: {}",
+                dataSourceService.getDataSourceName(),
+                manufacturers != null ? (manufacturers.isEmpty() ? "none" : manufacturers.size() + " manufacturers")
+                        : "all");
 
-        SensorData sensorData;
-
-        // Use the configured data source (simulator or PLC)
+        SensorData sensorData; // Use the configured data source (simulator or PLC)
         if (dataSourceService.isAvailable()) {
             log.debug("Using {} as data source", dataSourceService.getDataSourceName());
             Map<String, Object> sourceData = dataSourceService.getLatestSensorData();
@@ -70,7 +76,8 @@ public class DataService {
                         .systemStatus("Running - OPC-UA Fallback")
                         .build();
             } else {
-                log.warn("Data source {} not available and no OPC-UA fallback, using hardcoded values", dataSourceService.getDataSourceName());
+                log.warn("Data source {} not available and no OPC-UA fallback, using hardcoded values",
+                        dataSourceService.getDataSourceName());
                 sensorData = SensorData.builder()
                         .timestamp(System.currentTimeMillis())
                         .motor1Speed(0.0)
@@ -91,22 +98,44 @@ public class DataService {
         }
 
         // Persist to TimescaleDB
-        try {
-            SensorDataEntity entity = convertToEntity(sensorData);
-            sensorDataRepository.save(entity);
-            log.debug("Persisted sensor data to TimescaleDB: {}", entity.getTimestamp());
-        } catch (Exception e) {
-            log.error("Failed to persist sensor data to TimescaleDB", e);
+        Company company = getCompanyFromManufacturers(manufacturers);
+        if (company != null || manufacturers == null) { // Persist for admin (manufacturers=null) or when company found
+            try {
+                SensorDataEntity entity = convertToEntity(sensorData, company);
+                sensorDataRepository.save(entity);
+                log.debug("Persisted sensor data to TimescaleDB: {} for company: {}", entity.getTimestamp(),
+                        company != null ? company.getName() : "admin");
+            } catch (Exception e) {
+                log.error("Failed to persist sensor data to TimescaleDB", e);
+            }
         }
 
         return sensorData;
     }
 
+    private Company getCompanyFromManufacturers(List<Manufacturer> manufacturers) {
+        if (manufacturers == null || manufacturers.isEmpty()) {
+            return null; // Admin case
+        }
+        // Assume all manufacturers belong to the same company
+        return manufacturers.get(0).getCompany();
+    }
+
     /**
      * Get historical data for a time range from TimescaleDB.
      */
-    public List<SensorData> getDataRange(Long startTime, Long endTime) {
-        log.debug("Fetching data range from TimescaleDB: {} to {}", startTime, endTime);
+    public List<SensorData> getDataRange(List<Manufacturer> manufacturers, Long startTime, Long endTime) {
+        if (manufacturers == null) {
+            // Admin user - get all data
+            return getAllDataRange(startTime, endTime);
+        } else {
+            // Non-admin user - get data for their manufacturers
+            return getDataRangeForManufacturers(manufacturers, startTime, endTime);
+        }
+    }
+
+    private List<SensorData> getAllDataRange(Long startTime, Long endTime) {
+        log.debug("Fetching all data range from TimescaleDB: {} to {}", startTime, endTime);
 
         try {
             List<SensorDataEntity> entities = sensorDataRepository.findByTimestampBetween(
@@ -118,8 +147,37 @@ public class DataService {
                     .collect(Collectors.toList());
 
         } catch (Exception e) {
+            log.error("Failed to query TimescaleDB for all historical data", e);
+            return List.of();
+        }
+    }
+
+    private List<SensorData> getDataRangeForManufacturers(List<Manufacturer> manufacturers, Long startTime,
+            Long endTime) {
+        log.debug("Fetching data range from TimescaleDB: {} to {} for {} manufacturers", startTime, endTime,
+                manufacturers.size());
+
+        try {
+            // Get companies from manufacturers
+            List<Company> companies = manufacturers.stream()
+                    .map(Manufacturer::getCompany)
+                    .distinct()
+                    .collect(Collectors.toList());
+
+            // For now, assume all manufacturers belong to the same company
+            Company company = companies.get(0);
+
+            List<SensorDataEntity> entities = sensorDataRepository.findByCompanyAndTimestampBetween(
+                    company,
+                    LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(startTime), ZoneOffset.UTC),
+                    LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(endTime), ZoneOffset.UTC));
+
+            return entities.stream()
+                    .map(this::convertToSensorData)
+                    .collect(Collectors.toList());
+
+        } catch (Exception e) {
             log.error("Failed to query TimescaleDB for historical data", e);
-            // Return empty list on error
             return List.of();
         }
     }
@@ -127,11 +185,13 @@ public class DataService {
     /**
      * Get data for a specific device within a time range.
      */
-    public List<SensorData> getDeviceData(String deviceId, Long startTime, Long endTime) {
-        log.debug("Fetching device data from TimescaleDB: {} from {} to {}", deviceId, startTime, endTime);
+    public List<SensorData> getDeviceData(Company company, String deviceId, Long startTime, Long endTime) {
+        log.debug("Fetching device data from TimescaleDB: {} from {} to {} for company: {}", deviceId, startTime,
+                endTime, company.getName());
 
         try {
-            List<SensorDataEntity> entities = sensorDataRepository.findByDeviceIdAndTimestampBetween(
+            List<SensorDataEntity> entities = sensorDataRepository.findByCompanyAndDeviceIdAndTimestampBetween(
+                    company,
                     deviceId,
                     LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(startTime), ZoneOffset.UTC),
                     LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(endTime), ZoneOffset.UTC));
@@ -146,11 +206,12 @@ public class DataService {
         }
     }
 
-    private SensorDataEntity convertToEntity(SensorData sensorData) {
+    private SensorDataEntity convertToEntity(SensorData sensorData, Company company) {
         return SensorDataEntity.builder()
                 .timestamp(LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(sensorData.getTimestamp()),
                         ZoneOffset.UTC))
                 .deviceId("factory1") // Default device ID
+                .company(company)
                 .motor1Speed(sensorData.getMotor1Speed())
                 .motor1Temp(sensorData.getMotor1Temp())
                 .motor1Run(sensorData.getMotor1Run())

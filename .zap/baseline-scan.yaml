@@ -1,0 +1,44 @@
+# OWASP ZAP Baseline Scan Configuration for VirtPLC HMI
+# This configuration defines the baseline security scan for the HMI service
+
+env:
+  contexts:
+    - name: "VirtPLC HMI Context"
+      urls:
+        - "http://localhost:8088"
+      includePaths:
+        - "http://localhost:8088/.*"
+      excludePaths:
+        - "http://localhost:8088/StatusPing" # Health check endpoint
+
+  parameters:
+    failOnError: false
+    failOnWarning: false
+    continueOnFailure: true
+
+jobs:
+  - type: spider
+    parameters:
+      context: "VirtPLC HMI Context"
+      user: ""
+      maxDuration: 60 # 1 minute
+
+  - type: passiveScan-config
+    parameters:
+      enableTags: "OWASP"
+
+  - type: activeScan
+    parameters:
+      context: "VirtPLC HMI Context"
+      policy: "Default Policy"
+      maxRuleDurationInMins: 5
+      maxScanDurationInMins: 10
+
+  - type: report
+    parameters:
+      template: "traditional-html"
+      reportDir: ""
+      reportFile: "zap-report"
+      reportTitle: "VirtPLC HMI Security Report"
+      reportDescription: "Security scan results for VirtPLC HMI service"
+      contexts: "VirtPLC HMI Context"

@@ -1,6 +1,8 @@
 spring:
   application:
     name: virtplc-backend
+  main:
+    allow-circular-references: true
   datasource:
     url: jdbc:postgresql://localhost:5433/timescaledb
     username: timescale
@@ -47,3 +49,43 @@ logging:
     com.virtplc: DEBUG
     org.eclipse.milo: INFO
     org.springframework.security: DEBUG
+
+# Actuator and Metrics Configuration
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: when-authorized
+    metrics:
+      enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+    tags:
+      application: ${spring.application.name}
+  health:
+    diskspace:
+      enabled: true
+    db:
+      enabled: true
+
+# Custom Metrics Configuration
+metrics:
+  custom:
+    enabled: true
+
+# Alerting Configuration
+virtplc:
+  alerting:
+    websocket:
+      max-connections: 100
+    pipeline:
+      max-backpressure: 1000
+    memory:
+      warning-percent: 85
+      critical-percent: 95

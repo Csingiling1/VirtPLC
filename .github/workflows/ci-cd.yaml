@@ -1,0 +1,208 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        component: [backend, frontend, ai-service, simulator, hmi]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17 (for backend)
+        if: matrix.component == 'backend'
+        uses: actions/setup-java@v4
+        with:
+          java-version: "17"
+          distribution: "temurin"
+
+      - name: Set up Node.js (for frontend)
+        if: matrix.component == 'frontend'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Set up Python (for ai-service, simulator, hmi)
+        if: matrix.component != 'backend' && matrix.component != 'frontend'
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Cache Maven dependencies (backend)
+        if: matrix.component == 'backend'
+        uses: actions/cache@v3
+        with:
+          path: ~/.m2
+          key: ${{ runner.os }}-m2-${{ hashFiles('backend/pom.xml') }}
+          restore-keys: ${{ runner.os }}-m2
+
+      - name: Cache pip dependencies
+        if: matrix.component != 'backend' && matrix.component != 'frontend'
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ matrix.component }}-${{ hashFiles('**/requirements.txt') }}
+
+      - name: Install dependencies and test (backend)
+        if: matrix.component == 'backend'
+        run: |
+          cd backend
+          mvn clean test
+
+      - name: Install dependencies and test (frontend)
+        if: matrix.component == 'frontend'
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+          npm run test
+
+      - name: Install dependencies and test (ai-service)
+        if: matrix.component == 'ai-service'
+        run: |
+          cd ai-service
+          pip install -r requirements.txt
+          python -m pytest tests/
+
+      - name: Install dependencies and test (simulator)
+        if: matrix.component == 'simulator'
+        run: |
+          cd simulator
+          pip install -r requirements.txt
+          python -m pytest test_simulator.py
+
+      - name: Install dependencies and test (hmi)
+        if: matrix.component == 'hmi'
+        run: |
+          cd HMI
+          pip install -r requirements.txt
+          python -m pytest tests/
+
+  build-and-push:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        component: [backend, frontend, ai-service, simulator, hmi]
+        include:
+          - component: backend
+            context: ./backend
+            dockerfile: ./backend/Dockerfile
+          - component: frontend
+            context: ./frontend
+            dockerfile: ./frontend/Dockerfile
+          - component: ai-service
+            context: ./ai-service
+            dockerfile: ./ai-service/Dockerfile
+          - component: simulator
+            context: ./simulator
+            dockerfile: ./simulator/Dockerfile
+          - component: hmi
+            context: ./HMI
+            dockerfile: ./HMI/Dockerfile
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.component }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy-staging:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/develop'
+    environment: staging
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure kubectl
+        uses: azure/k8s-set-context@v3
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBE_CONFIG_STAGING }}
+
+      - name: Deploy to staging
+        run: |
+          # Update global components
+          helm upgrade --install virtplc-global ./infra/helm/global \
+            --namespace virtplc-system \
+            --create-namespace \
+            --set global.registry=${{ env.REGISTRY }} \
+            --set global.imageTag=${{ github.sha }}
+
+          # Deploy test factory
+          helm upgrade --install virtplc-factory-test ./infra/helm/factory-chart \
+            --namespace virtplc-factory-test \
+            --create-namespace \
+            --set factory.name=test \
+            --set backend.image.tag=${{ github.sha }} \
+            --set global.registry=${{ env.REGISTRY }}
+
+  deploy-production:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure kubectl
+        uses: azure/k8s-set-context@v3
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBE_CONFIG_PRODUCTION }}
+
+      - name: Deploy to production
+        run: |
+          # Update global components
+          helm upgrade --install virtplc-global ./infra/helm/global \
+            --namespace virtplc-system \
+            --create-namespace \
+            --set global.registry=${{ env.REGISTRY }} \
+            --set global.imageTag=${{ github.sha }}
+
+          # Note: Factory deployments are handled separately via factory provisioning workflow

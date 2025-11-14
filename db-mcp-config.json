@@ -1,0 +1,13 @@
+{
+    "connections": [
+        {
+            "id": "timescale",
+            "type": "postgres",
+            "host": "timescale",
+            "port": 5432,
+            "name": "virtplc_ts",
+            "user": "virtplc",
+            "password": "changeme"
+        }
+    ]
+}

@@ -1,0 +1,256 @@
+# Global VirtPLC components configuration
+global:
+  registry: "docker.io"
+  imagePullSecrets: []
+  storageClass: ""
+
+# Factory configuration (inherited from parent chart)
+factory:
+  name: "global"
+  timezone: "UTC"
+
+# Frontend configuration
+frontend:
+  enabled: true
+  replicaCount: 2
+
+  image:
+    repository: virtplc/frontend
+    tag: ""
+    pullPolicy: IfNotPresent
+
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 80
+
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+  env:
+    - name: VITE_API_BASE_URL
+      value: "/api"
+    - name: VITE_FACTORY_NAME
+      value: "global"
+
+# AI Service configuration
+aiService:
+  enabled: true
+  replicaCount: 1
+
+  image:
+    repository: virtplc/ai-service
+    tag: ""
+    pullPolicy: IfNotPresent
+
+  service:
+    type: ClusterIP
+    port: 8000
+    targetPort: 8000
+
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+    requests:
+      cpu: 500m
+      memory: 1Gi
+
+  autoscaling:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+  env:
+    - name: PYTHONPATH
+      value: "/app/src"
+    - name: DATABASE_URL
+      valueFrom:
+        secretKeyRef:
+          name: virtplc-global-postgresql
+          key: connection-string
+    - name: REDIS_URL
+      value: "redis://virtplc-redis:6379"
+    - name: MODEL_CACHE_DIR
+      value: "/app/models"
+
+  persistence:
+    enabled: true
+    size: 50Gi
+    accessMode: ReadWriteOnce
+
+# Monitoring Stack
+prometheus:
+  enabled: true
+  server:
+    persistentVolume:
+      enabled: true
+      size: 20Gi
+    retention: "30d"
+    service:
+      type: ClusterIP
+      port: 9090
+
+grafana:
+  enabled: true
+  adminPassword: "admin"
+  persistence:
+    enabled: true
+    size: 10Gi
+  service:
+    type: ClusterIP
+    port: 80
+  datasources:
+    prometheus.yaml:
+      apiVersion: 1
+      datasources:
+        - name: Prometheus
+          type: prometheus
+          url: http://virtplc-global-prometheus-server
+          access: proxy
+          isDefault: true
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - name: "default"
+          orgId: 1
+          folder: ""
+          type: file
+          disableDeletion: false
+          updateIntervalSeconds: 10
+          allowUiUpdates: true
+          options:
+            path: /var/lib/grafana/dashboards/default
+  dashboards:
+    default:
+      virtplc-overview:
+        json: |
+          {
+            "dashboard": {
+              "title": "VirtPLC Overview",
+              "tags": ["virtplc"],
+              "timezone": "browser",
+              "panels": [
+                {
+                  "title": "Factory Backend Health",
+                  "type": "stat",
+                  "targets": [
+                    {
+                      "expr": "up{job=\"virtplc-backend\"}",
+                      "legendFormat": "{{factory}}"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+
+loki:
+  enabled: true
+  persistence:
+    enabled: true
+    size: 20Gi
+  service:
+    type: ClusterIP
+    port: 3100
+
+promtail:
+  enabled: true
+  config:
+    lokiAddress: http://virtplc-global-loki:3100/loki/api/v1/push
+
+# Redis for caching
+redis:
+  enabled: true
+  architecture: standalone
+  auth:
+    enabled: false
+  master:
+    persistence:
+      enabled: true
+      size: 10Gi
+
+# Global PostgreSQL for shared data
+postgresql:
+  enabled: true
+  auth:
+    postgresPassword: "virtplc-global-pg"
+    username: "virtplc"
+    password: "virtplc-global-user"
+    database: "virtplc_global"
+  architecture: standalone
+  primary:
+    persistence:
+      enabled: true
+      size: 20Gi
+    initdb:
+      scripts:
+        init.sql: |
+          CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+          CREATE EXTENSION IF NOT EXISTS "pg_stat_statements";
+
+# Ingress configuration
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+  hosts:
+    - host: virtplc.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+          backend:
+            service:
+              name: virtplc-global-frontend
+              port:
+                number: 80
+        - path: /api
+          pathType: Prefix
+          backend:
+            service:
+              name: virtplc-global-ai-service
+              port:
+                number: 8000
+  tls:
+    - secretName: virtplc-tls
+      hosts:
+        - virtplc.example.com
+
+# Service Account
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# Pod Security Context
+podSecurityContext: {}
+
+# Security Context
+securityContext: {}
+
+# Node Selector
+nodeSelector: {}
+
+# Tolerations
+tolerations: []
+
+# Affinity
+affinity: {}

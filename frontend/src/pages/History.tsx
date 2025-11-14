@@ -12,6 +12,14 @@ import { SensorData } from '@/types';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { useToast } from '@/hooks/use-toast';
 
+interface ApiError {
+  response?: {
+    status: number;
+  };
+  isNetworkError?: boolean;
+  message?: string;
+}
+
 const History = () => {
   const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
     from: startOfDay(subDays(new Date(), 1)), // Default to last 24 hours
@@ -43,11 +51,30 @@ const History = () => {
         title: "Success",
         description: `Loaded ${data.length} data points`,
       });
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Failed to fetch historical data:', error);
+
+      let errorMessage = "Failed to load historical data";
+
+      const err = error as ApiError;
+      if (err.response) {
+        // Server responded with error status
+        if (err.response.status === 401) {
+          errorMessage = "Authentication required. Please log in again.";
+        } else if (err.response.status === 400) {
+          errorMessage = "Invalid request. Please check your date range.";
+        } else if (err.response.status === 403) {
+          errorMessage = "Access denied. You don't have permission to view this data.";
+        } else {
+          errorMessage = `Server error: ${err.response.status}`;
+        }
+      } else if (err.isNetworkError) {
+        errorMessage = err.message || "Network error occurred";
+      }
+
       toast({
         title: "Error",
-        description: "Failed to load historical data",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {

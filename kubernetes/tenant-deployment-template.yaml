@@ -1,0 +1,175 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: virtplc-backend
+  namespace: { { TENANT_NAMESPACE } }
+  labels:
+    app: virtplc-backend
+    tenant: { { TENANT_ID } }
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: virtplc-backend
+      tenant: { { TENANT_ID } }
+  template:
+    metadata:
+      labels:
+        app: virtplc-backend
+        tenant: { { TENANT_ID } }
+    spec:
+      containers:
+        - name: backend
+          image: virtplc/backend:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              valueFrom:
+                configMapKeyRef:
+                  name: virtplc-shared-config
+                  key: SPRING_PROFILES_ACTIVE
+            - name: JAVA_OPTS
+              valueFrom:
+                configMapKeyRef:
+                  name: virtplc-shared-config
+                  key: JAVA_OPTS
+            - name: TENANT_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: tenant-config-{{TENANT_ID}}
+                  key: TENANT_ID
+            - name: DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: tenant-config-{{TENANT_ID}}
+                  key: DB_HOST
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: tenant-secrets-{{TENANT_ID}}
+                  key: db-password
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: tenant-secrets-{{TENANT_ID}}
+                  key: jwt-secret
+            - name: REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: virtplc-shared-config
+                  key: REDIS_HOST
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: virtplc-secrets
+                  key: redis-password
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 60
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: virtplc-ai-service
+  namespace: { { TENANT_NAMESPACE } }
+  labels:
+    app: virtplc-ai-service
+    tenant: { { TENANT_ID } }
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: virtplc-ai-service
+      tenant: { { TENANT_ID } }
+  template:
+    metadata:
+      labels:
+        app: virtplc-ai-service
+        tenant: { { TENANT_ID } }
+    spec:
+      containers:
+        - name: ai-service
+          image: virtplc/ai-service:latest
+          ports:
+            - containerPort: 8000
+          env:
+            - name: TENANT_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: tenant-config-{{TENANT_ID}}
+                  key: TENANT_ID
+            - name: OLLAMA_BASE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: ai-service-config
+                  key: OLLAMA_BASE_URL
+            - name: ENVIRONMENT
+              valueFrom:
+                configMapKeyRef:
+                  name: ai-service-config
+                  key: ENVIRONMENT
+          resources:
+            requests:
+              memory: "1Gi"
+              cpu: "500m"
+            limits:
+              memory: "2Gi"
+              cpu: "1000m"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: virtplc-frontend
+  namespace: { { TENANT_NAMESPACE } }
+  labels:
+    app: virtplc-frontend
+    tenant: { { TENANT_ID } }
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: virtplc-frontend
+      tenant: { { TENANT_ID } }
+  template:
+    metadata:
+      labels:
+        app: virtplc-frontend
+        tenant: { { TENANT_ID } }
+    spec:
+      containers:
+        - name: frontend
+          image: virtplc/frontend:latest
+          ports:
+            - containerPort: 80
+          env:
+            - name: REACT_APP_API_URL
+              value: "https://api.{{TENANT_DOMAIN}}"
+            - name: REACT_APP_TENANT_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: tenant-config-{{TENANT_ID}}
+                  key: TENANT_ID
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"

@@ -1,114 +1,198 @@
 import { useState, useEffect } from 'react';
 import Layout from '@/components/Layout';
-import StatusCard from '@/components/StatusCard';
-import { simulatorApi, dataApi } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Server, Activity, AlertCircle, CheckCircle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Settings, Server, Wifi, Save } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 const Status = () => {
-  const [systemHealth, setSystemHealth] = useState<any>(null);
-  const [simulatorStatus, setSimulatorStatus] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [config, setConfig] = useState({
+    simulatorHost: 'localhost',
+    simulatorPort: '8000',
+    opcuaEndpoint: 'opc.tcp://simulator:4840',
+    backendHost: 'localhost',
+    backendPort: '18080',
+    tenantId: 'demo-tenant',
+    manufacturerId: 'demo-mfg',
+    factoryId: 'demo-factory'
+  });
   const { toast } = useToast();
 
   useEffect(() => {
-    const fetchStatus = async () => {
+    // Load saved configuration
+    const savedConfig = localStorage.getItem('plc-config');
+    if (savedConfig) {
       try {
-        const [health, simStatus] = await Promise.all([
-          dataApi.getHealth().catch(() => ({ status: 'Unknown' })),
-          simulatorApi.getStatus().catch(() => ({ isRunning: false })),
-        ]);
-        setSystemHealth(health);
-        setSimulatorStatus(simStatus);
-        setIsLoading(false);
+        setConfig(JSON.parse(savedConfig));
       } catch (error) {
-        console.error('Failed to fetch status:', error);
-        toast({
-          title: "Error",
-          description: "Failed to fetch system status",
-          variant: "destructive",
-        });
-        setIsLoading(false);
+        console.error('Failed to load saved config:', error);
       }
-    };
+    }
+  }, []);
 
-    fetchStatus();
-    const interval = setInterval(fetchStatus, 5000);
+  const handleSave = () => {
+    localStorage.setItem('plc-config', JSON.stringify(config));
+    toast({
+      title: "Configuration Saved",
+      description: "PLC connection settings have been saved successfully",
+    });
+  };
 
-    return () => clearInterval(interval);
-  }, [toast]);
-
-  if (isLoading) {
-    return (
-      <Layout>
-        <div className="flex items-center justify-center h-full">
-          <div className="animate-pulse text-primary text-lg">Loading status...</div>
-        </div>
-      </Layout>
-    );
-  }
+  const handleInputChange = (field: string, value: string) => {
+    setConfig(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
 
   return (
     <Layout>
       <div className="p-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">System Status</h1>
-          <p className="text-muted-foreground">Monitor system health and performance</p>
+          <h1 className="text-3xl font-bold mb-2">PLC Configuration</h1>
+          <p className="text-muted-foreground">Configure PLC listening ports and connection settings</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <StatusCard
-            title="Backend Connection"
-            value={systemHealth?.status || 'Connected'}
-            icon={systemHealth?.status === 'Unknown' ? AlertCircle : CheckCircle}
-            status={systemHealth?.status === 'Unknown' ? 'warning' : 'success'}
-          />
-          <StatusCard
-            title="Simulator Status"
-            value={simulatorStatus?.isRunning ? 'Running' : 'Stopped'}
-            icon={simulatorStatus?.isRunning ? Activity : Server}
-            status={simulatorStatus?.isRunning ? 'success' : 'warning'}
-          />
-          <StatusCard
-            title="Active Devices"
-            value={simulatorStatus?.activeDevices || 0}
-            icon={Server}
-            status="info"
-          />
-          <StatusCard
-            title="Total Signals"
-            value={simulatorStatus?.totalSignals || 0}
-            icon={Activity}
-            status="info"
-          />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Simulator Configuration */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Server className="h-5 w-5" />
+                Simulator Connection
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="simulatorHost">Host</Label>
+                  <Input
+                    id="simulatorHost"
+                    value={config.simulatorHost}
+                    onChange={(e) => handleInputChange('simulatorHost', e.target.value)}
+                    placeholder="localhost"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="simulatorPort">Port</Label>
+                  <Input
+                    id="simulatorPort"
+                    value={config.simulatorPort}
+                    onChange={(e) => handleInputChange('simulatorPort', e.target.value)}
+                    placeholder="8000"
+                  />
+                </div>
+              </div>
+              <div>
+                <Label htmlFor="opcuaEndpoint">OPC-UA Endpoint</Label>
+                <Input
+                  id="opcuaEndpoint"
+                  value={config.opcuaEndpoint}
+                  onChange={(e) => handleInputChange('opcuaEndpoint', e.target.value)}
+                  placeholder="opc.tcp://simulator:4840"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="gap-1">
+                  <Wifi className="h-3 w-3" />
+                  Web API
+                </Badge>
+                <span className="text-sm text-muted-foreground">
+                  http://{config.simulatorHost}:{config.simulatorPort}
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Backend Configuration */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Settings className="h-5 w-5" />
+                Backend Connection
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="backendHost">Host</Label>
+                  <Input
+                    id="backendHost"
+                    value={config.backendHost}
+                    onChange={(e) => handleInputChange('backendHost', e.target.value)}
+                    placeholder="localhost"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="backendPort">Port</Label>
+                  <Input
+                    id="backendPort"
+                    value={config.backendPort}
+                    onChange={(e) => handleInputChange('backendPort', e.target.value)}
+                    placeholder="18080"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="gap-1">
+                  <Wifi className="h-3 w-3" />
+                  REST API
+                </Badge>
+                <span className="text-sm text-muted-foreground">
+                  http://{config.backendHost}:{config.backendPort}
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Tenant Configuration */}
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle>Tenant & Factory Settings</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <Label htmlFor="tenantId">Tenant ID</Label>
+                  <Input
+                    id="tenantId"
+                    value={config.tenantId}
+                    onChange={(e) => handleInputChange('tenantId', e.target.value)}
+                    placeholder="demo-tenant"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="manufacturerId">Manufacturer ID</Label>
+                  <Input
+                    id="manufacturerId"
+                    value={config.manufacturerId}
+                    onChange={(e) => handleInputChange('manufacturerId', e.target.value)}
+                    placeholder="demo-mfg"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="factoryId">Factory ID</Label>
+                  <Input
+                    id="factoryId"
+                    value={config.factoryId}
+                    onChange={(e) => handleInputChange('factoryId', e.target.value)}
+                    placeholder="demo-factory"
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Connection Details</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex justify-between items-center py-2 border-b border-border">
-                <span className="text-muted-foreground">API Base URL</span>
-                <span className="font-medium">
-                  {import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'}
-                </span>
-              </div>
-              <div className="flex justify-between items-center py-2 border-b border-border">
-                <span className="text-muted-foreground">Authentication</span>
-                <span className="font-medium text-status-success">Authenticated</span>
-              </div>
-              <div className="flex justify-between items-center py-2">
-                <span className="text-muted-foreground">Last Update</span>
-                <span className="font-medium">
-                  {new Date(simulatorStatus?.lastUpdate || Date.now()).toLocaleString()}
-                </span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="mt-6 flex justify-end">
+          <Button onClick={handleSave} className="gap-2">
+            <Save className="h-4 w-4" />
+            Save Configuration
+          </Button>
+        </div>
       </div>
     </Layout>
   );

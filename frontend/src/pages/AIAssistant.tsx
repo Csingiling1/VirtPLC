@@ -1,11 +1,11 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { aiApiFunctions } from '../lib/api';
 import Layout from '../components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Bot, User, Send, BarChart3, TrendingUp } from 'lucide-react';
+import { Bot, User, Send, BarChart3, TrendingUp, Plus, Trash2, MessageSquare } from 'lucide-react';
 import { AIChatResponse, ChartSuggestion } from '../types';
 import AIChart from '../components/AIChart';
 
@@ -17,7 +17,17 @@ interface Message {
     chartSuggestions?: ChartSuggestion[];
 }
 
+interface Conversation {
+    id: string;
+    title: string;
+    messages: Message[];
+    embeddedCharts: { id: string; suggestion: ChartSuggestion }[];
+    updatedAt: string; // ISO
+}
+
 function AIAssistant() {
+    const [conversations, setConversations] = useState<Conversation[]>([]);
+    const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -34,6 +44,79 @@ function AIAssistant() {
         }
     }, [messages]);
 
+    // Persistence keys
+    const STORAGE_KEY = 'aiAssistant.conversations';
+    const CURRENT_KEY = 'aiAssistant.currentConversationId';
+
+    // Raw types for parsing storage safely
+    type RawMessage = { id: string; role: 'user' | 'assistant'; content: string; timestamp: string; chartSuggestions?: ChartSuggestion[] };
+    type RawConversation = { id: string; title: string; messages?: RawMessage[]; embeddedCharts?: { id: string; suggestion: ChartSuggestion }[]; updatedAt: string };
+
+    // Load conversations from localStorage on mount
+    useEffect(() => {
+        try {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            const curr = localStorage.getItem(CURRENT_KEY);
+            if (raw) {
+                const parsedRaw = JSON.parse(raw) as RawConversation[] | unknown;
+                const parsed: Conversation[] = Array.isArray(parsedRaw)
+                    ? parsedRaw.map((c) => ({
+                        id: c.id,
+                        title: c.title,
+                        messages: (c.messages || []).map(m => ({ id: m.id, role: m.role, content: m.content, chartSuggestions: m.chartSuggestions, timestamp: new Date(m.timestamp) })),
+                        embeddedCharts: c.embeddedCharts || [],
+                        updatedAt: c.updatedAt,
+                    }))
+                    : [];
+
+                setConversations(parsed);
+                if (curr && parsed.find(p => p.id === curr)) {
+                    setCurrentConversationId(curr);
+                    const conv = parsed.find(p => p.id === curr)!;
+                    setMessages(conv.messages || []);
+                    setEmbeddedCharts(conv.embeddedCharts || []);
+                    return;
+                }
+                // if no current selected, pick last updated
+                if (parsed.length > 0) {
+                    const sorted = parsed.slice().sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+                    setCurrentConversationId(sorted[0].id);
+                    setMessages(sorted[0].messages || []);
+                    setEmbeddedCharts(sorted[0].embeddedCharts || []);
+                }
+            }
+        } catch (e) {
+            console.error('Failed to load conversations', e);
+        }
+    }, []);
+
+    // Save current conversation list and current id whenever they change
+    const persistConversations = useCallback((nextConversations: Conversation[], nextCurrentId: string | null) => {
+        try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(nextConversations));
+            if (nextCurrentId) localStorage.setItem(CURRENT_KEY, nextCurrentId);
+            else localStorage.removeItem(CURRENT_KEY);
+        } catch (e) {
+            console.error('Failed to persist conversations', e);
+        }
+    }, []);
+
+    // keep the conversations in sync when messages or embeddedCharts change
+    useEffect(() => {
+        if (!currentConversationId) return;
+        const updated = conversations.map(c => {
+            if (c.id !== currentConversationId) return c;
+            return {
+                ...c,
+                messages,
+                embeddedCharts,
+                updatedAt: new Date().toISOString(),
+            };
+        });
+        setConversations(updated);
+        persistConversations(updated, currentConversationId);
+    }, [messages, embeddedCharts, currentConversationId, conversations, persistConversations]);
+
     const sendMessage = async () => {
         if (!input.trim()) return;
 
@@ -47,6 +130,14 @@ function AIAssistant() {
         setMessages(prev => [...prev, userMessage]);
         setInput('');
         setIsLoading(true);
+
+        // Update conversation title if this is the first message
+        if (messages.length === 0 && currentConversationId) {
+            const title = input.length > 50 ? input.substring(0, 50) + '...' : input;
+            setConversations(prev => prev.map(c =>
+                c.id === currentConversationId ? { ...c, title } : c
+            ));
+        }
 
         try {
             // Call AI service
@@ -80,6 +171,48 @@ function AIAssistant() {
         } finally {
             setIsLoading(false);
         }
+    };    // Conversation management helpers
+    const createNewConversation = () => {
+        const id = `conv-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
+        const conv: Conversation = {
+            id,
+            title: 'New Chat',
+            messages: [],
+            embeddedCharts: [],
+            updatedAt: new Date().toISOString(),
+        };
+        const next = [conv, ...conversations];
+        setConversations(next);
+        setCurrentConversationId(id);
+        setMessages([]);
+        setEmbeddedCharts([]);
+        persistConversations(next, id);
+    };
+
+    const switchConversation = (id: string) => {
+        const conv = conversations.find(c => c.id === id);
+        if (!conv) return;
+        setCurrentConversationId(id);
+        setMessages(conv.messages || []);
+        setEmbeddedCharts(conv.embeddedCharts || []);
+        persistConversations(conversations, id);
+    };
+
+    const deleteConversation = (id: string) => {
+        const next = conversations.filter(c => c.id !== id);
+        setConversations(next);
+        if (currentConversationId === id) {
+            if (next.length > 0) {
+                switchConversation(next[0].id);
+            } else {
+                setCurrentConversationId(null);
+                setMessages([]);
+                setEmbeddedCharts([]);
+                persistConversations(next, null);
+            }
+        } else {
+            persistConversations(next, currentConversationId);
+        }
     };
 
     const handleChartGeneration = (suggestion: ChartSuggestion) => {
@@ -100,142 +233,238 @@ function AIAssistant() {
 
     return (
         <Layout>
-            <div className="space-y-6">
-                <div>
-                    <h1 className="text-3xl font-bold">AI Assistant</h1>
-                    <p className="text-muted-foreground">Get insights and assistance about your VirtPLC system</p>
-                </div>
+            <div className="flex h-screen bg-gray-50">
+                {/* Sidebar */}
+                <div className="w-80 bg-white border-r border-gray-200 flex flex-col">
+                    {/* Header */}
+                    <div className="p-4 border-b border-gray-200">
+                        <Button
+                            onClick={createNewConversation}
+                            className="w-full justify-start gap-2"
+                            variant="outline"
+                        >
+                            <Plus className="h-4 w-4" />
+                            New Chat
+                        </Button>
+                    </div>
 
-                <Card className="h-[70vh] flex flex-col">
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            <Bot className="h-5 w-5" />
-                            AI Assistant Chat
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="flex-1 flex flex-col p-0">
-                        {/* Chat Messages */}
-                        <ScrollArea ref={scrollAreaRef} className="flex-1 p-4">
-                            {messages.length === 0 ? (
-                                <div className="flex items-center justify-center h-full text-muted-foreground">
-                                    Start a conversation with the AI assistant...
+                    {/* Conversations List */}
+                    <ScrollArea className="flex-1">
+                        <div className="p-2">
+                            {conversations.length === 0 ? (
+                                <div className="text-center text-gray-500 py-8">
+                                    <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                                    <p className="text-sm">No conversations yet</p>
+                                    <p className="text-xs">Start a new chat to get help</p>
                                 </div>
                             ) : (
-                                <div className="space-y-4">
-                                    {messages.map((message) => (
+                                <div className="space-y-1">
+                                    {conversations.map((conversation) => (
                                         <div
-                                            key={message.id}
-                                            className={`flex gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'
+                                            key={conversation.id}
+                                            className={`group relative p-3 rounded-lg cursor-pointer transition-colors ${currentConversationId === conversation.id
+                                                    ? 'bg-gray-100'
+                                                    : 'hover:bg-gray-50'
                                                 }`}
+                                            onClick={() => switchConversation(conversation.id)}
                                         >
-                                            {message.role === 'assistant' && (
-                                                <div className="flex-shrink-0">
-                                                    <Bot className="h-8 w-8 text-primary" />
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-sm font-medium text-gray-900 truncate">
+                                                        {conversation.title}
+                                                    </p>
+                                                    <p className="text-xs text-gray-500">
+                                                        {conversation.messages.length > 0
+                                                            ? `${conversation.messages.length} messages`
+                                                            : 'Empty conversation'
+                                                        }
+                                                    </p>
                                                 </div>
-                                            )}
+                                                <Button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        deleteConversation(conversation.id);
+                                                    }}
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    className="opacity-0 group-hover:opacity-100 h-6 w-6 p-0 hover:bg-red-100 hover:text-red-600"
+                                                >
+                                                    <Trash2 className="h-3 w-3" />
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </ScrollArea>
+                </div>
+
+                {/* Main Chat Area */}
+                <div className="flex-1 flex flex-col">
+                    {currentConversationId ? (
+                        <>
+                            {/* Chat Header */}
+                            <div className="bg-white border-b border-gray-200 px-6 py-4">
+                                <h1 className="text-xl font-semibold text-gray-900">
+                                    {conversations.find(c => c.id === currentConversationId)?.title || 'AI Assistant'}
+                                </h1>
+                            </div>
+
+                            {/* Messages */}
+                            <ScrollArea ref={scrollAreaRef} className="flex-1 p-6">
+                                {messages.length === 0 ? (
+                                    <div className="flex flex-col items-center justify-center h-full text-center">
+                                        <Bot className="h-16 w-16 text-gray-400 mb-4" />
+                                        <h2 className="text-2xl font-semibold text-gray-900 mb-2">
+                                            How can I help you?
+                                        </h2>
+                                        <p className="text-gray-500 max-w-md">
+                                            Ask me anything about your VirtPLC system. I can help with insights, troubleshooting, and data analysis.
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-6 max-w-4xl mx-auto">
+                                        {messages.map((message) => (
                                             <div
-                                                className={`max-w-[70%] rounded-lg p-3 ${message.role === 'user'
-                                                    ? 'bg-primary text-primary-foreground'
-                                                    : 'bg-muted'
-                                                    }`}
+                                                key={message.id}
+                                                className={`flex gap-4 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                                             >
-                                                <div className="flex items-center gap-2 mb-1">
-                                                    {message.role === 'user' ? (
-                                                        <User className="h-4 w-4" />
-                                                    ) : (
-                                                        <Bot className="h-4 w-4" />
+                                                {message.role === 'assistant' && (
+                                                    <div className="flex-shrink-0">
+                                                        <div className="w-8 h-8 bg-green-600 rounded-full flex items-center justify-center">
+                                                            <Bot className="h-4 w-4 text-white" />
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                <div
+                                                    className={`max-w-2xl rounded-lg px-4 py-3 ${message.role === 'user'
+                                                            ? 'bg-blue-600 text-white'
+                                                            : 'bg-white border border-gray-200 text-gray-900'
+                                                        }`}
+                                                >
+                                                    <div className="whitespace-pre-wrap">{message.content}</div>
+                                                    <div className={`text-xs mt-2 ${message.role === 'user' ? 'text-blue-100' : 'text-gray-500'
+                                                        }`}>
+                                                        {message.timestamp.toLocaleTimeString()}
+                                                    </div>
+                                                    {message.chartSuggestions && message.chartSuggestions.length > 0 && (
+                                                        <div className="mt-4 space-y-2">
+                                                            <div className="text-sm font-medium text-gray-700">Suggested Charts:</div>
+                                                            {message.chartSuggestions.map((suggestion, index) => (
+                                                                <Button
+                                                                    key={index}
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    onClick={() => handleChartGeneration(suggestion)}
+                                                                    className="w-full justify-start text-left h-auto p-3 border-gray-300"
+                                                                >
+                                                                    <BarChart3 className="h-4 w-4 mr-2 flex-shrink-0" />
+                                                                    <div>
+                                                                        <div className="font-medium">{suggestion.title}</div>
+                                                                        <div className="text-xs opacity-70">{suggestion.description}</div>
+                                                                    </div>
+                                                                </Button>
+                                                            ))}
+                                                        </div>
                                                     )}
-                                                    <span className="text-sm font-medium">
-                                                        {message.role === 'user' ? 'You' : 'AI Assistant'}
-                                                    </span>
                                                 </div>
-                                                <div className="whitespace-pre-wrap">{message.content}</div>
-                                                <div className="text-xs opacity-70 mt-2">
-                                                    {message.timestamp.toLocaleTimeString()}
-                                                </div>
-                                                {message.chartSuggestions && message.chartSuggestions.length > 0 && (
-                                                    <div className="mt-3 space-y-2">
-                                                        <div className="text-sm font-medium text-primary">Suggested Charts:</div>
-                                                        {message.chartSuggestions.map((suggestion, index) => (
-                                                            <Button
-                                                                key={index}
-                                                                variant="outline"
-                                                                size="sm"
-                                                                onClick={() => handleChartGeneration(suggestion)}
-                                                                className="w-full justify-start text-left h-auto p-3"
-                                                            >
-                                                                <BarChart3 className="h-4 w-4 mr-2 flex-shrink-0" />
-                                                                <div>
-                                                                    <div className="font-medium">{suggestion.title}</div>
-                                                                    <div className="text-xs opacity-70">{suggestion.description}</div>
-                                                                </div>
-                                                            </Button>
-                                                        ))}
+                                                {message.role === 'user' && (
+                                                    <div className="flex-shrink-0">
+                                                        <div className="w-8 h-8 bg-gray-600 rounded-full flex items-center justify-center">
+                                                            <User className="h-4 w-4 text-white" />
+                                                        </div>
                                                     </div>
                                                 )}
                                             </div>
-                                            {message.role === 'user' && (
+                                        ))}
+                                        {isLoading && (
+                                            <div className="flex gap-4 justify-start">
                                                 <div className="flex-shrink-0">
-                                                    <User className="h-8 w-8 text-primary" />
+                                                    <div className="w-8 h-8 bg-green-600 rounded-full flex items-center justify-center">
+                                                        <Bot className="h-4 w-4 text-white" />
+                                                    </div>
                                                 </div>
-                                            )}
-                                        </div>
-                                    ))}
-                                    {isLoading && (
-                                        <div className="flex gap-3 justify-start">
-                                            <div className="flex-shrink-0">
-                                                <Bot className="h-8 w-8 text-primary" />
-                                            </div>
-                                            <div className="bg-muted rounded-lg p-3 max-w-[70%]">
-                                                <div className="flex items-center gap-2 mb-1">
-                                                    <Bot className="h-4 w-4" />
-                                                    <span className="text-sm font-medium">AI Assistant</span>
+                                                <div className="bg-white border border-gray-200 rounded-lg px-4 py-3 max-w-2xl">
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="flex space-x-1">
+                                                            <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                                                            <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                                                            <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                                                        </div>
+                                                        <span className="text-sm text-gray-600">AI is thinking...</span>
+                                                    </div>
                                                 </div>
-                                                <div>Thinking...</div>
                                             </div>
-                                        </div>
-                                    )}
+                                        )}
+                                    </div>
+                                )}
+                            </ScrollArea>
+
+                            {/* Embedded Charts */}
+                            {embeddedCharts.length > 0 && (
+                                <div className="border-t border-gray-200 bg-gray-50 p-6">
+                                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Generated Charts</h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-6xl mx-auto">
+                                        {embeddedCharts.map((chart) => (
+                                            <AIChart
+                                                key={chart.id}
+                                                suggestion={chart.suggestion}
+                                                onClose={() => handleChartClose(chart.id)}
+                                            />
+                                        ))}
+                                    </div>
                                 </div>
                             )}
-                        </ScrollArea>
 
-                        {/* Embedded Charts */}
-                        {embeddedCharts.length > 0 && (
-                            <div className="space-y-4 p-4 border-t">
-                                <h3 className="text-sm font-medium text-primary">Generated Charts</h3>
-                                {embeddedCharts.map((chart) => (
-                                    <AIChart
-                                        key={chart.id}
-                                        suggestion={chart.suggestion}
-                                        onClose={() => handleChartClose(chart.id)}
-                                    />
-                                ))}
+                            {/* Input Area */}
+                            <div className="border-t border-gray-200 bg-white px-6 py-4">
+                                <div className="max-w-4xl mx-auto">
+                                    <div className="flex gap-3">
+                                        <Textarea
+                                            value={input}
+                                            onChange={(e) => setInput(e.target.value)}
+                                            onKeyPress={handleKeyPress}
+                                            placeholder="Ask me anything about your VirtPLC system..."
+                                            className="min-h-[52px] resize-none border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                                            disabled={isLoading}
+                                        />
+                                        <Button
+                                            onClick={sendMessage}
+                                            disabled={isLoading || !input.trim()}
+                                            size="lg"
+                                            className="px-6"
+                                        >
+                                            <Send className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                </div>
                             </div>
-                        )}
-
-                        {/* Input Area */}
-                        <div className="border-t p-4">
-                            <div className="flex gap-2">
-                                <Textarea
-                                    value={input}
-                                    onChange={(e) => setInput(e.target.value)}
-                                    onKeyPress={handleKeyPress}
-                                    placeholder="Ask me anything about your VirtPLC system..."
-                                    className="min-h-[60px] resize-none"
-                                    disabled={isLoading}
-                                />
+                        </>
+                    ) : (
+                        /* Welcome Screen */
+                        <div className="flex-1 flex items-center justify-center bg-white">
+                            <div className="text-center max-w-md mx-auto px-6">
+                                <Bot className="h-16 w-16 text-gray-400 mx-auto mb-6" />
+                                <h1 className="text-3xl font-bold text-gray-900 mb-4">
+                                    VirtPLC AI Assistant
+                                </h1>
+                                <p className="text-gray-600 mb-8">
+                                    Get intelligent insights and assistance about your industrial control system.
+                                    Ask questions about data, performance, troubleshooting, and more.
+                                </p>
                                 <Button
-                                    onClick={sendMessage}
-                                    disabled={isLoading || !input.trim()}
-                                    size="icon"
-                                    className="self-end"
+                                    onClick={createNewConversation}
+                                    size="lg"
+                                    className="px-8 py-3"
                                 >
-                                    <Send className="h-4 w-4" />
+                                    <Plus className="h-5 w-5 mr-2" />
+                                    Start New Chat
                                 </Button>
                             </div>
                         </div>
-                    </CardContent>
-                </Card>
+                    )}
+                </div>
             </div>
         </Layout>
     );

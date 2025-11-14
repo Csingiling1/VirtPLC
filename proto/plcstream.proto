@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package plcstream;
+
+import "google/protobuf/timestamp.proto";
+
+option java_multiple_files = true;
+option java_package = "com.virtplc.grpc.plcstream";
+option java_outer_classname = "PlcStreamProto";
+
+// Go package for collector
+option go_package = "github.com/virtplc/collector/proto";
+
+service PlcStream {
+// Collector -> Backend bidirectional streaming RPC
+rpc StreamReadings(stream PlcReading) returns (stream StreamAck);
+}
+
+message PlcReading {
+string tenant_id = 1;
+string manufacturer_id = 2;
+string factory_id = 3;
+string plc_id = 4;
+string sensor_id = 5;
+google.protobuf.Timestamp timestamp = 6;
+double value = 7;
+string unit = 8;
+string metadata = 9; // optional JSON metadata
+}
+
+message StreamAck {
+bool success = 1;
+string message = 2;
+int64 processed_count = 3;
+}

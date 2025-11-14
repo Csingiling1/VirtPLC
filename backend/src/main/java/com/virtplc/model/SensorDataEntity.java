@@ -73,4 +73,8 @@ public class SensorDataEntity {
 
     @Column(name = "quality")
     private Integer quality;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "company_id")
+    private Company company;
 }

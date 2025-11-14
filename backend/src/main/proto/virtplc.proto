@@ -1,0 +1,174 @@
+syntax = "proto3";
+
+package com.virtplc.grpc;
+
+option java_multiple_files = true;
+option java_package = "com.virtplc.grpc";
+option java_outer_classname = "VirtPlcProto";
+
+// Common messages
+message SensorData {
+  string sensorId = 1;
+  string deviceId = 2;
+  double value = 3;
+  int64 timestamp = 4;
+  map<string, string> metadata = 5;
+}
+
+message SensorDataBatch {
+  repeated SensorData data = 1;
+  int64 batchId = 2;
+  int64 batchTimestamp = 3;
+}
+
+message Empty {
+}
+
+// Sensor Data Service - for real-time sensor streaming
+service SensorDataService {
+  // Stream sensor data in real-time
+  rpc StreamSensorData(Empty) returns (stream SensorData);
+
+  // Batch upload sensor data
+  rpc UploadSensorDataBatch(SensorDataBatch) returns (Empty);
+
+  // Get historical sensor data
+  rpc GetSensorDataHistory(SensorDataQuery) returns (stream SensorData);
+}
+
+message SensorDataQuery {
+  string sensorId = 1;
+  int64 startTime = 2;
+  int64 endTime = 3;
+  int32 limit = 4;
+}
+
+// AI Service - for real-time AI processing
+service AIService {
+  // Process sensor data with AI
+  rpc ProcessSensorData(SensorData) returns (AIProcessingResult);
+
+  // Stream AI predictions
+  rpc StreamAIPredictions(AIPredictionRequest) returns (stream AIPrediction);
+
+  // Train AI model with new data
+  rpc TrainAIModel(AITrainingRequest) returns (AITrainingResult);
+}
+
+message AIProcessingResult {
+  string sensorId = 1;
+  double predictedValue = 2;
+  double confidence = 3;
+  string anomalyType = 4;
+  map<string, double> features = 5;
+  int64 processingTimestamp = 6;
+}
+
+message AIPredictionRequest {
+  repeated string sensorIds = 1;
+  string modelType = 2;
+  int32 predictionHorizon = 3;
+}
+
+message AIPrediction {
+  string sensorId = 1;
+  repeated double predictions = 2;
+  repeated int64 timestamps = 3;
+  double confidence = 4;
+}
+
+message AITrainingRequest {
+  string modelType = 1;
+  repeated SensorData trainingData = 2;
+  map<string, string> parameters = 3;
+}
+
+message AITrainingResult {
+  bool success = 1;
+  string modelId = 2;
+  double accuracy = 3;
+  string errorMessage = 4;
+}
+
+// Simulator Control Service
+service SimulatorControlService {
+  // Control simulator state
+  rpc StartSimulation(SimulationConfig) returns (SimulationStatus);
+
+  rpc StopSimulation(Empty) returns (SimulationStatus);
+
+  rpc UpdateSimulationParameters(SimulationUpdate) returns (SimulationStatus);
+
+  // Stream simulation data
+  rpc StreamSimulationData(Empty) returns (stream SimulationData);
+}
+
+message SimulationConfig {
+  string scenario = 1;
+  int32 duration = 2;
+  map<string, double> parameters = 3;
+  repeated string sensorIds = 4;
+}
+
+message SimulationStatus {
+  bool running = 1;
+  string status = 2;
+  int64 startTime = 3;
+  int64 currentTime = 4;
+  string errorMessage = 5;
+}
+
+message SimulationUpdate {
+  map<string, double> parameters = 1;
+  repeated SensorData sensorUpdates = 2;
+}
+
+message SimulationData {
+  string sensorId = 1;
+  double value = 2;
+  int64 timestamp = 3;
+  string simulationScenario = 4;
+}
+
+// Real-time Dashboard Service
+service DashboardService {
+  // Stream dashboard updates
+  rpc StreamDashboardUpdates(DashboardSubscription) returns (stream DashboardUpdate);
+
+  // Get dashboard snapshot
+  rpc GetDashboardSnapshot(DashboardRequest) returns (DashboardSnapshot);
+
+  // Update dashboard configuration
+  rpc UpdateDashboardConfig(DashboardConfig) returns (Empty);
+}
+
+message DashboardSubscription {
+  repeated string sensorIds = 1;
+  string dashboardId = 2;
+  int32 updateInterval = 3; // milliseconds
+}
+
+message DashboardUpdate {
+  string dashboardId = 1;
+  repeated SensorData sensorData = 2;
+  repeated AIProcessingResult aiResults = 3;
+  int64 timestamp = 4;
+}
+
+message DashboardRequest {
+  string dashboardId = 1;
+  int64 since = 2;
+}
+
+message DashboardSnapshot {
+  string dashboardId = 1;
+  repeated SensorData sensorData = 2;
+  repeated AIProcessingResult aiResults = 3;
+  int64 timestamp = 4;
+}
+
+message DashboardConfig {
+  string dashboardId = 1;
+  repeated string sensorIds = 2;
+  map<string, string> settings = 3;
+}

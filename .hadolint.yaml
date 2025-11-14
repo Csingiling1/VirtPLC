@@ -1,0 +1,16 @@
+# Hadolint configuration for VirtPLC HMI Dockerfile
+# https://github.com/hadolint/hadolint#config-file
+
+ignored:
+  # Ignore warnings about using latest tag (we use specific Ignition version)
+  - DL3007
+  # Ignore warnings about apt-get update without cleanup (we do cleanup)
+  - DL3009
+  # Ignore warnings about using ADD instead of COPY (we use COPY)
+  - DL3020
+  # Ignore warnings about not using WORKDIR (we don't need it for this image)
+  - DL3003
+
+trustedRegistries:
+  - docker.io
+  - ghcr.io
