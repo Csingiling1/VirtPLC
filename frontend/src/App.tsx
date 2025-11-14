@@ -18,6 +18,7 @@ const History = lazy(() => import("./pages/History"));
 const Status = lazy(() => import("./pages/Status"));
 const AIAssistant = lazy(() => import("./pages/AIAssistant"));
 const DashboardBuilder = lazy(() => import("./pages/DashboardBuilder"));
+const Dashboards = lazy(() => import("./pages/Dashboards"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -74,6 +75,11 @@ const App = () => (
               <Route path="/dashboard-builder" element={
                 <ProtectedRoute>
                   <DashboardBuilder />
+                </ProtectedRoute>
+              } />
+              <Route path="/dashboards" element={
+                <ProtectedRoute>
+                  <Dashboards />
                 </ProtectedRoute>
               } />
               <Route path="*" element={<NotFound />} />

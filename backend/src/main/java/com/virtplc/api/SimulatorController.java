@@ -123,6 +123,71 @@ public class SimulatorController {
     }
 
     /**
+     * Send signal value (generic endpoint for dashboard)
+     */
+    @PostMapping("/signals/send")
+    public ResponseEntity<Map<String, Object>> sendSignal(@RequestBody Map<String, Object> payload) {
+        String signalId = (String) payload.get("signalId");
+        Object value = payload.get("value");
+
+        if (signalId == null || value == null) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "success", false,
+                    "message", "signalId and value are required"));
+        }
+
+        try {
+            // For now, we'll assume signalId format is "deviceId.signalName"
+            // You might need to adjust this based on your signal identification strategy
+            String[] parts = signalId.split("\\.", 2);
+            if (parts.length != 2) {
+                return ResponseEntity.badRequest().body(Map.of(
+                        "success", false,
+                        "message", "Invalid signalId format. Expected: deviceId.signalName"));
+            }
+
+            String deviceId = parts[0];
+            String signalName = parts[1];
+
+            // Convert value to Double if it's a Number
+            Double doubleValue;
+            if (value instanceof Number) {
+                doubleValue = ((Number) value).doubleValue();
+            } else if (value instanceof String) {
+                try {
+                    doubleValue = Double.parseDouble((String) value);
+                } catch (NumberFormatException e) {
+                    return ResponseEntity.badRequest().body(Map.of(
+                            "success", false,
+                            "message", "Invalid value format. Expected number."));
+                }
+            } else {
+                return ResponseEntity.badRequest().body(Map.of(
+                        "success", false,
+                        "message", "Invalid value type. Expected number."));
+            }
+
+            boolean success = simulatorService.setSignalValue(deviceId, signalName, doubleValue);
+            if (success) {
+                return ResponseEntity.ok(Map.of(
+                        "success", true,
+                        "message", "Signal sent successfully",
+                        "signalId", signalId,
+                        "value", doubleValue));
+            } else {
+                return ResponseEntity.status(404).body(Map.of(
+                        "success", false,
+                        "message", "Signal not found"));
+            }
+        } catch (Exception e) {
+            log.error("Error sending signal", e);
+            return ResponseEntity.internalServerError().body(Map.of(
+                    "success", false,
+                    "message", "Internal server error"));
+        }
+    }
+
+    /**
      * Add signal to device
      */
     @PostMapping("/devices/{deviceId}/signals")

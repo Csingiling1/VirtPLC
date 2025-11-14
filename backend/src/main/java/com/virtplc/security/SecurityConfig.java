@@ -37,6 +37,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/data/ingest").permitAll()
                         .requestMatchers("/api/simulator/**").permitAll() // Simulator endpoints for dashboard
                         .requestMatchers("/api/mcp/**").permitAll() // MCP endpoints for AI service
+                        // .requestMatchers("/api/dashboards/**").permitAll() // Dashboard endpoints -
+                        // now require authentication
 
                         // Protected endpoints
                         .anyRequest().authenticated())

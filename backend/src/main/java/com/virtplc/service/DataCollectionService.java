@@ -5,6 +5,7 @@ import com.virtplc.repository.CompanyRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -18,6 +19,7 @@ import java.util.List;
 @Slf4j
 @Service
 @RequiredArgsConstructor
+@ConditionalOnProperty(name = "opcua.collection.enabled", havingValue = "true", matchIfMissing = false)
 public class DataCollectionService {
 
     private final DataService dataService;

@@ -1,12 +1,40 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
 import Layout from "@/components/Layout";
 import { api } from "@/lib/api";
+import {
+    DndContext,
+    DragEndEvent,
+    DragOverlay,
+    DragStartEvent,
+    PointerSensor,
+    useSensor,
+    useSensors,
+    closestCenter,
+    useDraggable,
+    useDroppable,
+} from "@dnd-kit/core";
+import {
+    SortableContext,
+    arrayMove,
+    rectSortingStrategy,
+} from "@dnd-kit/sortable";
+import {
+    useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 interface Device {
     id: string;
@@ -19,7 +47,8 @@ interface Device {
 interface Factory {
     id: string;
     name: string;
-    location: string;
+    location?: string;
+    factory_id?: string;
 }
 
 interface Signal {
@@ -33,10 +62,28 @@ interface Signal {
 
 interface CanvasItem {
     id: string;
-    type: 'factory' | 'device' | 'signal';
+    type: 'factory' | 'device' | 'signal' | 'chart' | 'gauge' | 'button';
     data: any;
     x: number;
     y: number;
+    width: number;
+    height: number;
+    gridX: number;
+    gridY: number;
+    gridWidth: number;
+    gridHeight: number;
+}
+
+interface Dashboard {
+    id?: string;
+    name: string;
+    description: string;
+    items: CanvasItem[];
+    gridSize: number;
+    autoTile: boolean;
+    userId: string;
+    createdAt?: string;
+    updatedAt?: string;
 }
 
 interface DashboardTemplate {
@@ -46,33 +93,259 @@ interface DashboardTemplate {
     items: CanvasItem[];
 }
 
+const CanvasItem = ({ item, onRemove, onSendSignal }: {
+    item: CanvasItem;
+    onRemove: (id: string) => void;
+    onSendSignal?: (id: string, value: any) => void
+}) => {
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging,
+    } = useSortable({ id: item.id });
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+    };
+
+    const renderItem = () => {
+        switch (item.type) {
+            case 'factory':
+                return (
+                    <Card className="h-full">
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-sm">🏭 {item.data.name || item.data.factory_id}</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <p className="text-xs text-muted-foreground">Factory Monitor</p>
+                            <Badge variant="outline" className="mt-2">Active</Badge>
+                        </CardContent>
+                    </Card>
+                );
+            case 'device':
+                return (
+                    <Card className="h-full">
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-sm">⚙️ {item.data.name}</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <p className="text-xs text-muted-foreground">Type: {item.data.type}</p>
+                            <Badge variant={item.data.status === 'online' ? 'default' : 'secondary'} className="mt-2">
+                                {item.data.status || 'Unknown'}
+                            </Badge>
+                        </CardContent>
+                    </Card>
+                );
+            case 'signal':
+                return (
+                    <Card className="h-full">
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-sm">📊 {item.data.name}</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <p className="text-lg font-bold">{item.data.value || 'N/A'}</p>
+                            <p className="text-xs text-muted-foreground">{item.data.unit}</p>
+                            <div className="flex gap-2 mt-2">
+                                <Button size="sm" variant="outline" onClick={() => onSendSignal?.(item.data.id, 1)}>
+                                    ON
+                                </Button>
+                                <Button size="sm" variant="outline" onClick={() => onSendSignal?.(item.data.id, 0)}>
+                                    OFF
+                                </Button>
+                            </div>
+                        </CardContent>
+                    </Card>
+                );
+            case 'chart':
+                return (
+                    <Card className="h-full">
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-sm">📈 Chart</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="h-32 bg-muted rounded flex items-center justify-center">
+                                <span className="text-muted-foreground">Chart Placeholder</span>
+                            </div>
+                        </CardContent>
+                    </Card>
+                );
+            case 'gauge':
+                return (
+                    <Card className="h-full">
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-sm">⭕ Gauge</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="h-32 bg-muted rounded flex items-center justify-center">
+                                <span className="text-muted-foreground">Gauge Placeholder</span>
+                            </div>
+                        </CardContent>
+                    </Card>
+                );
+            case 'button':
+                return (
+                    <Card className="h-full">
+                        <CardContent className="p-4">
+                            <Button className="w-full" onClick={() => onSendSignal?.(item.data.id, item.data.value)}>
+                                {item.data.label || 'Button'}
+                            </Button>
+                        </CardContent>
+                    </Card>
+                );
+            default:
+                return <div>Unknown item type</div>;
+        }
+    };
+
+    return (
+        <div
+            ref={setNodeRef}
+            style={style}
+            {...attributes}
+            {...listeners}
+            className="relative group cursor-move"
+        >
+            {renderItem()}
+            <Button
+                variant="destructive"
+                size="sm"
+                className="absolute -top-2 -right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                onClick={(e) => {
+                    e.stopPropagation();
+                    onRemove(item.id);
+                }}
+            >
+                ×
+            </Button>
+        </div>
+    );
+};
+
+const DraggableSidebarItem = ({ id, children, onClick }: { id: string; children: React.ReactNode; onClick?: () => void }) => {
+    const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+        id,
+    });
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        opacity: isDragging ? 0.5 : 1,
+    };
+
+    return (
+        <div
+            ref={setNodeRef}
+            style={style}
+            {...listeners}
+            {...attributes}
+            onClick={onClick}
+            className="cursor-grab active:cursor-grabbing"
+        >
+            {children}
+        </div>
+    );
+};
+
+const DroppableCanvas = ({ children }: { children: React.ReactNode }) => {
+    const { setNodeRef, isOver } = useDroppable({
+        id: 'canvas-drop-zone',
+    });
+
+    return (
+        <div
+            ref={setNodeRef}
+            className={`relative bg-muted/20 border-2 border-dashed rounded-lg min-h-[600px] overflow-auto ${isOver ? 'border-primary bg-primary/5' : 'border-muted-foreground/20'
+                }`}
+            style={{
+                backgroundImage: 'radial-gradient(circle, #e5e7eb 1px, transparent 1px)',
+                backgroundSize: '20px 20px',
+            }}
+        >
+            {children}
+        </div>
+    );
+};
+
 const DashboardBuilder = () => {
     const [devices, setDevices] = useState<Device[]>([]);
     const [factories, setFactories] = useState<Factory[]>([]);
     const [signals, setSignals] = useState<Signal[]>([]);
     const [loading, setLoading] = useState(false);
     const [canvasItems, setCanvasItems] = useState<CanvasItem[]>([]);
-    const [showTemplates, setShowTemplates] = useState(false);
+    const [activeId, setActiveId] = useState<string | null>(null);
+    const [gridSize, setGridSize] = useState(20);
+    const [autoTile, setAutoTile] = useState(true);
+    const [savedDashboards, setSavedDashboards] = useState<Dashboard[]>([]);
+    const [currentDashboard, setCurrentDashboard] = useState<Dashboard | null>(null);
+    const [dashboardName, setDashboardName] = useState('');
+    const [dashboardDescription, setDashboardDescription] = useState('');
+
+    const sensors = useSensor(PointerSensor, {
+        activationConstraint: {
+            distance: 8,
+        },
+    });
+    const sensorsList = useSensors(sensors);
 
     const templates: DashboardTemplate[] = [
         {
             id: 'factory-overview',
             name: 'Factory Overview',
-            description: 'Comprehensive factory monitoring with key metrics from live data',
-            items: [] // Will be populated with real data when loaded
+            description: 'Comprehensive factory monitoring dashboard',
+            items: factories.slice(0, 3).map((factory, index) => ({
+                id: `template-factory-${factory.id}`,
+                type: 'factory' as const,
+                data: factory,
+                x: index * 320,
+                y: 0,
+                width: 300,
+                height: 200,
+                gridX: index * 16,
+                gridY: 0,
+                gridWidth: 15,
+                gridHeight: 10,
+            })),
         },
         {
             id: 'device-monitoring',
             name: 'Device Monitoring',
-            description: 'Focus on device status and performance from live data',
-            items: [] // Will be populated with real data when loaded
+            description: 'Real-time device status and performance',
+            items: devices.slice(0, 4).map((device, index) => ({
+                id: `template-device-${device.id}`,
+                type: 'device' as const,
+                data: device,
+                x: (index % 2) * 320,
+                y: Math.floor(index / 2) * 220,
+                width: 300,
+                height: 200,
+                gridX: (index % 2) * 16,
+                gridY: Math.floor(index / 2) * 11,
+                gridWidth: 15,
+                gridHeight: 10,
+            })),
         },
         {
             id: 'signal-dashboard',
             name: 'Signal Dashboard',
-            description: 'Real-time signal monitoring and KPIs from live data',
-            items: [] // Will be populated with real data when loaded
-        }
+            description: 'Real-time signal monitoring with controls',
+            items: signals.slice(0, 6).map((signal, index) => ({
+                id: `template-signal-${signal.id}`,
+                type: 'signal' as const,
+                data: signal,
+                x: (index % 3) * 220,
+                y: Math.floor(index / 3) * 180,
+                width: 200,
+                height: 160,
+                gridX: (index % 3) * 11,
+                gridY: Math.floor(index / 3) * 9,
+                gridWidth: 10,
+                gridHeight: 8,
+            })),
+        },
     ];
 
     // Fetch real data from APIs
@@ -85,12 +358,23 @@ const DashboardBuilder = () => {
                     api.get('/api/mcp/factories'),
                     api.get('/api/simulator/signals')
                 ]);
-                setDevices(devicesRes.data);
-                setFactories(factoriesRes.data.data || []);
-                setSignals(signalsRes.data);
+
+                // Transform device data to match frontend interface
+                const transformedDevices = (devicesRes.data || []).map((device: any) => ({
+                    id: device.id,
+                    name: device.name,
+                    type: device.deviceType,
+                    factoryId: device.factory_id || '',
+                    status: device.is_active ? 'active' : 'inactive'
+                }));
+
+                setDevices(transformedDevices);
+                setFactories(factoriesRes.data?.data || []);
+                setSignals(signalsRes.data || []);
+                console.log('Fetched data:', { devices: devicesRes.data, factories: factoriesRes.data, signals: signalsRes.data });
             } catch (error) {
                 console.error('Failed to fetch data:', error);
-                // Set empty arrays on error to ensure clean state
+                // Set empty arrays on error
                 setDevices([]);
                 setFactories([]);
                 setSignals([]);
@@ -102,295 +386,622 @@ const DashboardBuilder = () => {
         fetchData();
     }, []);
 
+    // Rearrange items when autoTile changes
+    useEffect(() => {
+        if (autoTile && canvasItems.length > 0) {
+            // Auto-tile mode: arrange items in a compact grid that fills the space
+            setCanvasItems(prev => {
+                const items = [...prev];
+                const canvasWidth = 800; // Approximate canvas width
+                const canvasHeight = 600; // Approximate canvas height
+
+                // Calculate optimal grid layout
+                const itemWidth = 200; // Default item width
+                const itemHeight = 150; // Default item height
+                const cols = Math.max(1, Math.floor(canvasWidth / itemWidth));
+                const rows = Math.ceil(items.length / cols);
+
+                return items.map((item, index) => {
+                    const col = index % cols;
+                    const row = Math.floor(index / cols);
+
+                    return {
+                        ...item,
+                        x: col * itemWidth + 10, // Add some padding
+                        y: row * itemHeight + 10,
+                        gridX: col,
+                        gridY: row,
+                        width: itemWidth,
+                        height: itemHeight,
+                    };
+                });
+            });
+        } else if (!autoTile) {
+            // Floating mode: allow free positioning, items stay where they are
+            // but ensure they don't go off-screen when switching from auto-tile
+            setCanvasItems(prev =>
+                prev.map(item => ({
+                    ...item,
+                    // Keep current positions but ensure they're within reasonable bounds
+                    x: Math.max(0, Math.min(item.x, 800 - (item.width || 200))),
+                    y: Math.max(0, Math.min(item.y, 600 - (item.height || 150))),
+                }))
+            );
+        }
+    }, [autoTile]);
+
+    const addItemToCanvas = useCallback((type: CanvasItem['type'], data: any) => {
+        // Calculate next available position in grid
+        const calculateNextPosition = () => {
+            if (!autoTile) {
+                return {
+                    x: Math.random() * 400,
+                    y: Math.random() * 300,
+                    gridX: Math.floor(Math.random() * 20),
+                    gridY: Math.floor(Math.random() * 15),
+                };
+            }
+
+            // Find next available grid position
+            const occupiedPositions = new Set(
+                canvasItems.map(item => `${item.gridX},${item.gridY}`)
+            );
+
+            let gridX = 0;
+            let gridY = 0;
+            let attempts = 0;
+            const maxAttempts = 100;
+
+            while (attempts < maxAttempts) {
+                const positionKey = `${gridX},${gridY}`;
+                if (!occupiedPositions.has(positionKey)) {
+                    break;
+                }
+
+                gridX++;
+                if (gridX >= 20) { // Max columns
+                    gridX = 0;
+                    gridY++;
+                }
+                attempts++;
+            }
+
+            return {
+                x: gridX * gridSize,
+                y: gridY * gridSize,
+                gridX,
+                gridY,
+            };
+        };
+
+        const position = calculateNextPosition();
+
+        const newItem: CanvasItem = {
+            id: `${type}-${Date.now()}`,
+            type,
+            data,
+            x: position.x,
+            y: position.y,
+            width: 200,
+            height: 150,
+            gridX: position.gridX,
+            gridY: position.gridY,
+            gridWidth: Math.ceil(200 / gridSize),
+            gridHeight: Math.ceil(150 / gridSize),
+        };
+        setCanvasItems(prev => [...prev, newItem]);
+    }, [autoTile, canvasItems, gridSize]);
+
+    const removeItemFromCanvas = useCallback((id: string) => {
+        setCanvasItems(prev => prev.filter(item => item.id !== id));
+    }, []);
+
+    const sendSignalToPLC = useCallback(async (signalId: string, value: any) => {
+        try {
+            await api.post('/api/simulator/signals/send', { signalId, value });
+            console.log('Signal sent to PLC:', { signalId, value });
+        } catch (error) {
+            console.error('Failed to send signal:', error);
+        }
+    }, []);
+
+    const applyTemplate = useCallback((template: DashboardTemplate) => {
+        setCanvasItems(template.items.map(item => ({
+            ...item,
+            id: `${item.type}-${Date.now()}-${Math.random()}`,
+        })));
+    }, []);
+
+    const saveDashboard = useCallback(async () => {
+        if (!dashboardName.trim()) return;
+
+        const dashboard: Dashboard = {
+            name: dashboardName,
+            description: dashboardDescription,
+            items: canvasItems,
+            gridSize,
+            autoTile,
+            userId: 'current-user', // TODO: Get from auth context
+        };
+
+        try {
+            if (currentDashboard?.id) {
+                await api.put(`/api/dashboards/${currentDashboard.id}`, dashboard);
+            } else {
+                const response = await api.post('/api/dashboards', dashboard);
+                setCurrentDashboard(response.data);
+            }
+            // Refresh saved dashboards
+            loadSavedDashboards();
+        } catch (error) {
+            console.error('Failed to save dashboard:', error);
+        }
+    }, [dashboardName, dashboardDescription, canvasItems, gridSize, autoTile, currentDashboard]);
+
+    const loadSavedDashboards = useCallback(async () => {
+        try {
+            const response = await api.get('/api/dashboards');
+            setSavedDashboards(response.data || []);
+        } catch (error) {
+            console.error('Failed to load dashboards:', error);
+        }
+    }, []);
+
+    const loadDashboard = useCallback((dashboard: Dashboard) => {
+        setCurrentDashboard(dashboard);
+        setCanvasItems(dashboard.items);
+        setGridSize(dashboard.gridSize);
+        setAutoTile(dashboard.autoTile);
+        setDashboardName(dashboard.name);
+        setDashboardDescription(dashboard.description || '');
+    }, []);
+
+    const exportDashboard = useCallback((format: 'csv' | 'json' | 'png') => {
+        switch (format) {
+            case 'json':
+                const dataStr = JSON.stringify({
+                    dashboard: currentDashboard,
+                    items: canvasItems,
+                    exportedAt: new Date().toISOString(),
+                }, null, 2);
+                const dataBlob = new Blob([dataStr], { type: 'application/json' });
+                const url = URL.createObjectURL(dataBlob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `${dashboardName || 'dashboard'}.json`;
+                link.click();
+                break;
+            case 'csv':
+                // Export canvas items as CSV
+                const csvContent = [
+                    ['ID', 'Type', 'Name', 'X', 'Y', 'Width', 'Height'].join(','),
+                    ...canvasItems.map(item => [
+                        item.id,
+                        item.type,
+                        item.data?.name || item.data?.factory_id || 'Unknown',
+                        item.x,
+                        item.y,
+                        item.width,
+                        item.height,
+                    ].join(','))
+                ].join('\n');
+                const csvBlob = new Blob([csvContent], { type: 'text/csv' });
+                const csvUrl = URL.createObjectURL(csvBlob);
+                const csvLink = document.createElement('a');
+                csvLink.href = csvUrl;
+                csvLink.download = `${dashboardName || 'dashboard'}.csv`;
+                csvLink.click();
+                break;
+            case 'png':
+                // For PNG export, we'd need html2canvas or similar
+                alert('PNG export not yet implemented');
+                break;
+        }
+    }, [canvasItems, currentDashboard, dashboardName]);
+
+    useEffect(() => {
+        loadSavedDashboards();
+    }, [loadSavedDashboards]);
+
+    const handleDragStart = (event: DragStartEvent) => {
+        setActiveId(event.active.id as string);
+    };
+
+    const handleDragEnd = (event: DragEndEvent) => {
+        const { active, over } = event;
+        setActiveId(null);
+
+        if (!over) return;
+
+        const activeId = active.id as string;
+        const overId = over.id as string;
+
+        // Handle dropping from sidebar onto canvas
+        if (activeId.startsWith('sidebar-')) {
+            const parts = activeId.split('-');
+            const itemType = parts[1] as CanvasItem['type'];
+            const itemId = parts.slice(2).join('-'); // For items with IDs in the name
+
+            let itemData: any = {};
+
+            // Get data based on type
+            switch (itemType) {
+                case 'factory':
+                    itemData = factories.find(f => f.id === itemId);
+                    break;
+                case 'device':
+                    itemData = devices.find(d => d.id === itemId);
+                    break;
+                case 'signal':
+                    itemData = signals.find(s => s.id === itemId);
+                    break;
+                case 'chart':
+                    itemData = { label: 'Chart' };
+                    break;
+                case 'gauge':
+                    itemData = { label: 'Gauge' };
+                    break;
+                case 'button':
+                    itemData = { label: 'Button', value: 1 };
+                    break;
+            }
+
+            if (itemData) {
+                addItemToCanvas(itemType, itemData);
+            }
+            return;
+        }
+
+        // Handle dropping items into charts
+        if (overId.startsWith('chart-')) {
+            const chartItem = canvasItems.find(item => item.id === overId);
+            if (chartItem && chartItem.type === 'chart') {
+                const draggedItem = canvasItems.find(item => item.id === activeId);
+                if (draggedItem && (draggedItem.type === 'signal' || draggedItem.type === 'device')) {
+                    // Add data binding to chart
+                    setCanvasItems(prev => prev.map(item => {
+                        if (item.id === overId) {
+                            return {
+                                ...item,
+                                data: {
+                                    ...item.data,
+                                    dataSources: [
+                                        ...(item.data.dataSources || []),
+                                        {
+                                            id: draggedItem.id,
+                                            type: draggedItem.type,
+                                            data: draggedItem.data
+                                        }
+                                    ]
+                                }
+                            };
+                        }
+                        return item;
+                    }));
+                }
+            }
+            return;
+        }
+
+        // Handle reordering within canvas
+        if (activeId === overId) return;
+
+        setCanvasItems((items) => {
+            const oldIndex = items.findIndex((item) => item.id === activeId);
+            const newIndex = items.findIndex((item) => item.id === overId);
+
+            if (oldIndex === -1 || newIndex === -1) return items;
+
+            return arrayMove(items, oldIndex, newIndex);
+        });
+    };
+
     return (
-        <>
-            <Layout>
-                <div className="container mx-auto p-6">
-                    <div className="mb-6">
-                        <h1 className="text-3xl font-bold">Dashboard Builder</h1>
-                        <p className="text-muted-foreground">
-                            Drag and drop components to create custom dashboards
-                        </p>
+        <Layout>
+            <div className="flex h-screen bg-background">
+                {/* Left Sidebar - Components */}
+                <div className="w-80 border-r bg-card p-4">
+                    <Tabs defaultValue="components" className="h-full">
+                        <TabsList className="grid w-full grid-cols-3">
+                            <TabsTrigger value="components">Components</TabsTrigger>
+                            <TabsTrigger value="templates">Templates</TabsTrigger>
+                            <TabsTrigger value="settings">Settings</TabsTrigger>
+                        </TabsList>
+
+                        <TabsContent value="components" className="h-full">
+                            <ScrollArea className="h-[calc(100%-60px)]">
+                                <div className="space-y-4">
+                                    {/* Factories */}
+                                    <div>
+                                        <h3 className="font-semibold mb-2">🏭 Factories</h3>
+                                        {loading ? (
+                                            <div>Loading factories...</div>
+                                        ) : factories.length > 0 ? (
+                                            <div className="space-y-2">
+                                                {factories.map((factory) => (
+                                                    <DraggableSidebarItem
+                                                        key={factory.id}
+                                                        id={`sidebar-factory-${factory.id}`}
+                                                        onClick={() => addItemToCanvas('factory', factory)}
+                                                    >
+                                                        <Card className="cursor-pointer hover:bg-accent">
+                                                            <CardContent className="p-3">
+                                                                <div className="font-medium text-sm">{factory.name || factory.factory_id}</div>
+                                                                <div className="text-xs text-muted-foreground">Factory</div>
+                                                            </CardContent>
+                                                        </Card>
+                                                    </DraggableSidebarItem>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <div className="text-sm text-muted-foreground">No factories available</div>
+                                        )}
+                                    </div>
+
+                                    {/* Devices */}
+                                    <div>
+                                        <h3 className="font-semibold mb-2">⚙️ Devices</h3>
+                                        {loading ? (
+                                            <div>Loading devices...</div>
+                                        ) : devices.length > 0 ? (
+                                            <div className="space-y-2">
+                                                {devices.map((device) => (
+                                                    <DraggableSidebarItem
+                                                        key={device.id}
+                                                        id={`sidebar-device-${device.id}`}
+                                                        onClick={() => addItemToCanvas('device', device)}
+                                                    >
+                                                        <Card className="cursor-pointer hover:bg-accent">
+                                                            <CardContent className="p-3">
+                                                                <div className="font-medium text-sm">{device.name}</div>
+                                                                <div className="text-xs text-muted-foreground">{device.type}</div>
+                                                            </CardContent>
+                                                        </Card>
+                                                    </DraggableSidebarItem>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <div className="text-sm text-muted-foreground">No devices available</div>
+                                        )}
+                                    </div>
+
+                                    {/* Signals */}
+                                    <div>
+                                        <h3 className="font-semibold mb-2">📊 Signals</h3>
+                                        {loading ? (
+                                            <div>Loading signals...</div>
+                                        ) : signals.length > 0 ? (
+                                            <div className="space-y-2">
+                                                {signals.map((signal) => (
+                                                    <DraggableSidebarItem
+                                                        key={signal.id}
+                                                        id={`sidebar-signal-${signal.id}`}
+                                                        onClick={() => addItemToCanvas('signal', signal)}
+                                                    >
+                                                        <Card className="cursor-pointer hover:bg-accent">
+                                                            <CardContent className="p-3">
+                                                                <div className="font-medium text-sm">{signal.name}</div>
+                                                                <div className="text-xs text-muted-foreground">{signal.unit} ({signal.value})</div>
+                                                            </CardContent>
+                                                        </Card>
+                                                    </DraggableSidebarItem>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <div className="text-sm text-muted-foreground">No signals available</div>
+                                        )}
+                                    </div>
+
+                                    {/* Widget Components */}
+                                    <div>
+                                        <h3 className="font-semibold mb-2">🎛️ Widgets</h3>
+                                        <div className="space-y-2">
+                                            <DraggableSidebarItem
+                                                id="sidebar-chart"
+                                                onClick={() => addItemToCanvas('chart', { label: 'Chart' })}
+                                            >
+                                                <Card className="cursor-pointer hover:bg-accent">
+                                                    <CardContent className="p-3">
+                                                        <div className="font-medium text-sm">📈 Chart</div>
+                                                        <div className="text-xs text-muted-foreground">Data visualization</div>
+                                                    </CardContent>
+                                                </Card>
+                                            </DraggableSidebarItem>
+                                            <DraggableSidebarItem
+                                                id="sidebar-gauge"
+                                                onClick={() => addItemToCanvas('gauge', { label: 'Gauge' })}
+                                            >
+                                                <Card className="cursor-pointer hover:bg-accent">
+                                                    <CardContent className="p-3">
+                                                        <div className="font-medium text-sm">⭕ Gauge</div>
+                                                        <div className="text-xs text-muted-foreground">Circular indicator</div>
+                                                    </CardContent>
+                                                </Card>
+                                            </DraggableSidebarItem>
+                                            <DraggableSidebarItem
+                                                id="sidebar-button"
+                                                onClick={() => addItemToCanvas('button', { label: 'Button', value: 1 })}
+                                            >
+                                                <Card className="cursor-pointer hover:bg-accent">
+                                                    <CardContent className="p-3">
+                                                        <div className="font-medium text-sm">🔘 Button</div>
+                                                        <div className="text-xs text-muted-foreground">PLC control</div>
+                                                    </CardContent>
+                                                </Card>
+                                            </DraggableSidebarItem>
+                                        </div>
+                                    </div>
+                                </div>
+                            </ScrollArea>
+                        </TabsContent>
+
+                        <TabsContent value="templates" className="h-full">
+                            <ScrollArea className="h-[calc(100%-60px)]">
+                                <div className="space-y-4">
+                                    {templates.map((template) => (
+                                        <Card key={template.id} className="cursor-pointer hover:bg-accent"
+                                            onClick={() => applyTemplate(template)}>
+                                            <CardHeader>
+                                                <CardTitle className="text-lg">{template.name}</CardTitle>
+                                                <p className="text-sm text-muted-foreground">{template.description}</p>
+                                            </CardHeader>
+                                            <CardContent>
+                                                <p className="text-sm">{template.items.length} components</p>
+                                            </CardContent>
+                                        </Card>
+                                    ))}
+                                </div>
+                            </ScrollArea>
+                        </TabsContent>
+
+                        <TabsContent value="settings" className="h-full">
+                            <ScrollArea className="h-[calc(100%-60px)]">
+                                <div className="space-y-4">
+                                    <div>
+                                        <Label htmlFor="grid-size">Grid Size</Label>
+                                        <Slider
+                                            id="grid-size"
+                                            min={10}
+                                            max={50}
+                                            step={5}
+                                            value={[gridSize]}
+                                            onValueChange={(value) => setGridSize(value[0])}
+                                            className="mt-2"
+                                        />
+                                        <div className="text-sm text-muted-foreground mt-1">{gridSize}px</div>
+                                    </div>
+
+                                    <div className="flex items-center space-x-2">
+                                        <Switch
+                                            id="auto-tile"
+                                            checked={autoTile}
+                                            onCheckedChange={setAutoTile}
+                                        />
+                                        <Label htmlFor="auto-tile">Auto Tile</Label>
+                                    </div>
+
+                                    <Separator />
+
+                                    <div>
+                                        <Label htmlFor="dashboard-name">Dashboard Name</Label>
+                                        <Input
+                                            id="dashboard-name"
+                                            value={dashboardName}
+                                            onChange={(e) => setDashboardName(e.target.value)}
+                                            placeholder="Enter dashboard name"
+                                            className="mt-1"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <Label htmlFor="dashboard-desc">Description</Label>
+                                        <Input
+                                            id="dashboard-desc"
+                                            value={dashboardDescription}
+                                            onChange={(e) => setDashboardDescription(e.target.value)}
+                                            placeholder="Enter description"
+                                            className="mt-1"
+                                        />
+                                    </div>
+
+                                    <Button onClick={saveDashboard} className="w-full">
+                                        {currentDashboard ? 'Update Dashboard' : 'Save Dashboard'}
+                                    </Button>
+
+                                    <Separator />
+
+                                    <div>
+                                        <Label>Saved Dashboards</Label>
+                                        <ScrollArea className="h-32 mt-2">
+                                            <div className="space-y-2">
+                                                {savedDashboards.map((dashboard) => (
+                                                    <Card key={dashboard.id} className="cursor-pointer hover:bg-accent"
+                                                        onClick={() => loadDashboard(dashboard)}>
+                                                        <CardContent className="p-3">
+                                                            <div className="font-medium text-sm">{dashboard.name}</div>
+                                                            <div className="text-xs text-muted-foreground">{dashboard.description}</div>
+                                                        </CardContent>
+                                                    </Card>
+                                                ))}
+                                            </div>
+                                        </ScrollArea>
+                                    </div>
+                                </div>
+                            </ScrollArea>
+                        </TabsContent>
+                    </Tabs>
+                </div>
+
+                {/* Main Canvas */}
+                <div className="flex-1 p-4">
+                    <div className="flex justify-between items-center mb-4">
+                        <h1 className="text-2xl font-bold">Dashboard Builder</h1>
+                        <div className="flex gap-2">
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="outline">
+                                        Export ▼
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent>
+                                    <DropdownMenuItem onClick={() => exportDashboard('json')}>
+                                        Export as JSON
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => exportDashboard('csv')}>
+                                        Export as CSV
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => exportDashboard('png')}>
+                                        Export as PNG
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                            <Button onClick={() => setCanvasItems([])}>Clear Canvas</Button>
+                        </div>
                     </div>
 
-                    <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-                        {/* Data Sources Sidebar */}
-                        <div className="lg:col-span-1 space-y-6">
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle>Factories</CardTitle>
-                                </CardHeader>
-                                <CardContent>
-                                    <ScrollArea className="h-48">
-                                        {loading ? (
-                                            <div className="flex items-center justify-center h-full">
-                                                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
-                                            </div>
-                                        ) : (
-                                            <div className="space-y-2">
-                                                {factories.length === 0 ? (
-                                                    <p className="text-sm text-muted-foreground text-center py-4">No factories available</p>
-                                                ) : (
-                                                    factories.map((factory) => (
-                                                        <div
-                                                            key={factory.id}
-                                                            className="p-2 border rounded cursor-pointer hover:bg-accent"
-                                                            draggable
-                                                            onDragStart={(e) => {
-                                                                e.dataTransfer.setData('text/plain', JSON.stringify({ type: 'factory', data: factory }));
-                                                            }}
-                                                        >
-                                                            <div className="font-medium">{factory.name}</div>
-                                                            <div className="text-sm text-muted-foreground">{factory.location}</div>
-                                                        </div>
-                                                    ))
-                                                )}
-                                            </div>
-                                        )}
-                                    </ScrollArea>
-                                </CardContent>
-                            </Card>
-
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle>Devices</CardTitle>
-                                </CardHeader>
-                                <CardContent>
-                                    <ScrollArea className="h-48">
-                                        {loading ? (
-                                            <div className="flex items-center justify-center h-full">
-                                                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
-                                            </div>
-                                        ) : (
-                                            <div className="space-y-2">
-                                                {devices.length === 0 ? (
-                                                    <p className="text-sm text-muted-foreground text-center py-4">No devices available</p>
-                                                ) : (
-                                                    devices.map((device) => (
-                                                        <div
-                                                            key={device.id}
-                                                            className="p-2 border rounded cursor-pointer hover:bg-accent"
-                                                            draggable
-                                                            onDragStart={(e) => {
-                                                                e.dataTransfer.setData('text/plain', JSON.stringify({ type: 'device', data: device }));
-                                                            }}
-                                                        >
-                                                            <div className="font-medium">{device.name}</div>
-                                                            <span className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold">{device.type}</span>
-                                                            <div className="text-sm text-muted-foreground">Status: {device.status}</div>
-                                                        </div>
-                                                    ))
-                                                )}
-                                            </div>
-                                        )}
-                                    </ScrollArea>
-                                </CardContent>
-                            </Card>
-
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle>Signals</CardTitle>
-                                </CardHeader>
-                                <CardContent>
-                                    <ScrollArea className="h-48">
-                                        {loading ? (
-                                            <div className="flex items-center justify-center h-full">
-                                                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
-                                            </div>
-                                        ) : (
-                                            <div className="space-y-2">
-                                                {signals.length === 0 ? (
-                                                    <p className="text-sm text-muted-foreground text-center py-4">No signals available</p>
-                                                ) : (
-                                                    signals.map((signal) => (
-                                                        <div
-                                                            key={signal.id}
-                                                            className="p-2 border rounded cursor-pointer hover:bg-accent"
-                                                            draggable
-                                                            onDragStart={(e) => {
-                                                                e.dataTransfer.setData('text/plain', JSON.stringify({ type: 'signal', data: signal }));
-                                                            }}
-                                                        >
-                                                            <div className="font-medium">{signal.name}</div>
-                                                            <div className="text-sm text-muted-foreground">
-                                                                {signal.type} • {signal.unit} • {signal.value}
-                                                            </div>
-                                                        </div>
-                                                    ))
-                                                )}
-                                            </div>
-                                        )}
-                                    </ScrollArea>
-                                </CardContent>
-                            </Card>
-                        </div>
-
-                        {/* Dashboard Canvas */}
-                        <div className="lg:col-span-3">
-                            <Card className="h-full">
-                                <CardHeader>
-                                    <CardTitle>Dashboard Canvas</CardTitle>
-                                    <div className="flex gap-2">
-                                        <Button variant="outline" size="sm">Save Dashboard</Button>
-                                        <Button variant="outline" size="sm" onClick={() => setShowTemplates(true)}>Load Template</Button>
-                                        <Button variant="outline" size="sm">Export</Button>
-                                    </div>
-                                </CardHeader>
-                                <CardContent>
+                    <DndContext
+                        sensors={sensorsList}
+                        collisionDetection={closestCenter}
+                        onDragStart={handleDragStart}
+                        onDragEnd={handleDragEnd}
+                    >
+                        <DroppableCanvas>
+                            <SortableContext items={canvasItems.map(item => item.id)} strategy={rectSortingStrategy}>
+                                {canvasItems.map((item) => (
                                     <div
-                                        className="min-h-96 border-2 border-dashed border-muted-foreground/25 rounded-lg p-4"
-                                        onDragOver={(e) => e.preventDefault()}
-                                        onDrop={(e) => {
-                                            e.preventDefault();
-                                            const data = JSON.parse(e.dataTransfer.getData('text/plain'));
-                                            const rect = e.currentTarget.getBoundingClientRect();
-                                            const x = e.clientX - rect.left;
-                                            const y = e.clientY - rect.top;
-                                            const newItem: CanvasItem = {
-                                                id: `${data.type}-${Date.now()}`,
-                                                type: data.type,
-                                                data: data.data,
-                                                x,
-                                                y,
-                                            };
-                                            setCanvasItems(prev => [...prev, newItem]);
+                                        key={item.id}
+                                        style={{
+                                            position: 'absolute',
+                                            left: item.x,
+                                            top: item.y,
+                                            width: item.width,
+                                            height: item.height,
                                         }}
                                     >
-                                        {canvasItems.map((item) => (
-                                            <div
-                                                key={item.id}
-                                                className="absolute p-2 bg-white border rounded shadow-sm"
-                                                style={{ left: item.x, top: item.y }}
-                                            >
-                                                {item.type === 'factory' && (
-                                                    <div>
-                                                        <div className="font-medium">{item.data.name}</div>
-                                                        <div className="text-sm text-muted-foreground">{item.data.location}</div>
-                                                    </div>
-                                                )}
-                                                {item.type === 'device' && (
-                                                    <div>
-                                                        <div className="font-medium">{item.data.name}</div>
-                                                        <span className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold">{item.data.type}</span>
-                                                        <div className="text-sm text-muted-foreground">Status: {item.data.status}</div>
-                                                    </div>
-                                                )}
-                                                {item.type === 'signal' && (
-                                                    <div>
-                                                        <div className="font-medium">{item.data.name}</div>
-                                                        <div className="text-sm text-muted-foreground">
-                                                            {item.data.type} • {item.data.unit} • {item.data.value}
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        ))}
-                                        {canvasItems.length === 0 && (
-                                            <div className="flex items-center justify-center h-full text-muted-foreground">
-                                                <div className="text-center">
-                                                    <p className="text-lg mb-2">Drop components here</p>
-                                                    <p className="text-sm">Drag factories, devices, or signals from the sidebar</p>
-                                                </div>
-                                            </div>
-                                        )}
+                                        <CanvasItem
+                                            item={item}
+                                            onRemove={removeItemFromCanvas}
+                                            onSendSignal={sendSignalToPLC}
+                                        />
                                     </div>
-                                </CardContent>
-                            </Card>
-                        </div>
-                    </div>
+                                ))}
+                            </SortableContext>
+                        </DroppableCanvas>
+
+                        <DragOverlay>
+                            {activeId ? (
+                                <div className="opacity-50">
+                                    <CanvasItem
+                                        item={canvasItems.find(item => item.id === activeId)!}
+                                        onRemove={() => { }}
+                                    />
+                                </div>
+                            ) : null}
+                        </DragOverlay>
+                    </DndContext>
                 </div>
-            </Layout>
-
-            <Dialog open={showTemplates} onOpenChange={setShowTemplates}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Choose a Dashboard Template</DialogTitle>
-                    </DialogHeader>
-                    <div className="grid gap-4">
-                        {templates.map((template) => (
-                            <Card key={template.id} className="cursor-pointer hover:bg-accent" onClick={() => {
-                                // Load template with real data
-                                const populatedItems: CanvasItem[] = [];
-                                let xOffset = 50;
-                                const yOffset = 50;
-
-                                if (template.id === 'factory-overview') {
-                                    // Add first available factory
-                                    if (factories.length > 0) {
-                                        populatedItems.push({
-                                            id: `factory-${factories[0].id}`,
-                                            type: 'factory',
-                                            data: factories[0],
-                                            x: xOffset,
-                                            y: yOffset
-                                        });
-                                        xOffset += 200;
-                                    }
-                                    // Add first available device
-                                    if (devices.length > 0) {
-                                        populatedItems.push({
-                                            id: `device-${devices[0].id}`,
-                                            type: 'device',
-                                            data: devices[0],
-                                            x: xOffset,
-                                            y: yOffset
-                                        });
-                                        xOffset += 200;
-                                    }
-                                    // Add first available signal
-                                    if (signals.length > 0) {
-                                        populatedItems.push({
-                                            id: `signal-${signals[0].id}`,
-                                            type: 'signal',
-                                            data: signals[0],
-                                            x: xOffset,
-                                            y: yOffset
-                                        });
-                                    }
-                                } else if (template.id === 'device-monitoring') {
-                                    // Add first two devices
-                                    devices.slice(0, 2).forEach((device, index) => {
-                                        populatedItems.push({
-                                            id: `device-${device.id}`,
-                                            type: 'device',
-                                            data: device,
-                                            x: 50 + (index * 200),
-                                            y: yOffset
-                                        });
-                                    });
-                                } else if (template.id === 'signal-dashboard') {
-                                    // Add first two signals
-                                    signals.slice(0, 2).forEach((signal, index) => {
-                                        populatedItems.push({
-                                            id: `signal-${signal.id}`,
-                                            type: 'signal',
-                                            data: signal,
-                                            x: 50 + (index * 200),
-                                            y: yOffset
-                                        });
-                                    });
-                                }
-
-                                setCanvasItems(populatedItems);
-                                setShowTemplates(false);
-                            }}>
-                                <CardHeader>
-                                    <CardTitle className="text-lg">{template.name}</CardTitle>
-                                    <p className="text-sm text-muted-foreground">{template.description}</p>
-                                </CardHeader>
-                                <CardContent>
-                                    <p className="text-sm">
-                                        {template.id === 'factory-overview' && `${Math.min(3, factories.length + devices.length + signals.length)} components`}
-                                        {template.id === 'device-monitoring' && `${Math.min(2, devices.length)} components`}
-                                        {template.id === 'signal-dashboard' && `${Math.min(2, signals.length)} components`}
-                                    </p>
-                                </CardContent>
-                            </Card>
-                        ))}
-                    </div>
-                </DialogContent>
-            </Dialog>
-        </>
+            </div>
+        </Layout>
     );
 };
 
