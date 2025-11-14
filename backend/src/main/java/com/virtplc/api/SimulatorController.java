@@ -46,6 +46,15 @@ public class SimulatorController {
     }
 
     /**
+     * Get all signals from all devices
+     */
+    @GetMapping("/signals")
+    public ResponseEntity<List<Map<String, Object>>> getAllSignals() {
+        List<Map<String, Object>> signals = simulatorService.getAllSignals();
+        return ResponseEntity.ok(signals);
+    }
+
+    /**
      * Create new device
      */
     @PostMapping("/devices")
@@ -160,27 +169,27 @@ public class SimulatorController {
     @GetMapping("/tenants/my-data")
     public ResponseEntity<List<Map<String, Object>>> getMyTenantData() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        
+
         if (authentication == null || !(authentication.getPrincipal() instanceof User)) {
             return ResponseEntity.status(401).build();
         }
 
         User user = (User) authentication.getPrincipal();
         List<Map<String, Object>> tenants = simulatorService.getTenants();
-        
+
         // ADMIN sees everything
         if (user.getRole() == User.Role.ADMIN) {
             return ResponseEntity.ok(tenants);
         }
-        
+
         // Non-admin users only see their manufacturer's data
         if (user.getManufacturer() != null) {
             String userManufacturerId = user.getManufacturer().getManufacturerId();
             List<Map<String, Object>> filteredTenants = simulatorService.filterTenantsByManufacturer(
-                tenants, userManufacturerId);
+                    tenants, userManufacturerId);
             return ResponseEntity.ok(filteredTenants);
         }
-        
+
         // User has no manufacturer assigned - return empty
         return ResponseEntity.ok(List.of());
     }

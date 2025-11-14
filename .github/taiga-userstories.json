@@ -1,0 +1,783 @@
+[
+  {
+    "subject": "MCP Server Completion",
+    "description": "Complete tool calling implementation for sensor data retrieval - Target: <100ms response time",
+    "status": "New",
+    "assigned_to": null,
+    "sprint": 3,
+    "tags": [
+      "Backend",
+      "P0-Critical",
+      "Feature"
+    ],
+    "story_points": 8,
+    "priority": null,
+    "tasks": [
+      {
+        "subject": "Implement sensor data retrieval"
+      },
+      {
+        "subject": "Add equipment status queries"
+      },
+      {
+        "subject": "Context retrieval for LLM"
+      },
+      {
+        "subject": "Authentication and rate limiting"
+      },
+      {
+        "subject": "Error handling and logging"
+      },
+      {
+        "subject": "Performance testing (<100ms)"
+      }
+    ]
+  },
+  {
+    "subject": "WebSocket Implementation",
+    "description": "Real-time data streaming endpoints - Target: 1000+ concurrent connections",
+    "status": "New",
+    "assigned_to": null,
+    "sprint": 3,
+    "tags": [
+      "Backend",
+      "P0-Critical",
+      "Feature"
+    ],
+    "story_points": 5,
+    "priority": null,
+    "tasks": [
+      {
+        "subject": "Real-time data streaming endpoints"
+      },
+      {
+        "subject": "Connection management"
+      },
+      {
+        "subject": "Message queuing system"
+      },
+      {
+        "subject": "Handle 1000+ concurrent connections"
+      },
+      {
+        "subject": "Reconnection logic"
+      }
+    ]
+  },
+  {
+    "subject": "Dashboard Builder",
+    "description": "Drag-and-drop dashboard creation interface - Target: <5 min dashboard creation",
+    "status": "New",
+    "assigned_to": null,
+    "sprint": 3,
+    "tags": [
+      "Frontend",
+      "P0-Critical",
+      "Feature"
+    ],
+    "story_points": 8,
+    "priority": null,
+    "tasks": [
+      {
+        "subject": "Drag-and-drop interface"
+      },
+      {
+        "subject": "Component library browser"
+      },
+      {
+        "subject": "PostgreSQL persistence"
+      },
+      {
+        "subject": "PDF/CSV/JSON export"
+      },
+      {
+        "subject": "Template system"
+      },
+      {
+        "subject": "Dashboard versioning"
+      }
+    ]
+  },
+  {
+    "subject": "Real-time AI Streaming",
+    "description": "WebSocket streaming for AI chat - Target: <500ms latency",
+    "status": "New",
+    "assigned_to": null,
+    "sprint": 3,
+    "tags": [
+      "AI Service",
+      "P0-Critical",
+      "Feature"
+    ],
+    "story_points": 8,
+    "priority": null,
+    "tasks": [
+      {
+        "subject": "WebSocket streaming for /api/chat"
+      },
+      {
+        "subject": "Token processing optimization"
+      },
+      {
+        "subject": "Context management"
+      },
+      {
+        "subject": "Fix httpx dependency issue"
+      }
+    ]
+  },
+  {
+    "subject": "Unit Testing Framework",
+    "description": "Setup testing framework across all services - Target: 80%+ coverage",
+    "status": "New",
+    "assigned_to": null,
+    "sprint": 3,
+    "tags": [
+      "DevOps",
+      "P0-Critical",
+      "Tech Debt"
+    ],
+    "story_points": 12,
+    "priority": null,
+    "tasks": [
+      {
+        "subject": "Backend: JUnit tests (>80% coverage)"
+      },
+      {
+        "subject": "AI Service: Pytest tests"
+      },
+      {
+        "subject": "Frontend: Jest/React Testing Library"
+      },
+      {
+        "subject": "Integration tests"
+      },
+      {
+        "subject": "Load testing"
+      },
+      {
+        "subject": "E2E workflow tests"
+      }
+    ]
+  },
+  {
+    "subject": "CI/CD Pipeline",
+    "description": "GitHub Actions implementation for automated deployment",
+    "status": "New",
+    "assigned_to": null,
+    "sprint": 3,
+    "tags": [
+      "DevOps",
+      "P1-High",
+      "Feature"
+    ],
+    "story_points": 8,
+    "priority": null,
+    "tasks": [
+      {
+        "subject": "GitHub Actions workflow"
+      },
+      {
+        "subject": "Automated testing"
+      },
+      {
+        "subject": "Blue-green deployment"
+      },
+      {
+        "subject": "Rollback capabilities"
+      },
+      {
+        "subject": "Docker image builds"
+      }
+    ]
+  },
+  {
+    "subject": "Monitoring Stack",
+    "description": "Prometheus + Grafana observability",
+    "status": "New",
+    "assigned_to": null,
+    "sprint": 3,
+    "tags": [
+      "DevOps",
+      "P1-High",
+      "Feature"
+    ],
+    "story_points": 5,
+    "priority": null,
+    "tasks": [
+      {
+        "subject": "Prometheus metrics collection"
+      },
+      {
+        "subject": "Grafana dashboards"
+      },
+      {
+        "subject": "ELK centralized logging"
+      },
+      {
+        "subject": "Alert system"
+      },
+      {
+        "subject": "Service health monitoring"
+      }
+    ]
+  },
+  {
+    "subject": "Production Optimization",
+    "description": "Database and backend performance optimization - Target: 10x load capacity",
+    "status": "New",
+    "assigned_to": null,
+    "sprint": 3,
+    "tags": [
+      "Backend",
+      "P1-High",
+      "Feature"
+    ],
+    "story_points": 5,
+    "priority": null,
+    "tasks": [
+      {
+        "subject": "Database query optimization"
+      },
+      {
+        "subject": "Redis caching strategy"
+      },
+      {
+        "subject": "Memory and GC tuning"
+      },
+      {
+        "subject": "Load testing"
+      }
+    ]
+  },
+  {
+    "subject": "Frontend Login CORS Fix",
+    "description": "Resolve browser login authentication issue - CRITICAL BUG",
+    "status": "New",
+    "assigned_to": null,
+    "sprint": 3,
+    "tags": [
+      "Frontend",
+      "Backend",
+      "P0-Critical",
+      "Bug"
+    ],
+    "story_points": 2,
+    "priority": null,
+    "tasks": [
+      {
+        "subject": "Debug browser console errors"
+      },
+      {
+        "subject": "Test with different browsers"
+      },
+      {
+        "subject": "Verify frontend container network"
+      },
+      {
+        "subject": "Check API base URL configuration"
+      }
+    ]
+  },
+  {
+    "subject": "WebSocket Client Implementation",
+    "description": "Frontend WebSocket client for real-time updates - BLOCKED by Backend WebSocket",
+    "status": "New",
+    "assigned_to": null,
+    "sprint": 3,
+    "tags": [
+      "Frontend",
+      "P0-Critical",
+      "Feature"
+    ],
+    "story_points": 5,
+    "priority": null,
+    "tasks": [
+      {
+        "subject": "AI service WebSocket integration"
+      },
+      {
+        "subject": "Real-time chart updates"
+      },
+      {
+        "subject": "Reconnection logic"
+      },
+      {
+        "subject": "Error handling"
+      }
+    ]
+  },
+  {
+    "subject": "Advanced AI Features",
+    "description": "Predictive analytics and anomaly detection - BLOCKED by TimeBase Integration",
+    "status": "New",
+    "assigned_to": null,
+    "sprint": 3,
+    "tags": [
+      "AI Service",
+      "P1-High",
+      "Feature"
+    ],
+    "story_points": 5,
+    "priority": null,
+    "tasks": [
+      {
+        "subject": "Predictive analytics for time-series"
+      },
+      {
+        "subject": "Enhanced anomaly detection"
+      },
+      {
+        "subject": "Multi-modal AI responses"
+      },
+      {
+        "subject": "Chart suggestion engine"
+      }
+    ]
+  },
+  {
+    "subject": "OPC-UA Direct Streaming",
+    "description": "Go collector with TimescaleDB ingestion - 45000+ records collected",
+    "status": "New",
+    "assigned_to": null,
+    "sprint": 3,
+    "tags": [
+      "Data",
+      "Feature"
+    ],
+    "story_points": 5,
+    "priority": null,
+    "tasks": [
+      {
+        "subject": "Go collector implementation"
+      },
+      {
+        "subject": "Direct TimescaleDB ingestion"
+      },
+      {
+        "subject": "12 sensors reading"
+      },
+      {
+        "subject": "Real-time data streaming"
+      }
+    ]
+  },
+  {
+    "subject": "AI-Powered Chart System",
+    "description": "Multi-library chart generation system (Recharts + Chart.js)",
+    "status": "New",
+    "assigned_to": null,
+    "sprint": 2,
+    "tags": [
+      "AI Service",
+      "Frontend",
+      "Feature"
+    ],
+    "story_points": 18,
+    "priority": null,
+    "tasks": [
+      {
+        "subject": "Recharts + Chart.js integration"
+      },
+      {
+        "subject": "React component generation"
+      },
+      {
+        "subject": "PNG export functionality"
+      },
+      {
+        "subject": "Live code editing"
+      },
+      {
+        "subject": "Security measures (XSS prevention)"
+      }
+    ]
+  },
+  {
+    "subject": "Backend Stability Fixes",
+    "description": "Hibernate and CORS configuration fixes",
+    "status": "New",
+    "assigned_to": null,
+    "sprint": 2,
+    "tags": [
+      "Backend",
+      "Bug",
+      "Tech Debt"
+    ],
+    "story_points": 8,
+    "priority": null,
+    "tasks": [
+      {
+        "subject": "LazyInitializationException fix"
+      },
+      {
+        "subject": "CORS preflight handling"
+      },
+      {
+        "subject": "Multi-origin support"
+      },
+      {
+        "subject": "User-Company eager fetching"
+      }
+    ]
+  },
+  {
+    "subject": "Python Simulator",
+    "description": "OPC-UA server with asyncua - Real-time sensor data",
+    "status": "New",
+    "assigned_to": null,
+    "sprint": 2,
+    "tags": [
+      "Data",
+      "Feature"
+    ],
+    "story_points": 5,
+    "priority": null,
+    "tasks": [
+      {
+        "subject": "OPC-UA server with asyncua"
+      },
+      {
+        "subject": "String-based node IDs"
+      },
+      {
+        "subject": "Demo sensor generation"
+      },
+      {
+        "subject": "Real-time updates"
+      }
+    ]
+  },
+  {
+    "subject": "Microservices Architecture",
+    "description": "Complete system architecture design and documentation",
+    "status": "New",
+    "assigned_to": null,
+    "sprint": 1,
+    "tags": [
+      "DevOps",
+      "Feature"
+    ],
+    "story_points": 15,
+    "priority": null,
+    "tasks": [
+      {
+        "subject": "Architecture documentation"
+      },
+      {
+        "subject": "Technology stack selection"
+      },
+      {
+        "subject": "Database schema design"
+      },
+      {
+        "subject": "Docker orchestration"
+      },
+      {
+        "subject": "Data flow diagrams"
+      }
+    ]
+  },
+  {
+    "subject": "Backend Foundation",
+    "description": "Spring Boot setup with JWT authentication",
+    "status": "New",
+    "assigned_to": null,
+    "sprint": 1,
+    "tags": [
+      "Backend",
+      "Feature"
+    ],
+    "story_points": 12,
+    "priority": null,
+    "tasks": [
+      {
+        "subject": "REST API implementation"
+      },
+      {
+        "subject": "JWT authentication"
+      },
+      {
+        "subject": "Database integration"
+      },
+      {
+        "subject": "Health endpoints"
+      },
+      {
+        "subject": "OPC-UA server integration"
+      }
+    ]
+  },
+  {
+    "subject": "AI Service Foundation",
+    "description": "FastAPI framework with database models",
+    "status": "New",
+    "assigned_to": null,
+    "sprint": 1,
+    "tags": [
+      "AI Service",
+      "Feature"
+    ],
+    "story_points": 10,
+    "priority": null,
+    "tasks": [
+      {
+        "subject": "FastAPI application setup"
+      },
+      {
+        "subject": "Database initialization"
+      },
+      {
+        "subject": "SQLAlchemy models"
+      },
+      {
+        "subject": "Service client stubs"
+      }
+    ]
+  },
+  {
+    "subject": "Frontend Foundation",
+    "description": "React TypeScript setup with shadcn/ui",
+    "status": "New",
+    "assigned_to": null,
+    "sprint": 1,
+    "tags": [
+      "Frontend",
+      "Feature"
+    ],
+    "story_points": 8,
+    "priority": null,
+    "tasks": [
+      {
+        "subject": "Vite + TypeScript setup"
+      },
+      {
+        "subject": "shadcn/ui integration"
+      },
+      {
+        "subject": "Routing configuration"
+      },
+      {
+        "subject": "Component structure"
+      },
+      {
+        "subject": "Tailwind CSS"
+      }
+    ]
+  },
+  {
+    "subject": "Production Deployment",
+    "description": "Kubernetes deployment preparation",
+    "status": "New",
+    "assigned_to": null,
+    "sprint": "",
+    "tags": [
+      "DevOps",
+      "P1-High",
+      "Feature"
+    ],
+    "story_points": 5,
+    "priority": null,
+    "tasks": [
+      {
+        "subject": "Kubernetes manifests"
+      },
+      {
+        "subject": "Database migration strategies"
+      },
+      {
+        "subject": "Security hardening"
+      },
+      {
+        "subject": "Load balancer configuration"
+      }
+    ]
+  },
+  {
+    "subject": "Advanced UI Components",
+    "description": "Gauge, KPI, Alert components",
+    "status": "New",
+    "assigned_to": null,
+    "sprint": "",
+    "tags": [
+      "Frontend",
+      "P2-Medium",
+      "Feature"
+    ],
+    "story_points": 5,
+    "priority": null,
+    "tasks": [
+      {
+        "subject": "Gauge components"
+      },
+      {
+        "subject": "KPI indicators"
+      },
+      {
+        "subject": "Alert/notification system"
+      },
+      {
+        "subject": "Advanced table components"
+      }
+    ]
+  },
+  {
+    "subject": "Security Vulnerability Fixes",
+    "description": "Fix Golang base image vulnerabilities (5 high)",
+    "status": "New",
+    "assigned_to": null,
+    "sprint": "",
+    "tags": [
+      "DevOps",
+      "P1-High",
+      "Bug"
+    ],
+    "story_points": 2,
+    "priority": null,
+    "tasks": [
+      {
+        "subject": "Upgrade Golang base image"
+      },
+      {
+        "subject": "Security scan"
+      },
+      {
+        "subject": "Patch vulnerabilities"
+      }
+    ]
+  },
+  {
+    "subject": "Advanced Analytics",
+    "description": "TimeBase advanced time-series functions",
+    "status": "New",
+    "assigned_to": null,
+    "sprint": "",
+    "tags": [
+      "Data",
+      "P2-Medium",
+      "Feature"
+    ],
+    "story_points": 8,
+    "priority": null,
+    "tasks": [
+      {
+        "subject": "Complex time-series analysis"
+      },
+      {
+        "subject": "Predictive modeling integration"
+      },
+      {
+        "subject": "Advanced aggregations"
+      },
+      {
+        "subject": "Windowing functions"
+      }
+    ]
+  },
+  {
+    "subject": "Backup & Recovery System",
+    "description": "Automated backup strategy - Target: <1h RTO, <1 day RPO",
+    "status": "New",
+    "assigned_to": null,
+    "sprint": "",
+    "tags": [
+      "DevOps",
+      "Data",
+      "P1-High",
+      "Feature"
+    ],
+    "story_points": 3,
+    "priority": null,
+    "tasks": [
+      {
+        "subject": "Automated backup for TimeBase & PostgreSQL"
+      },
+      {
+        "subject": "Point-in-time recovery"
+      },
+      {
+        "subject": "Disaster recovery procedures"
+      }
+    ]
+  },
+  {
+    "subject": "AI Model Optimization",
+    "description": "Model caching and GPU optimization - Target: 100+ concurrent requests",
+    "status": "New",
+    "assigned_to": null,
+    "sprint": "",
+    "tags": [
+      "AI Service",
+      "P2-Medium",
+      "Feature"
+    ],
+    "story_points": 5,
+    "priority": null,
+    "tasks": [
+      {
+        "subject": "Model caching"
+      },
+      {
+        "subject": "GPU/memory optimization"
+      },
+      {
+        "subject": "Batch processing capabilities"
+      }
+    ]
+  },
+  {
+    "subject": "Advanced Dashboard Features",
+    "description": "Dashboard templates and collaboration",
+    "status": "New",
+    "assigned_to": null,
+    "sprint": "",
+    "tags": [
+      "Frontend",
+      "P2-Medium",
+      "Feature"
+    ],
+    "story_points": 3,
+    "priority": null,
+    "tasks": [
+      {
+        "subject": "Dashboard templates library"
+      },
+      {
+        "subject": "Dashboard sharing"
+      },
+      {
+        "subject": "Collaboration features"
+      },
+      {
+        "subject": "Access control"
+      }
+    ]
+  },
+  {
+    "subject": "Documentation Completion",
+    "description": "User manuals and deployment guides",
+    "status": "New",
+    "assigned_to": null,
+    "sprint": "",
+    "tags": [
+      "All Teams",
+      "P2-Medium"
+    ],
+    "story_points": 3,
+    "priority": null,
+    "tasks": [
+      {
+        "subject": "User manuals"
+      },
+      {
+        "subject": "Deployment guides"
+      },
+      {
+        "subject": "API documentation completion"
+      },
+      {
+        "subject": "Testing documentation"
+      }
+    ]
+  }
+]

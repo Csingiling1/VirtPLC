@@ -200,33 +200,58 @@ public class SimulatorService {
 
     /**
      * Filter tenants by manufacturer ID
-     * Filters the tenant hierarchy to only include the specified manufacturer and its factories/PLCs/sensors
+     * Filters the tenant hierarchy to only include the specified manufacturer and
+     * its factories/PLCs/sensors
      */
     @SuppressWarnings("unchecked")
     public List<Map<String, Object>> filterTenantsByManufacturer(
-            List<Map<String, Object>> tenants, 
+            List<Map<String, Object>> tenants,
             String manufacturerId) {
-        
+
         return tenants.stream()
-            .map(tenant -> {
-                Map<String, Object> filteredTenant = new java.util.HashMap<>(tenant);
-                List<Map<String, Object>> manufacturers = 
-                    (List<Map<String, Object>>) tenant.get("manufacturers");
-                
-                if (manufacturers != null) {
-                    List<Map<String, Object>> filteredManufacturers = manufacturers.stream()
-                        .filter(m -> manufacturerId.equals(m.get("id")))
-                        .collect(java.util.stream.Collectors.toList());
-                    
-                    filteredTenant.put("manufacturers", filteredManufacturers);
+                .map(tenant -> {
+                    Map<String, Object> filteredTenant = new java.util.HashMap<>(tenant);
+                    List<Map<String, Object>> manufacturers = (List<Map<String, Object>>) tenant.get("manufacturers");
+
+                    if (manufacturers != null) {
+                        List<Map<String, Object>> filteredManufacturers = manufacturers.stream()
+                                .filter(m -> manufacturerId.equals(m.get("id")))
+                                .collect(java.util.stream.Collectors.toList());
+
+                        filteredTenant.put("manufacturers", filteredManufacturers);
+                    }
+
+                    return filteredTenant;
+                })
+                .filter(tenant -> {
+                    List<?> manufacturers = (List<?>) tenant.get("manufacturers");
+                    return manufacturers != null && !manufacturers.isEmpty();
+                })
+                .collect(java.util.stream.Collectors.toList());
+    }
+
+    /**
+     * Get all signals from all devices
+     */
+    public List<Map<String, Object>> getAllSignals() {
+        List<SimulatorDevice> devices = getAllDevices();
+        List<Map<String, Object>> allSignals = new ArrayList<>();
+
+        for (SimulatorDevice device : devices) {
+            if (device.getSignals() != null) {
+                for (SignalConfig signal : device.getSignals()) {
+                    Map<String, Object> signalMap = new HashMap<>();
+                    signalMap.put("id", device.getId() + "-" + signal.getName());
+                    signalMap.put("name", signal.getName());
+                    signalMap.put("deviceId", device.getId());
+                    signalMap.put("type", signal.getGenerator()); // or some type
+                    signalMap.put("unit", signal.getUnit());
+                    signalMap.put("value", signal.getValue());
+                    allSignals.add(signalMap);
                 }
-                
-                return filteredTenant;
-            })
-            .filter(tenant -> {
-                List<?> manufacturers = (List<?>) tenant.get("manufacturers");
-                return manufacturers != null && !manufacturers.isEmpty();
-            })
-            .collect(java.util.stream.Collectors.toList());
+            }
+        }
+
+        return allSignals;
     }
 }

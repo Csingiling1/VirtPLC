@@ -15,7 +15,7 @@ import java.util.Map;
  * Exposes TimescaleDB queries for AI services
  */
 @RestController
-@RequestMapping("/mcp")
+@RequestMapping("/api/mcp")
 @RequiredArgsConstructor
 @Slf4j
 @ConditionalOnProperty(name = "mcp.enabled", havingValue = "true")

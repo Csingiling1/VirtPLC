@@ -8,6 +8,7 @@ import {
   Settings,
   Bot,
   Factory,
+  BarChart3,
   LogOut,
   User,
 } from 'lucide-react';
@@ -44,6 +45,7 @@ const Layout = ({ children }: LayoutProps) => {
 
   const navItems = [
     { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+    { path: '/dashboard-builder', icon: BarChart3, label: 'Dashboard Builder' },
     { path: '/factory-view', icon: Factory, label: 'Factory View' },
     { path: '/monitoring', icon: Activity, label: 'Monitoring' },
     { path: '/history', icon: History, label: 'History' },
