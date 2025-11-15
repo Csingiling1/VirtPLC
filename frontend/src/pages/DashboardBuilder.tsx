@@ -389,32 +389,82 @@ const DashboardBuilder = () => {
     // Rearrange items when autoTile changes
     useEffect(() => {
         if (autoTile && canvasItems.length > 0) {
-            // Auto-tile mode: arrange items in a compact grid that fills the space
+            // Auto-tile mode: arrange items in a compact grid that fills the space without overlaps
             setCanvasItems(prev => {
                 const items = [...prev];
                 const canvasWidth = 800; // Approximate canvas width
                 const canvasHeight = 600; // Approximate canvas height
+                const padding = 10;
 
-                // Calculate optimal grid layout
-                const itemWidth = 200; // Default item width
-                const itemHeight = 150; // Default item height
-                const cols = Math.max(1, Math.floor(canvasWidth / itemWidth));
-                const rows = Math.ceil(items.length / cols);
+                // Sort items by size (larger items first for better packing)
+                const sortedItems = items.sort((a, b) => (b.width * b.height) - (a.width * a.height));
 
-                return items.map((item, index) => {
-                    const col = index % cols;
-                    const row = Math.floor(index / cols);
+                // Initialize placed items array
+                const placedItems: CanvasItem[] = [];
+                const occupiedRects: { x: number; y: number; width: number; height: number }[] = [];
 
-                    return {
+                const checkOverlap = (x: number, y: number, width: number, height: number): boolean => {
+                    return occupiedRects.some(rect =>
+                        !(x + width + padding <= rect.x ||
+                            rect.x + rect.width + padding <= x ||
+                            y + height + padding <= rect.y ||
+                            rect.y + rect.height + padding <= y)
+                    );
+                };
+
+                const findBestPosition = (itemWidth: number, itemHeight: number) => {
+                    // Try positions in a grid pattern
+                    const stepX = 50;
+                    const stepY = 50;
+                    const maxX = canvasWidth - itemWidth;
+                    const maxY = canvasHeight - itemHeight;
+
+                    for (let y = 0; y <= maxY; y += stepY) {
+                        for (let x = 0; x <= maxX; x += stepX) {
+                            if (!checkOverlap(x, y, itemWidth, itemHeight)) {
+                                return { x, y };
+                            }
+                        }
+                    }
+
+                    // If no position found in grid, try more granular search
+                    for (let y = 0; y <= maxY; y += 10) {
+                        for (let x = 0; x <= maxX; x += 10) {
+                            if (!checkOverlap(x, y, itemWidth, itemHeight)) {
+                                return { x, y };
+                            }
+                        }
+                    }
+
+                    // Fallback: place at end
+                    return { x: Math.max(0, canvasWidth - itemWidth), y: Math.max(0, canvasHeight - itemHeight) };
+                };
+
+                sortedItems.forEach(item => {
+                    const itemWidth = item.width || 200;
+                    const itemHeight = item.height || 150;
+                    const position = findBestPosition(itemWidth, itemHeight);
+
+                    const placedItem = {
                         ...item,
-                        x: col * itemWidth + 10, // Add some padding
-                        y: row * itemHeight + 10,
-                        gridX: col,
-                        gridY: row,
+                        x: position.x,
+                        y: position.y,
+                        gridX: Math.floor(position.x / gridSize),
+                        gridY: Math.floor(position.y / gridSize),
                         width: itemWidth,
                         height: itemHeight,
                     };
+
+                    placedItems.push(placedItem);
+                    occupiedRects.push({
+                        x: position.x,
+                        y: position.y,
+                        width: itemWidth,
+                        height: itemHeight
+                    });
                 });
+
+                return placedItems;
             });
         } else if (!autoTile) {
             // Floating mode: allow free positioning, items stay where they are
@@ -431,7 +481,7 @@ const DashboardBuilder = () => {
     }, [autoTile]);
 
     const addItemToCanvas = useCallback((type: CanvasItem['type'], data: any) => {
-        // Calculate next available position in grid
+        // Calculate next available position in grid without overlaps
         const calculateNextPosition = () => {
             if (!autoTile) {
                 return {
@@ -442,35 +492,59 @@ const DashboardBuilder = () => {
                 };
             }
 
-            // Find next available grid position
-            const occupiedPositions = new Set(
-                canvasItems.map(item => `${item.gridX},${item.gridY}`)
-            );
+            // Find next available position without overlaps
+            const itemWidth = 200;
+            const itemHeight = 150;
+            const padding = 10;
 
-            let gridX = 0;
-            let gridY = 0;
-            let attempts = 0;
-            const maxAttempts = 100;
+            const checkOverlap = (x: number, y: number) => {
+                return canvasItems.some(item =>
+                    !(x + itemWidth + padding <= item.x ||
+                        item.x + (item.width || 200) + padding <= x ||
+                        y + itemHeight + padding <= item.y ||
+                        item.y + (item.height || 150) + padding <= y)
+                );
+            };
 
-            while (attempts < maxAttempts) {
-                const positionKey = `${gridX},${gridY}`;
-                if (!occupiedPositions.has(positionKey)) {
-                    break;
+            // Try positions in a grid pattern
+            const stepX = 50;
+            const stepY = 50;
+            const maxX = 800 - itemWidth;
+            const maxY = 600 - itemHeight;
+
+            for (let y = 0; y <= maxY; y += stepY) {
+                for (let x = 0; x <= maxX; x += stepX) {
+                    if (!checkOverlap(x, y)) {
+                        return {
+                            x,
+                            y,
+                            gridX: Math.floor(x / gridSize),
+                            gridY: Math.floor(y / gridSize),
+                        };
+                    }
                 }
-
-                gridX++;
-                if (gridX >= 20) { // Max columns
-                    gridX = 0;
-                    gridY++;
-                }
-                attempts++;
             }
 
+            // If no position found in grid, try more granular search
+            for (let y = 0; y <= maxY; y += 10) {
+                for (let x = 0; x <= maxX; x += 10) {
+                    if (!checkOverlap(x, y)) {
+                        return {
+                            x,
+                            y,
+                            gridX: Math.floor(x / gridSize),
+                            gridY: Math.floor(y / gridSize),
+                        };
+                    }
+                }
+            }
+
+            // Fallback: place at end
             return {
-                x: gridX * gridSize,
-                y: gridY * gridSize,
-                gridX,
-                gridY,
+                x: Math.max(0, 800 - itemWidth),
+                y: Math.max(0, 600 - itemHeight),
+                gridX: Math.floor((800 - itemWidth) / gridSize),
+                gridY: Math.floor((600 - itemHeight) / gridSize),
             };
         };
 
@@ -871,13 +945,28 @@ const DashboardBuilder = () => {
                                         <div className="text-sm text-muted-foreground mt-1">{gridSize}px</div>
                                     </div>
 
-                                    <div className="flex items-center space-x-2">
-                                        <Switch
-                                            id="auto-tile"
-                                            checked={autoTile}
-                                            onCheckedChange={setAutoTile}
-                                        />
-                                        <Label htmlFor="auto-tile">Auto Tile</Label>
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center space-x-2">
+                                            <Switch
+                                                id="auto-tile"
+                                                checked={autoTile}
+                                                onCheckedChange={setAutoTile}
+                                            />
+                                            <Label htmlFor="auto-tile">Auto Tile</Label>
+                                        </div>
+                                        {autoTile && (
+                                            <Button
+                                                onClick={() => {
+                                                    // Trigger re-tiling by temporarily disabling and re-enabling autoTile
+                                                    setAutoTile(false);
+                                                    setTimeout(() => setAutoTile(true), 10);
+                                                }}
+                                                size="sm"
+                                                variant="outline"
+                                            >
+                                                Re-tile
+                                            </Button>
+                                        )}
                                     </div>
 
                                     <Separator />

@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Bot, User, Send, BarChart3, TrendingUp, Plus, Trash2, MessageSquare } from 'lucide-react';
+import { Bot, User, Send, BarChart3, TrendingUp, Plus, Trash2, MessageSquare, Edit3, X, Clock } from 'lucide-react';
 import { AIChatResponse, ChartSuggestion } from '../types';
 import AIChart from '../components/AIChart';
 
@@ -15,6 +15,7 @@ interface Message {
     content: string;
     timestamp: Date;
     chartSuggestions?: ChartSuggestion[];
+    isStreaming?: boolean;
 }
 
 interface Conversation {
@@ -32,17 +33,18 @@ function AIAssistant() {
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [embeddedCharts, setEmbeddedCharts] = useState<{ id: string; suggestion: ChartSuggestion }[]>([]);
+    const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+    const [editingContent, setEditingContent] = useState('');
+    const [isTemporaryMode, setIsTemporaryMode] = useState(false);
     const scrollAreaRef = useRef<HTMLDivElement>(null);
 
-    // Auto-scroll to bottom when messages change
+    // Clear localStorage when entering temporary mode
     useEffect(() => {
-        if (scrollAreaRef.current) {
-            const scrollContainer = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
-            if (scrollContainer) {
-                scrollContainer.scrollTop = scrollContainer.scrollHeight;
-            }
+        if (isTemporaryMode) {
+            localStorage.removeItem(STORAGE_KEY);
+            localStorage.removeItem(CURRENT_KEY);
         }
-    }, [messages]);
+    }, [isTemporaryMode]);
 
     // Persistence keys
     const STORAGE_KEY = 'aiAssistant.conversations';
@@ -92,6 +94,8 @@ function AIAssistant() {
 
     // Save current conversation list and current id whenever they change
     const persistConversations = useCallback((nextConversations: Conversation[], nextCurrentId: string | null) => {
+        if (isTemporaryMode) return; // Don't persist in temporary mode
+
         try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(nextConversations));
             if (nextCurrentId) localStorage.setItem(CURRENT_KEY, nextCurrentId);
@@ -99,7 +103,7 @@ function AIAssistant() {
         } catch (e) {
             console.error('Failed to persist conversations', e);
         }
-    }, []);
+    }, [isTemporaryMode]);
 
     // keep the conversations in sync when messages or embeddedCharts change
     useEffect(() => {
@@ -117,47 +121,108 @@ function AIAssistant() {
         persistConversations(updated, currentConversationId);
     }, [messages, embeddedCharts, currentConversationId, conversations, persistConversations]);
 
-    const sendMessage = async () => {
-        if (!input.trim()) return;
-
-        const userMessage: Message = {
-            id: Date.now().toString(),
-            role: 'user',
-            content: input,
-            timestamp: new Date(),
-        };
-
-        setMessages(prev => [...prev, userMessage]);
-        setInput('');
+    const sendQuery = async (content: string, contextMessages: Message[]) => {
         setIsLoading(true);
 
-        // Update conversation title if this is the first message
-        if (messages.length === 0 && currentConversationId) {
-            const title = input.length > 50 ? input.substring(0, 50) + '...' : input;
-            setConversations(prev => prev.map(c =>
-                c.id === currentConversationId ? { ...c, title } : c
-            ));
-        }
-
         try {
-            // Call AI service
-            const response: AIChatResponse = await aiApiFunctions.chat(input, 'VirtPLC system assistance');
-
-            const assistantMessage: Message = {
-                id: (Date.now() + 1).toString(),
+            // Create streaming assistant message
+            const assistantMessageId = (Date.now() + 1).toString();
+            const streamingMessage: Message = {
+                id: assistantMessageId,
                 role: 'assistant',
-                content: response.response,
+                content: '',
                 timestamp: new Date(),
-                chartSuggestions: response.chart_suggestions
+                isStreaming: true
             };
 
-            setMessages(prev => [...prev, assistantMessage]);
-        } catch (error: unknown) {
-            console.error('AI chat error:', error);
-            let errorContent = 'Sorry, I encountered an error. Please try again later.';
+            setMessages(prev => [...prev, streamingMessage]);
 
-            const err = error as { isNetworkError?: boolean; code?: string; status?: number };
-            if (err.isNetworkError || err.code === 'ERR_BAD_REQUEST' || err.status === 404) {
+            // Call AI service with streaming
+            const response = await fetch('http://localhost:3001/api/chat/message', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    message: content,
+                    context: { messages: contextMessages.map(m => ({ role: m.role, content: m.content })) },
+                    stream: true
+                }),
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to get streaming response');
+            }
+
+            const reader = response.body?.getReader();
+            const decoder = new TextDecoder();
+            let fullContent = '';
+
+            if (reader) {
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    const chunk = decoder.decode(value);
+                    const lines = chunk.split('\n');
+
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            try {
+                                const data = JSON.parse(line.slice(6));
+
+                                if (data.chunk) {
+                                    fullContent += data.chunk;
+                                    setMessages(prev => prev.map(msg =>
+                                        msg.id === assistantMessageId
+                                            ? { ...msg, content: fullContent }
+                                            : msg
+                                    ));
+                                }
+
+                                if (data.done) {
+                                    // Update message with chart suggestions and mark as complete
+                                    setMessages(prev => prev.map(msg =>
+                                        msg.id === assistantMessageId
+                                            ? {
+                                                ...msg,
+                                                content: fullContent,
+                                                chartSuggestions: data.chart_suggestions,
+                                                isStreaming: false
+                                            }
+                                            : msg
+                                    ));
+                                    setIsLoading(false);
+                                    return;
+                                }
+
+                                if (data.error) {
+                                    throw new Error(data.error);
+                                }
+                            } catch (e) {
+                                console.error('Failed to parse streaming data:', e);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Fallback: mark as complete if streaming ends without done signal
+            setMessages(prev => prev.map(msg =>
+                msg.id === assistantMessageId
+                    ? { ...msg, isStreaming: false }
+                    : msg
+            ));
+
+        } catch (error: unknown) {
+            console.error('AI streaming error:', error);
+
+            // Remove the streaming message and add error message
+            setMessages(prev => prev.filter(msg => !msg.isStreaming));
+
+            let errorContent = 'Sorry, I encountered an error. Please try again later.';
+            const err = error as { message?: string };
+            if (err.message?.includes('Failed to fetch') || err.message?.includes('Network')) {
                 errorContent = 'AI service is currently unavailable. Please ensure the AI service is running and try again.';
             }
 
@@ -171,6 +236,33 @@ function AIAssistant() {
         } finally {
             setIsLoading(false);
         }
+    };
+
+    const sendMessage = async () => {
+        if (!input.trim()) return;
+
+        const userMessage: Message = {
+            id: Date.now().toString(),
+            role: 'user',
+            content: input,
+            timestamp: new Date(),
+        };
+
+        const previousMessages = messages;  // Capture before adding user message
+
+        setMessages(prev => [...prev, userMessage]);
+        setInput('');
+        setIsLoading(true);
+
+        // Update conversation title if this is the first message
+        if (messages.length === 0 && currentConversationId) {
+            const title = input.length > 50 ? input.substring(0, 50) + '...' : input;
+            setConversations(prev => prev.map(c =>
+                c.id === currentConversationId ? { ...c, title } : c
+            ));
+        }
+
+        await sendQuery(input, previousMessages);
     };    // Conversation management helpers
     const createNewConversation = () => {
         const id = `conv-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
@@ -215,6 +307,65 @@ function AIAssistant() {
         }
     };
 
+    const startEditingMessage = (messageId: string, content: string) => {
+        setEditingMessageId(messageId);
+        setEditingContent(content);
+    };
+
+    const cancelEditingMessage = () => {
+        setEditingMessageId(null);
+        setEditingContent('');
+    };
+
+    const saveEditedMessage = () => {
+        if (!editingMessageId || !editingContent.trim()) return;
+
+        const content = editingContent.trim();
+        const index = messages.findIndex(m => m.id === editingMessageId);
+        const updatedMessages = messages.map(msg =>
+            msg.id === editingMessageId
+                ? { ...msg, content }
+                : msg
+        );
+        const trimmed = updatedMessages.slice(0, index + 1);
+        setMessages(trimmed);
+        sendQuery(content, trimmed.slice(0, -1));
+
+        setEditingMessageId(null);
+        setEditingContent('');
+    };
+
+    const deleteMessage = (messageId: string) => {
+        // Find the message to delete
+        const messageToDelete = messages.find(msg => msg.id === messageId);
+        if (!messageToDelete) return;
+
+        // If it's a user message, also delete the following assistant message if it exists
+        const messageIndex = messages.findIndex(msg => msg.id === messageId);
+        let messagesToDelete = [messageId];
+
+        if (messageToDelete.role === 'user' && messageIndex < messages.length - 1) {
+            const nextMessage = messages[messageIndex + 1];
+            if (nextMessage.role === 'assistant') {
+                messagesToDelete.push(nextMessage.id);
+            }
+        }
+
+        setMessages(prev => prev.filter(msg => !messagesToDelete.includes(msg.id)));
+    };
+
+    const toggleTemporaryMode = () => {
+        setIsTemporaryMode(!isTemporaryMode);
+        if (!isTemporaryMode) {
+            // Switching to temporary mode - don't persist current conversation
+            localStorage.removeItem(STORAGE_KEY);
+            localStorage.removeItem(CURRENT_KEY);
+        } else {
+            // Switching back to persistent mode - save current state
+            persistConversations(conversations, currentConversationId);
+        }
+    };
+
     const handleChartGeneration = (suggestion: ChartSuggestion) => {
         const chartId = `chart-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
         setEmbeddedCharts(prev => [...prev, { id: chartId, suggestion }]);
@@ -237,7 +388,7 @@ function AIAssistant() {
                 {/* Sidebar */}
                 <div className="w-80 bg-white border-r border-gray-200 flex flex-col">
                     {/* Header */}
-                    <div className="p-4 border-b border-gray-200">
+                    <div className="p-4 border-b border-gray-200 space-y-3">
                         <Button
                             onClick={createNewConversation}
                             className="w-full justify-start gap-2"
@@ -246,6 +397,21 @@ function AIAssistant() {
                             <Plus className="h-4 w-4" />
                             New Chat
                         </Button>
+
+                        <Button
+                            onClick={toggleTemporaryMode}
+                            className={`w-full justify-start gap-2 ${isTemporaryMode ? 'bg-orange-100 border-orange-300 text-orange-700' : ''}`}
+                            variant="outline"
+                        >
+                            <Clock className="h-4 w-4" />
+                            {isTemporaryMode ? 'Temporary Mode' : 'Persistent Mode'}
+                        </Button>
+
+                        {isTemporaryMode && (
+                            <p className="text-xs text-orange-600 px-2">
+                                Chats won't be saved when you leave
+                            </p>
+                        )}
                     </div>
 
                     {/* Conversations List */}
@@ -263,8 +429,8 @@ function AIAssistant() {
                                         <div
                                             key={conversation.id}
                                             className={`group relative p-3 rounded-lg cursor-pointer transition-colors ${currentConversationId === conversation.id
-                                                    ? 'bg-gray-100'
-                                                    : 'hover:bg-gray-50'
+                                                ? 'bg-gray-100'
+                                                : 'hover:bg-gray-50'
                                                 }`}
                                             onClick={() => switchConversation(conversation.id)}
                                         >
@@ -339,14 +505,75 @@ function AIAssistant() {
                                                 )}
                                                 <div
                                                     className={`max-w-2xl rounded-lg px-4 py-3 ${message.role === 'user'
-                                                            ? 'bg-blue-600 text-white'
-                                                            : 'bg-white border border-gray-200 text-gray-900'
+                                                        ? 'bg-blue-600 text-white'
+                                                        : 'bg-white border border-gray-200 text-gray-900'
                                                         }`}
                                                 >
-                                                    <div className="whitespace-pre-wrap">{message.content}</div>
-                                                    <div className={`text-xs mt-2 ${message.role === 'user' ? 'text-blue-100' : 'text-gray-500'
-                                                        }`}>
-                                                        {message.timestamp.toLocaleTimeString()}
+                                                    {editingMessageId === message.id ? (
+                                                        <div className="space-y-2">
+                                                            <Textarea
+                                                                value={editingContent}
+                                                                onChange={(e) => setEditingContent(e.target.value)}
+                                                                className="min-h-[80px] bg-white text-gray-900 border-gray-300"
+                                                                placeholder="Edit your message..."
+                                                            />
+                                                            <div className="flex gap-2">
+                                                                <Button
+                                                                    onClick={saveEditedMessage}
+                                                                    size="sm"
+                                                                    className="bg-green-600 hover:bg-green-700"
+                                                                >
+                                                                    Save
+                                                                </Button>
+                                                                <Button
+                                                                    onClick={cancelEditingMessage}
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    className="border-gray-300 text-gray-700 hover:bg-gray-50"
+                                                                >
+                                                                    Cancel
+                                                                </Button>
+                                                            </div>
+                                                        </div>
+                                                    ) : message.isStreaming ? (
+                                                        <div className="space-y-2">
+                                                            <div className="whitespace-pre-wrap">{message.content}</div>
+                                                            <div className="flex items-center space-x-1">
+                                                                <div className="flex space-x-1">
+                                                                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                                                                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                                                                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                                                                </div>
+                                                                <span className="text-xs text-gray-500 ml-2">AI is thinking...</span>
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="whitespace-pre-wrap">{message.content}</div>
+                                                    )}
+                                                    <div className={`flex items-center justify-between mt-2 ${message.role === 'user' ? 'text-blue-100' : 'text-gray-500'}`}>
+                                                        <span className="text-xs">
+                                                            {message.timestamp.toLocaleTimeString()}
+                                                        </span>
+                                                        {message.role === 'user' && !message.isStreaming && editingMessageId !== message.id && (
+                                                            <div className="flex gap-1">
+                                                                <Button
+                                                                    onClick={() => startEditingMessage(message.id, message.content)}
+                                                                    size="sm"
+                                                                    variant="ghost"
+                                                                    className="h-6 w-6 p-0 hover:bg-blue-700 text-blue-100"
+                                                                >
+                                                                    <Edit3 className="h-3 w-3" />
+                                                                </Button>
+                                                                <Button
+                                                                    onClick={() => deleteMessage(message.id)}
+                                                                    size="sm"
+                                                                    variant="ghost"
+                                                                    className="h-6 w-6 p-0 hover:bg-red-700 text-blue-100"
+                                                                >
+                                                                    <X className="h-3 w-3" />
+                                                                </Button>
+                                                            </div>
+                                                        )}
                                                     </div>
                                                     {message.chartSuggestions && message.chartSuggestions.length > 0 && (
                                                         <div className="mt-4 space-y-2">

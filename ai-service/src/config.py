@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     
     # Ollama
     ollama_host: str = Field(default="http://ollama:11434", env="OLLAMA_HOST")
-    ollama_model: str = Field(default="qwen2.5-coder:7b", env="OLLAMA_MODEL")
+    ollama_model: str = Field(default="qwen2:0.5b", env="OLLAMA_MODEL")
     ollama_temperature: float = Field(default=0.7, env="OLLAMA_TEMPERATURE")
     ollama_max_tokens: int = Field(default=2048, env="OLLAMA_MAX_TOKENS")
     
