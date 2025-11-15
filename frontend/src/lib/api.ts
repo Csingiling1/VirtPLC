@@ -50,9 +50,9 @@ export const dataApi = {
     const response = await api.get('/api/data/latest');
     return response.data;
   },
-  getRange: async (startTime: number, endTime: number) => {
+  getRange: async (startTime: number, endTime: number, page: number = 0, size: number = 1000) => {
     const response = await api.get('/api/data/range', {
-      params: { startTime, endTime },
+      params: { startTime, endTime, page, size },
     });
     return response.data;
   },

@@ -386,9 +386,17 @@ const DashboardBuilder = () => {
         fetchData();
     }, []);
 
-    // Rearrange items when autoTile changes
+    // Rearrange items when autoTile changes or items are added/removed
+    const prevItemsLengthRef = React.useRef(canvasItems.length);
+    const prevAutoTileRef = React.useRef(autoTile);
     useEffect(() => {
-        if (autoTile && canvasItems.length > 0) {
+        const currentLength = canvasItems.length;
+        const lengthChanged = currentLength !== prevItemsLengthRef.current;
+        const autoTileChanged = autoTile !== prevAutoTileRef.current;
+        prevItemsLengthRef.current = currentLength;
+        prevAutoTileRef.current = autoTile;
+
+        if (autoTile && canvasItems.length > 0 && (lengthChanged || autoTileChanged)) {
             // Auto-tile mode: arrange items in a compact grid that fills the space without overlaps
             setCanvasItems(prev => {
                 const items = [...prev];
@@ -413,21 +421,52 @@ const DashboardBuilder = () => {
                 };
 
                 const findBestPosition = (itemWidth: number, itemHeight: number) => {
-                    // Try positions in a grid pattern
-                    const stepX = 50;
-                    const stepY = 50;
                     const maxX = canvasWidth - itemWidth;
                     const maxY = canvasHeight - itemHeight;
 
-                    for (let y = 0; y <= maxY; y += stepY) {
-                        for (let x = 0; x <= maxX; x += stepX) {
+                    // Smart 2D packing: try to fill both horizontally and vertically efficiently
+                    let bestPosition = { x: 0, y: 0 };
+                    let bestScore = -1;
+
+                    // Check positions in a way that balances horizontal and vertical filling
+                    const stepSize = 25;
+
+                    for (let y = 0; y <= maxY; y += stepSize) {
+                        for (let x = 0; x <= maxX; x += stepSize) {
                             if (!checkOverlap(x, y, itemWidth, itemHeight)) {
-                                return { x, y };
+                                // Calculate a score based on multiple factors:
+                                // 1. How much space this leaves for future items (higher is better)
+                                // 2. How "compact" the layout becomes (prefer positions that fill gaps)
+                                const spaceBelow = Math.max(0, maxY - (y + itemHeight));
+                                const spaceRight = Math.max(0, maxX - (x + itemWidth));
+
+                                // Bonus for positions that allow stacking below
+                                const canStackBelow = y + itemHeight + stepSize <= maxY;
+                                const canStackRight = x + itemWidth + stepSize <= maxX;
+
+                                let score = spaceBelow + spaceRight;
+
+                                // Prefer positions that allow stacking in both directions equally
+                                if (canStackBelow) score += 50;
+                                if (canStackRight) score += 50;
+
+                                // Prefer positions closer to top-left for more natural layout
+                                score -= (x + y) * 0.1;
+
+                                if (score > bestScore) {
+                                    bestScore = score;
+                                    bestPosition = { x, y };
+                                }
                             }
                         }
                     }
 
-                    // If no position found in grid, try more granular search
+                    // If we found a good position, return it
+                    if (bestScore >= 0) {
+                        return bestPosition;
+                    }
+
+                    // Fallback: fine-grained search
                     for (let y = 0; y <= maxY; y += 10) {
                         for (let x = 0; x <= maxX; x += 10) {
                             if (!checkOverlap(x, y, itemWidth, itemHeight)) {
@@ -436,7 +475,7 @@ const DashboardBuilder = () => {
                         }
                     }
 
-                    // Fallback: place at end
+                    // Ultimate fallback
                     return { x: Math.max(0, canvasWidth - itemWidth), y: Math.max(0, canvasHeight - itemHeight) };
                 };
 
@@ -492,10 +531,12 @@ const DashboardBuilder = () => {
                 };
             }
 
-            // Find next available position without overlaps
+            // Find next available position using smart 2D packing
             const itemWidth = 200;
             const itemHeight = 150;
             const padding = 10;
+            const maxX = 800 - itemWidth;
+            const maxY = 600 - itemHeight;
 
             const checkOverlap = (x: number, y: number) => {
                 return canvasItems.some(item =>
@@ -506,26 +547,54 @@ const DashboardBuilder = () => {
                 );
             };
 
-            // Try positions in a grid pattern
-            const stepX = 50;
-            const stepY = 50;
-            const maxX = 800 - itemWidth;
-            const maxY = 600 - itemHeight;
+            // Smart 2D packing: try to fill both horizontally and vertically efficiently
+            let bestPosition = { x: 0, y: 0 };
+            let bestScore = -1;
 
-            for (let y = 0; y <= maxY; y += stepY) {
-                for (let x = 0; x <= maxX; x += stepX) {
+            // Check positions in a way that balances horizontal and vertical filling
+            const stepSize = 25;
+
+            for (let y = 0; y <= maxY; y += stepSize) {
+                for (let x = 0; x <= maxX; x += stepSize) {
                     if (!checkOverlap(x, y)) {
-                        return {
-                            x,
-                            y,
-                            gridX: Math.floor(x / gridSize),
-                            gridY: Math.floor(y / gridSize),
-                        };
+                        // Calculate a score based on multiple factors:
+                        // 1. How much space this leaves for future items (higher is better)
+                        // 2. How "compact" the layout becomes (prefer positions that fill gaps)
+                        const spaceBelow = Math.max(0, maxY - (y + itemHeight));
+                        const spaceRight = Math.max(0, maxX - (x + itemWidth));
+
+                        // Bonus for positions that allow stacking below
+                        const canStackBelow = y + itemHeight + stepSize <= maxY;
+                        const canStackRight = x + itemWidth + stepSize <= maxX;
+
+                        let score = spaceBelow + spaceRight;
+
+                        // Heavily prefer positions that allow vertical stacking
+                        if (canStackBelow) score += 100;
+                        if (canStackRight) score += 50;
+
+                        // Prefer positions closer to top-left for more natural layout
+                        score -= (x + y) * 0.1;
+
+                        if (score > bestScore) {
+                            bestScore = score;
+                            bestPosition = { x, y };
+                        }
                     }
                 }
             }
 
-            // If no position found in grid, try more granular search
+            // If we found a good position, return it
+            if (bestScore >= 0) {
+                return {
+                    x: bestPosition.x,
+                    y: bestPosition.y,
+                    gridX: Math.floor(bestPosition.x / gridSize),
+                    gridY: Math.floor(bestPosition.y / gridSize),
+                };
+            }
+
+            // Fallback: fine-grained search
             for (let y = 0; y <= maxY; y += 10) {
                 for (let x = 0; x <= maxX; x += 10) {
                     if (!checkOverlap(x, y)) {
@@ -539,16 +608,14 @@ const DashboardBuilder = () => {
                 }
             }
 
-            // Fallback: place at end
+            // Ultimate fallback
             return {
                 x: Math.max(0, 800 - itemWidth),
                 y: Math.max(0, 600 - itemHeight),
                 gridX: Math.floor((800 - itemWidth) / gridSize),
                 gridY: Math.floor((600 - itemHeight) / gridSize),
             };
-        };
-
-        const position = calculateNextPosition();
+        }; const position = calculateNextPosition();
 
         const newItem: CanvasItem = {
             id: `${type}-${Date.now()}`,
@@ -682,7 +749,7 @@ const DashboardBuilder = () => {
     };
 
     const handleDragEnd = (event: DragEndEvent) => {
-        const { active, over } = event;
+        const { active, over, delta } = event;
         setActiveId(null);
 
         if (!over) return;
@@ -726,6 +793,23 @@ const DashboardBuilder = () => {
             return;
         }
 
+        // Handle repositioning items on canvas (only when autoTile is disabled)
+        if (!autoTile && overId === 'canvas-drop-zone' && delta) {
+            setCanvasItems(prev => prev.map(item => {
+                if (item.id === activeId) {
+                    return {
+                        ...item,
+                        x: Math.max(0, item.x + delta.x),
+                        y: Math.max(0, item.y + delta.y),
+                        gridX: Math.floor((item.x + delta.x) / gridSize),
+                        gridY: Math.floor((item.y + delta.y) / gridSize),
+                    };
+                }
+                return item;
+            }));
+            return;
+        }
+
         // Handle dropping items into charts
         if (overId.startsWith('chart-')) {
             const chartItem = canvasItems.find(item => item.id === overId);
@@ -757,17 +841,17 @@ const DashboardBuilder = () => {
             return;
         }
 
-        // Handle reordering within canvas
-        if (activeId === overId) return;
+        // Handle reordering within canvas (when autoTile is enabled)
+        if (autoTile && activeId !== overId) {
+            setCanvasItems((items) => {
+                const oldIndex = items.findIndex((item) => item.id === activeId);
+                const newIndex = items.findIndex((item) => item.id === overId);
 
-        setCanvasItems((items) => {
-            const oldIndex = items.findIndex((item) => item.id === activeId);
-            const newIndex = items.findIndex((item) => item.id === overId);
+                if (oldIndex === -1 || newIndex === -1) return items;
 
-            if (oldIndex === -1 || newIndex === -1) return items;
-
-            return arrayMove(items, oldIndex, newIndex);
-        });
+                return arrayMove(items, oldIndex, newIndex);
+            });
+        }
     };
 
     return (
@@ -1055,8 +1139,29 @@ const DashboardBuilder = () => {
                         onDragEnd={handleDragEnd}
                     >
                         <DroppableCanvas>
-                            <SortableContext items={canvasItems.map(item => item.id)} strategy={rectSortingStrategy}>
-                                {canvasItems.map((item) => (
+                            {autoTile ? (
+                                <SortableContext items={canvasItems.map(item => item.id)} strategy={rectSortingStrategy}>
+                                    {canvasItems.map((item) => (
+                                        <div
+                                            key={item.id}
+                                            style={{
+                                                position: 'absolute',
+                                                left: item.x,
+                                                top: item.y,
+                                                width: item.width,
+                                                height: item.height,
+                                            }}
+                                        >
+                                            <CanvasItem
+                                                item={item}
+                                                onRemove={removeItemFromCanvas}
+                                                onSendSignal={sendSignalToPLC}
+                                            />
+                                        </div>
+                                    ))}
+                                </SortableContext>
+                            ) : (
+                                canvasItems.map((item) => (
                                     <div
                                         key={item.id}
                                         style={{
@@ -1073,8 +1178,8 @@ const DashboardBuilder = () => {
                                             onSendSignal={sendSignalToPLC}
                                         />
                                     </div>
-                                ))}
-                            </SortableContext>
+                                ))
+                            )}
                         </DroppableCanvas>
 
                         <DragOverlay>

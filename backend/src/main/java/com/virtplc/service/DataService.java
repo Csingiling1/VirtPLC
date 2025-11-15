@@ -124,18 +124,20 @@ public class DataService {
     /**
      * Get historical data for a time range from TimescaleDB.
      */
-    public List<SensorData> getDataRange(List<Manufacturer> manufacturers, Long startTime, Long endTime) {
+    public List<SensorData> getDataRange(List<Manufacturer> manufacturers, Long startTime, Long endTime, int page,
+            int size) {
         if (manufacturers == null) {
             // Admin user - get all data
-            return getAllDataRange(startTime, endTime);
+            return getAllDataRange(startTime, endTime, page, size);
         } else {
             // Non-admin user - get data for their manufacturers
-            return getDataRangeForManufacturers(manufacturers, startTime, endTime);
+            return getDataRangeForManufacturers(manufacturers, startTime, endTime, page, size);
         }
     }
 
-    private List<SensorData> getAllDataRange(Long startTime, Long endTime) {
-        log.debug("Fetching all data range from TimescaleDB: {} to {}", startTime, endTime);
+    private List<SensorData> getAllDataRange(Long startTime, Long endTime, int page, int size) {
+        log.debug("Fetching all data range from TimescaleDB: {} to {} (page: {}, size: {})", startTime, endTime, page,
+                size);
 
         try {
             List<SensorDataEntity> entities = sensorDataRepository.findByTimestampBetween(
@@ -143,6 +145,8 @@ public class DataService {
                     LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(endTime), ZoneOffset.UTC));
 
             return entities.stream()
+                    .skip((long) page * size)
+                    .limit(size)
                     .map(this::convertToSensorData)
                     .collect(Collectors.toList());
 
@@ -153,9 +157,10 @@ public class DataService {
     }
 
     private List<SensorData> getDataRangeForManufacturers(List<Manufacturer> manufacturers, Long startTime,
-            Long endTime) {
-        log.debug("Fetching data range from TimescaleDB: {} to {} for {} manufacturers", startTime, endTime,
-                manufacturers.size());
+            Long endTime, int page, int size) {
+        log.debug("Fetching data range from TimescaleDB: {} to {} for {} manufacturers (page: {}, size: {})", startTime,
+                endTime,
+                manufacturers.size(), page, size);
 
         try {
             // Get companies from manufacturers
@@ -173,6 +178,8 @@ public class DataService {
                     LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(endTime), ZoneOffset.UTC));
 
             return entities.stream()
+                    .skip((long) page * size)
+                    .limit(size)
                     .map(this::convertToSensorData)
                     .collect(Collectors.toList());
 

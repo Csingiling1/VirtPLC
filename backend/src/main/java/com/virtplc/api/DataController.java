@@ -48,15 +48,17 @@ public class DataController {
     public ResponseEntity<List<SensorData>> getDataRange(
             @RequestParam Long startTime,
             @RequestParam Long endTime,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "1000") int size,
             HttpServletRequest request) {
-        log.debug("GET /api/data/range?startTime={}&endTime={}", startTime, endTime);
+        log.debug("GET /api/data/range?startTime={}&endTime={}&page={}&size={}", startTime, endTime, page, size);
 
         List<Manufacturer> manufacturers = getManufacturersFromRequest(request);
         if (manufacturers != null && manufacturers.isEmpty()) {
             return ResponseEntity.badRequest().build();
         }
 
-        List<SensorData> data = dataService.getDataRange(manufacturers, startTime, endTime);
+        List<SensorData> data = dataService.getDataRange(manufacturers, startTime, endTime, page, size);
         return ResponseEntity.ok(data);
     }
 
