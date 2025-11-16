@@ -207,80 +207,29 @@ marimo/_lsp/
 __marimo__/
 
 # ========================================
-# Unreal Engine / UEBlender Branch
+# Ignition / HMI Branch
 # ========================================
 
-# Visual Studio / Xcode
-.vs/
-*.VC.db
-*.VC.opendb
-*.suo
-*.sln
-*.xcodeproj
-*.xcworkspace
+# Ignition runtime files
+IgnitionEdge/.ignition/
+IgnitionEdge/logs/
+IgnitionEdge/temp/
+IgnitionEdge/user-lib/backups/
 
-# Unreal Engine
-UnrealProject/Binaries/
-UnrealProject/Build/
-UnrealProject/DerivedDataCache/
-UnrealProject/Intermediate/
-UnrealProject/Saved/
+# Ignition project backups
+*.zip.bak
+*_backup_*.zip
 
-# Plugin build artifacts
-UnrealProject/Plugins/*/Binaries/
-UnrealProject/Plugins/*/Intermediate/
-UnrealProject/Plugins/*/Build/
+# TimeBaseDB data
+TimeBaseDB/data/
+TimeBaseDB/logs/
 
-# CMake
-CMakeCache.txt
-CMakeFiles/
-cmake_install.cmake
+# Temporary PLC files
+PLCLogic/**/*.tmp
+PLCLogic/**/*.bak
 
-# Blender
-*.blend1
-*.blend2
-*.blend~
-*.autosave.blend
-
-# Large assets (configure Git LFS for these)
-# UnrealProject/**/*.uasset
-# UnrealProject/**/*.umap
-# BlenderAssets/Exports/*.fbx
-
-#################################
-# Unreal Engine Generated Files #
-#################################
-/[Bb]uild
-/[Bb]uilds
-/Binaries
-/DerivedDataCache
-/Intermediate
-/Saved
-
-#################################
-# Visual Studio Generated Files #
-#################################
-# Cache Directory
-.vs
-# User Specific Files
-*.rsuser
-*.suo
-*.user
-*.userosscache
-*.sln.docstates
-# CPP Cache Files
-*.VC.db
-*.opendb
-*.opensdf
-*.sdf
-# Solution Files
-*.sln
-# VSCode Cache Directory
-.vscode
-# VSCode History Files
-**/.history
-
-#################################
-# Miscellaneous Generated Files #
-#################################
-# ADD AS NEED BE
+# Node_Modules
+node_modules
+package-lock.json
+backend/target/*
+*.class
