@@ -1,0 +1,231 @@
+[
+    {
+        "id": "mqtt-to-opcua-flow",
+        "type": "tab",
+        "label": "MQTT to OPC-UA Bridge",
+        "disabled": false,
+        "info": "Bridge MQTT messages from Unreal Engine to OPC-UA for collector",
+        "env": []
+    },
+    {
+        "id": "mqtt-broker",
+        "type": "mqtt-broker",
+        "name": "MQTT Broker",
+        "broker": "mosquitto",
+        "port": "1883",
+        "clientid": "nodered-bridge",
+        "usetls": false,
+        "protocolVersion": "4",
+        "keepalive": "60",
+        "cleansession": true,
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthPayload": "",
+        "birthRetain": "false",
+        "willTopic": "",
+        "willQos": "0",
+        "willPayload": "",
+        "willRetain": "false",
+        "sessionExpiry": ""
+    },
+    {
+        "id": "opcua-server",
+        "type": "opcua-server",
+        "endpoint": "opc.tcp://0.0.0.0:4840/virtplc/",
+        "name": "VirtPLC OPC-UA Server"
+    },
+    {
+        "id": "mqtt-subscriber",
+        "type": "mqtt in",
+        "z": "mqtt-to-opcua-flow",
+        "name": "MQTT Subscriber",
+        "topic": "factory/+/speed",
+        "qos": "0",
+        "datatype": "auto-detect",
+        "broker": "mqtt-broker",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 120,
+        "y": 80,
+        "wires": [
+            [
+                "json-parser"
+            ]
+        ]
+    },
+    {
+        "id": "json-parser",
+        "type": "json",
+        "z": "mqtt-to-opcua-flow",
+        "name": "JSON Parser",
+        "property": "payload",
+        "action": "obj",
+        "pretty": false,
+        "x": 320,
+        "y": 80,
+        "wires": [
+            [
+                "topic-extractor"
+            ]
+        ]
+    },
+    {
+        "id": "topic-extractor",
+        "type": "function",
+        "z": "mqtt-to-opcua-flow",
+        "name": "Extract Device ID",
+        "func": "const topicParts = msg.topic.split('/');\nconst deviceId = topicParts[1];\nconst sensorType = topicParts[2];\n\nmsg.deviceId = deviceId;\nmsg.sensorType = sensorType;\nmsg.value = parseFloat(msg.payload);\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 520,
+        "y": 80,
+        "wires": [
+            [
+                "opcua-writer"
+            ]
+        ]
+    },
+    {
+        "id": "opcua-writer",
+        "type": "opcua-client",
+        "z": "mqtt-to-opcua-flow",
+        "endpoint": "opcua-server",
+        "action": "write",
+        "deadbandtype": "a",
+        "deadbandvalue": 1,
+        "time": "10",
+        "timeUnit": "s",
+        "certificate": "n",
+        "localfile": "",
+        "localkeyfile": "",
+        "securitymode": "None",
+        "securitypolicy": "None",
+        "name": "OPC-UA Writer",
+        "x": 720,
+        "y": 80,
+        "wires": [
+            [
+                "debug-log"
+            ]
+        ]
+    },
+    {
+        "id": "debug-log",
+        "type": "debug",
+        "z": "mqtt-to-opcua-flow",
+        "name": "Debug Log",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 920,
+        "y": 80,
+        "wires": []
+    },
+    {
+        "id": "mqtt-subscriber-temp",
+        "type": "mqtt in",
+        "z": "mqtt-to-opcua-flow",
+        "name": "MQTT Subscriber Temperature",
+        "topic": "factory/+/temperature",
+        "qos": "0",
+        "datatype": "auto-detect",
+        "broker": "mqtt-broker",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 160,
+        "y": 160,
+        "wires": [
+            [
+                "json-parser-temp"
+            ]
+        ]
+    },
+    {
+        "id": "json-parser-temp",
+        "type": "json",
+        "z": "mqtt-to-opcua-flow",
+        "name": "JSON Parser Temp",
+        "property": "payload",
+        "action": "obj",
+        "pretty": false,
+        "x": 360,
+        "y": 160,
+        "wires": [
+            [
+                "topic-extractor-temp"
+            ]
+        ]
+    },
+    {
+        "id": "topic-extractor-temp",
+        "type": "function",
+        "z": "mqtt-to-opcua-flow",
+        "name": "Extract Device ID Temp",
+        "func": "const topicParts = msg.topic.split('/');\nconst deviceId = topicParts[1];\nconst sensorType = topicParts[2];\n\nmsg.deviceId = deviceId;\nmsg.sensorType = sensorType;\nmsg.value = parseFloat(msg.payload);\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 560,
+        "y": 160,
+        "wires": [
+            [
+                "opcua-writer-temp"
+            ]
+        ]
+    },
+    {
+        "id": "opcua-writer-temp",
+        "type": "opcua-client",
+        "z": "mqtt-to-opcua-flow",
+        "name": "OPC-UA Writer Temp",
+        "endpoint": "opcua-server",
+        "action": "write",
+        "deadbandtype": "a",
+        "deadbandvalue": 1,
+        "time": "10",
+        "timeUnit": "s",
+        "certificate": "n",
+        "localfile": "",
+        "localkeyfile": "",
+        "securitymode": "None",
+        "securitypolicy": "None",
+        "x": 760,
+        "y": 160,
+        "wires": [
+            [
+                "debug-log-temp"
+            ]
+        ]
+    },
+    {
+        "id": "debug-log-temp",
+        "type": "debug",
+        "z": "mqtt-to-opcua-flow",
+        "name": "Debug Log Temp",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 960,
+        "y": 160,
+        "wires": []
+    }
+]
