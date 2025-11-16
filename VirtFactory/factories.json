@@ -1,0 +1,252 @@
+{
+  "Factories": [
+    {
+      "FactoryID": 1,
+      "SectorTagBase": "Factory/Factory1/",
+      "Size": { "Width": 1000, "Length": 800, "Height": 400 },
+      "DeviceSize": { "X": 100, "Y": 100, "Z": 100 },
+      "Devices": [
+        {
+          "DeviceClass": "BP_SensorCube",
+          "DeviceID": 1,
+          "TagBase": "Factory/Factory1/Device_",
+          "GridCoord": { "X": 0, "Y": 0 },
+          "BaseValue": 50.0,
+          "NoiseAmplitude": 2.5,
+          "IsPowered": true
+        },
+        {
+          "DeviceClass": "BP_SensorCube",
+          "DeviceID": 2,
+          "TagBase": "Factory/Factory1/Device_",
+          "GridCoord": { "X": 1, "Y": 0 },
+          "BaseValue": 55.0,
+          "NoiseAmplitude": 3.0,
+          "IsPowered": true
+        },
+        {
+          "DeviceClass": "BP_SensorCube",
+          "DeviceID": 3,
+          "TagBase": "Factory/Factory1/Device_",
+          "GridCoord": { "X": 0, "Y": 1 },
+          "BaseValue": 48.0,
+          "NoiseAmplitude": 2.0,
+          "IsPowered": false
+        },
+        {
+          "DeviceClass": "BP_SensorCube",
+          "DeviceID": 4,
+          "TagBase": "Factory/Factory1/Device_",
+          "GridCoord": { "X": 1, "Y": 1 },
+          "BaseValue": 60.0,
+          "NoiseAmplitude": 4.0,
+          "IsPowered": true
+        }
+      ],
+      "ConveyorBelts": [
+        {
+          "BeltID": 1,
+          "TagBase": "Factory/Factory1/Belt_",
+          "GridStart": { "X": 0, "Y": 0 },
+          "GridEnd": { "X": 1, "Y": 1 },
+          "Speed": 50.0,
+          "IsRunning": true
+        },
+        {
+          "BeltID": 2,
+          "TagBase": "Factory/Factory1/Belt_",
+          "GridStart": { "X": 1, "Y": 0 },
+          "GridEnd": { "X": 2, "Y": 1 },
+          "Speed": 60.0,
+          "IsRunning": false
+        }
+      ]
+    },
+    {
+      "FactoryID": 2,
+      "SectorTagBase": "Factory/Factory2/",
+      "Size": { "Width": 1200, "Length": 900, "Height": 400 },
+      "DeviceSize": { "X": 120, "Y": 120, "Z": 120 },
+      "Devices": [
+        {
+          "DeviceClass": "BP_SensorCube",
+          "DeviceID": 1,
+          "TagBase": "Factory/Factory2/Device_",
+          "GridCoord": { "X": 0, "Y": 0 },
+          "BaseValue": 52.0,
+          "NoiseAmplitude": 2.5,
+          "IsPowered": true
+        },
+        {
+          "DeviceClass": "BP_SensorCube",
+          "DeviceID": 2,
+          "TagBase": "Factory/Factory2/Device_",
+          "GridCoord": { "X": 1, "Y": 0 },
+          "BaseValue": 57.0,
+          "NoiseAmplitude": 3.0,
+          "IsPowered": true
+        },
+        {
+          "DeviceClass": "BP_SensorCube",
+          "DeviceID": 3,
+          "TagBase": "Factory/Factory2/Device_",
+          "GridCoord": { "X": 0, "Y": 1 },
+          "BaseValue": 50.0,
+          "NoiseAmplitude": 2.5,
+          "IsPowered": true
+        },
+        {
+          "DeviceClass": "BP_SensorCube",
+          "DeviceID": 4,
+          "TagBase": "Factory/Factory2/Device_",
+          "GridCoord": { "X": 1, "Y": 1 },
+          "BaseValue": 62.0,
+          "NoiseAmplitude": 3.5,
+          "IsPowered": false
+        }
+      ],
+      "ConveyorBelts": [
+        {
+          "BeltID": 1,
+          "TagBase": "Factory/Factory2/Belt_",
+          "GridStart": { "X": 0, "Y": 0 },
+          "GridEnd": { "X": 1, "Y": 1 },
+          "Speed": 55.0,
+          "IsRunning": true
+        },
+        {
+          "BeltID": 2,
+          "TagBase": "Factory/Factory2/Belt_",
+          "GridStart": { "X": 1, "Y": 0 },
+          "GridEnd": { "X": 2, "Y": 1 },
+          "Speed": 45.0,
+          "IsRunning": true
+        }
+      ]
+    },
+    {
+      "FactoryID": 3,
+      "SectorTagBase": "Factory/Factory3/",
+      "Size": { "Width": 800, "Length": 600, "Height": 400 },
+      "DeviceSize": { "X": 100, "Y": 100, "Z": 100 },
+      "Devices": [
+        {
+          "DeviceClass": "BP_SensorCube",
+          "DeviceID": 1,
+          "TagBase": "Factory/Factory3/Device_",
+          "GridCoord": { "X": 0, "Y": 0 },
+          "BaseValue": 48.0,
+          "NoiseAmplitude": 1.5,
+          "IsPowered": true
+        },
+        {
+          "DeviceClass": "BP_SensorCube",
+          "DeviceID": 2,
+          "TagBase": "Factory/Factory3/Device_",
+          "GridCoord": { "X": 1, "Y": 0 },
+          "BaseValue": 53.0,
+          "NoiseAmplitude": 2.0,
+          "IsPowered": true
+        },
+        {
+          "DeviceClass": "BP_SensorCube",
+          "DeviceID": 3,
+          "TagBase": "Factory/Factory3/Device_",
+          "GridCoord": { "X": 0, "Y": 1 },
+          "BaseValue": 47.0,
+          "NoiseAmplitude": 2.0,
+          "IsPowered": false
+        },
+        {
+          "DeviceClass": "BP_SensorCube",
+          "DeviceID": 4,
+          "TagBase": "Factory/Factory3/Device_",
+          "GridCoord": { "X": 1, "Y": 1 },
+          "BaseValue": 50.0,
+          "NoiseAmplitude": 2.5,
+          "IsPowered": true
+        }
+      ],
+      "ConveyorBelts": [
+        {
+          "BeltID": 1,
+          "TagBase": "Factory/Factory3/Belt_",
+          "GridStart": { "X": 0, "Y": 0 },
+          "GridEnd": { "X": 1, "Y": 1 },
+          "Speed": 40.0,
+          "IsRunning": true
+        },
+        {
+          "BeltID": 2,
+          "TagBase": "Factory/Factory3/Belt_",
+          "GridStart": { "X": 1, "Y": 0 },
+          "GridEnd": { "X": 2, "Y": 1 },
+          "Speed": 50.0,
+          "IsRunning": true
+        }
+      ]
+    },
+    {
+      "FactoryID": 4,
+      "SectorTagBase": "Factory/Factory4/",
+      "Size": { "Width": 1000, "Length": 1000, "Height": 400 },
+      "DeviceSize": { "X": 120, "Y": 120, "Z": 120 },
+      "Devices": [
+        {
+          "DeviceClass": "BP_SensorCube",
+          "DeviceID": 1,
+          "TagBase": "Factory/Factory4/Device_",
+          "GridCoord": { "X": 0, "Y": 0 },
+          "BaseValue": 55.0,
+          "NoiseAmplitude": 2.5,
+          "IsPowered": true
+        },
+        {
+          "DeviceClass": "BP_SensorCube",
+          "DeviceID": 2,
+          "TagBase": "Factory/Factory4/Device_",
+          "GridCoord": { "X": 1, "Y": 0 },
+          "BaseValue": 50.0,
+          "NoiseAmplitude": 3.0,
+          "IsPowered": false
+        },
+        {
+          "DeviceClass": "BP_SensorCube",
+          "DeviceID": 3,
+          "TagBase": "Factory/Factory4/Device_",
+          "GridCoord": { "X": 0, "Y": 1 },
+          "BaseValue": 60.0,
+          "NoiseAmplitude": 4.0,
+          "IsPowered": true
+        },
+        {
+          "DeviceClass": "BP_SensorCube",
+          "DeviceID": 4,
+          "TagBase": "Factory/Factory4/Device_",
+          "GridCoord": { "X": 1, "Y": 1 },
+          "BaseValue": 52.0,
+          "NoiseAmplitude": 3.5,
+          "IsPowered": true
+        }
+      ],
+      "ConveyorBelts": [
+        {
+          "BeltID": 1,
+          "TagBase": "Factory/Factory4/Belt_",
+          "GridStart": { "X": 0, "Y": 0 },
+          "GridEnd": { "X": 1, "Y": 1 },
+          "Speed": 60.0,
+          "IsRunning": true
+        },
+        {
+          "BeltID": 2,
+          "TagBase": "Factory/Factory4/Belt_",
+          "GridStart": { "X": 1, "Y": 0 },
+          "GridEnd": { "X": 2, "Y": 1 },
+          "Speed": 55.0,
+          "IsRunning": false
+        }
+      ]
+    }
+  ]
+}
