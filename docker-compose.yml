@@ -304,11 +304,32 @@ services:
       start_period: 120s
     restart: unless-stopped
 
+  # Node-RED MQTT to OPC-UA Bridge
+  nodered:
+    image: nodered/node-red:latest
+    container_name: virtplc-nodered
+    ports:
+      - "1880:1880"   # Node-RED UI
+      - "34840:4840"  # OPC-UA Server
+    volumes:
+      - nodered-data:/data
+      - ./nodered:/data/flows:ro
+    environment:
+      - NODE_RED_CREDENTIAL_SECRET=${NODE_RED_CREDENTIAL_SECRET:-your-secret-key}
+    networks:
+      - virtplc-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:1880"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
   collector:
     build: ./collector
     container_name: collector
     depends_on:
-      - simulator
+      - nodered
       - timescale
     environment:
       - TIMESCALE_HOST=timescale
@@ -316,7 +337,7 @@ services:
       - TIMESCALE_USER=virtplc
       - TIMESCALE_PASSWORD=changeme
       - TIMESCALE_DB=virtplc_ts
-      - OPCUA_ENDPOINT=opc.tcp://simulator:4840/virtplc/
+      - OPCUA_ENDPOINT=opc.tcp://nodered:4840/virtplc/
       - COLLECTION_INTERVAL=1000
     ports:
       - "9100:9100"  # prometheus metrics
@@ -365,3 +386,5 @@ volumes:
     name: virtplc-simulator-data
   ignition-data:
     name: virtplc-ignition-data
+  nodered-data:
+    name: virtplc-nodered-data
