@@ -1,0 +1,424 @@
+name: Performance Testing & Load Testing
+
+on:
+  push:
+    branches: [main, develop, release]
+  pull_request:
+    branches: [main, develop, release]
+  schedule:
+    # Run weekly performance tests
+    - cron: "0 3 * * 1" # Every Monday at 3 AM UTC
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment for testing"
+        required: true
+        default: "staging"
+        type: choice
+        options:
+          - staging
+          - production
+      test_type:
+        description: "Type of performance test to run"
+        required: false
+        default: "full"
+        type: choice
+        options:
+          - smoke
+          - load
+          - stress
+          - spike
+          - full
+
+env:
+  K6_VERSION: "0.45.0"
+  LOCUST_VERSION: "2.15.1"
+  JMETER_VERSION: "5.6.2"
+
+jobs:
+  # ==========================================
+  # SMOKE TESTS
+  # ==========================================
+  smoke-tests:
+    name: Smoke Tests
+    runs-on: ubuntu-latest
+    outputs:
+      smoke-results: ${{ steps.smoke.outputs.results }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup k6
+        run: |
+          wget https://github.com/grafana/k6/releases/download/v${{ env.K6_VERSION }}/k6-v${{ env.K6_VERSION }}-linux-amd64.tar.gz
+          tar -xzf k6-v${{ env.K6_VERSION }}-linux-amd64.tar.gz
+          sudo mv k6-v${{ env.K6_VERSION }}-linux-amd64/k6 /usr/local/bin/
+
+      - name: Run smoke tests
+        id: smoke
+        run: |
+          # Determine target URL based on environment
+          if [ "${{ github.event.inputs.environment || 'staging' }}" = "production" ]; then
+            TARGET_URL="${{ secrets.PRODUCTION_URL }}"
+          else
+            TARGET_URL="${{ secrets.STAGING_URL }}"
+          fi
+
+          echo "Running smoke tests against: $TARGET_URL"
+
+          # Run basic smoke tests
+          k6 run --out json=smoke-results.json \
+                 -e BASE_URL="$TARGET_URL" \
+                 tests/performance/smoke-test.js
+
+          # Check if smoke tests passed
+          if [ $? -eq 0 ]; then
+            echo "results=passed" >> $GITHUB_OUTPUT
+          else
+            echo "results=failed" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload smoke test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-test-results
+          path: smoke-results.json
+
+  # ==========================================
+  # LOAD TESTING
+  # ==========================================
+  load-tests:
+    name: Load Testing
+    runs-on: ubuntu-latest
+    needs: smoke-tests
+    if: (github.event.inputs.test_type == 'load' || github.event.inputs.test_type == 'full' || github.event_name == 'schedule') && needs.smoke-tests.outputs.smoke-results == 'passed'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup k6
+        run: |
+          wget https://github.com/grafana/k6/releases/download/v${{ env.K6_VERSION }}/k6-v${{ env.K6_VERSION }}-linux-amd64.tar.gz
+          tar -xzf k6-v${{ env.K6_VERSION }}-linux-amd64.tar.gz
+          sudo mv k6-v${{ env.K6_VERSION }}-linux-amd64/k6 /usr/local/bin/
+
+      - name: Setup Locust
+        run: |
+          pip install locust==${{ env.LOCUST_VERSION }}
+
+      - name: Determine target environment
+        id: env
+        run: |
+          if [ "${{ github.event.inputs.environment || 'staging' }}" = "production" ]; then
+            echo "url=${{ secrets.PRODUCTION_URL }}" >> $GITHUB_OUTPUT
+            echo "env=production" >> $GITHUB_OUTPUT
+          else
+            echo "url=${{ secrets.STAGING_URL }}" >> $GITHUB_OUTPUT
+            echo "env=staging" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run API Load Tests (k6)
+        run: |
+          echo "Running API load tests against ${{ steps.env.outputs.url }}"
+
+          k6 run --out json=api-load-results.json \
+                 --out influxdb=http://influxdb:8086/k6 \
+                 -e BASE_URL="${{ steps.env.outputs.url }}" \
+                 -e ENVIRONMENT="${{ steps.env.outputs.env }}" \
+                 tests/performance/api-load-test.js
+
+      - name: Run WebSocket Load Tests
+        run: |
+          echo "Running WebSocket load tests"
+
+          k6 run --out json=websocket-load-results.json \
+                 --out influxdb=http://influxdb:8086/k6 \
+                 -e WS_URL="${{ steps.env.outputs.url }}/ws" \
+                 tests/performance/websocket-load-test.js
+
+      - name: Run UI Load Tests (Locust)
+        run: |
+          echo "Running UI load tests"
+
+          locust --headless \
+                 --users 100 \
+                 --spawn-rate 10 \
+                 --run-time 5m \
+                 --host="${{ steps.env.outputs.url }}" \
+                 --locustfile=tests/performance/ui-load-test.py \
+                 --csv=locust-results
+
+      - name: Generate load test report
+        run: |
+          echo "# Load Test Report" > load-test-report.md
+          echo "Generated on: $(date)" >> load-test-report.md
+          echo "Environment: ${{ steps.env.outputs.env }}" >> load-test-report.md
+          echo "Target URL: ${{ steps.env.outputs.url }}" >> load-test-report.md
+          echo "" >> load-test-report.md
+          echo "## Test Results" >> load-test-report.md
+          echo "" >> load-test-report.md
+
+          # Parse k6 results
+          if [ -f api-load-results.json ]; then
+            echo "### API Load Test Results" >> load-test-report.md
+            jq -r '.metrics | to_entries[] | select(.key | contains("http_req")) | "- \(.key): \(.value.rate // .value.avg // .value.value) \(.value.unit // "")"' api-load-results.json >> load-test-report.md 2>/dev/null || echo "- Results parsing failed" >> load-test-report.md
+            echo "" >> load-test-report.md
+          fi
+
+          if [ -f websocket-load-results.json ]; then
+            echo "### WebSocket Load Test Results" >> load-test-report.md
+            jq -r '.metrics | to_entries[] | select(.key | contains("ws")) | "- \(.key): \(.value.rate // .value.avg // .value.value) \(.value.unit // "")"' websocket-load-results.json >> load-test-report.md 2>/dev/null || echo "- Results parsing failed" >> load-test-report.md
+            echo "" >> load-test-report.md
+          fi
+
+      - name: Upload load test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: load-test-results
+          path: |
+            api-load-results.json
+            websocket-load-results.json
+            locust-results_*.csv
+            load-test-report.md
+
+  # ==========================================
+  # STRESS TESTING
+  # ==========================================
+  stress-tests:
+    name: Stress Testing
+    runs-on: ubuntu-latest
+    needs: smoke-tests
+    if: (github.event.inputs.test_type == 'stress' || github.event.inputs.test_type == 'full') && needs.smoke-tests.outputs.smoke-results == 'passed'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup JMeter
+        run: |
+          wget https://downloads.apache.org/jmeter/binaries/apache-jmeter-${{ env.JMETER_VERSION }}.tgz
+          tar -xzf apache-jmeter-${{ env.JMETER_VERSION }}.tgz
+          sudo mv apache-jmeter-${{ env.JMETER_VERSION }} /opt/jmeter
+          export PATH=$PATH:/opt/jmeter/bin
+
+      - name: Setup k6
+        run: |
+          wget https://github.com/grafana/k6/releases/download/v${{ env.K6_VERSION }}/k6-v${{ env.K6_VERSION }}-linux-amd64.tar.gz
+          tar -xzf k6-v${{ env.K6_VERSION }}-linux-amd64.tar.gz
+          sudo mv k6-v${{ env.K6_VERSION }}-linux-amd64/k6 /usr/local/bin/
+
+      - name: Determine target environment
+        id: env
+        run: |
+          if [ "${{ github.event.inputs.environment || 'staging' }}" = "production" ]; then
+            echo "url=${{ secrets.PRODUCTION_URL }}" >> $GITHUB_OUTPUT
+          else
+            echo "url=${{ secrets.STAGING_URL }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run Stress Tests (k6)
+        run: |
+          echo "Running stress tests against ${{ steps.env.outputs.url }}"
+
+          # Breakpoint testing - gradually increase load
+          k6 run --out json=stress-results.json \
+                 --out influxdb=http://influxdb:8086/k6 \
+                 -e BASE_URL="${{ steps.env.outputs.url }}" \
+                 -e STAGES="[{duration: '2m', target: 100}, {duration: '5m', target: 100}, {duration: '2m', target: 200}, {duration: '5m', target: 200}, {duration: '2m', target: 300}, {duration: '5m', target: 300}, {duration: '2m', target: 0}]" \
+                 tests/performance/stress-test.js
+
+      - name: Run JMeter Stress Tests
+        run: |
+          export PATH=$PATH:/opt/jmeter/bin
+
+          # Run JMeter test plan
+          jmeter -n \
+                 -t tests/performance/stress-test-plan.jmx \
+                 -l stress-jmeter-results.jtl \
+                 -e -o stress-jmeter-report \
+                 -JbaseUrl="${{ steps.env.outputs.url }}"
+
+      - name: Analyze stress test results
+        run: |
+          echo "# Stress Test Report" > stress-test-report.md
+          echo "Generated on: $(date)" >> stress-test-report.md
+          echo "Target URL: ${{ steps.env.outputs.url }}" >> stress-test-report.md
+          echo "" >> stress-test-report.md
+
+          # Analyze k6 results
+          if [ -f stress-results.json ]; then
+            echo "## k6 Stress Test Results" >> stress-test-report.md
+            echo "" >> stress-test-report.md
+            echo "### Performance Metrics" >> stress-test-report.md
+            jq -r '.metrics | to_entries[] | select(.key | contains("http_req_duration")) | "- Average Response Time: \(.value.avg)ms"' stress-results.json >> stress-test-report.md 2>/dev/null || echo "- Results parsing failed" >> stress-test-report.md
+            jq -r '.metrics | to_entries[] | select(.key | contains("http_req_failed")) | "- Error Rate: \(.value.rate * 100)%"' stress-results.json >> stress-test-report.md 2>/dev/null || echo "- Results parsing failed" >> stress-test-report.md
+            echo "" >> stress-test-report.md
+          fi
+
+          # Check for breaking points
+          echo "## Breaking Point Analysis" >> stress-test-report.md
+          jq -r '.metrics | to_entries[] | select(.key | contains("vus_max")) | "- Max Virtual Users: \(.value.value)"' stress-results.json >> stress-test-report.md 2>/dev/null || echo "- Analysis failed" >> stress-test-report.md
+
+      - name: Upload stress test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: stress-test-results
+          path: |
+            stress-results.json
+            stress-jmeter-results.jtl
+            stress-jmeter-report/
+            stress-test-report.md
+
+  # ==========================================
+  # SPIKE TESTING
+  # ==========================================
+  spike-tests:
+    name: Spike Testing
+    runs-on: ubuntu-latest
+    needs: smoke-tests
+    if: (github.event.inputs.test_type == 'spike' || github.event.inputs.test_type == 'full') && needs.smoke-tests.outputs.smoke-results == 'passed'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup k6
+        run: |
+          wget https://github.com/grafana/k6/releases/download/v${{ env.K6_VERSION }}/k6-v${{ env.K6_VERSION }}-linux-amd64.tar.gz
+          tar -xzf k6-v${{ env.K6_VERSION }}-linux-amd64.tar.gz
+          sudo mv k6-v${{ env.K6_VERSION }}-linux-amd64/k6 /usr/local/bin/
+
+      - name: Determine target environment
+        id: env
+        run: |
+          if [ "${{ github.event.inputs.environment || 'staging' }}" = "production" ]; then
+            echo "url=${{ secrets.PRODUCTION_URL }}" >> $GITHUB_OUTPUT
+          else
+            echo "url=${{ secrets.STAGING_URL }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run Spike Tests
+        run: |
+          echo "Running spike tests against ${{ steps.env.outputs.url }}"
+
+          # Sudden traffic spikes
+          k6 run --out json=spike-results.json \
+                 --out influxdb=http://influxdb:8086/k6 \
+                 -e BASE_URL="${{ steps.env.outputs.url }}" \
+                 -e STAGES="[{duration: '10s', target: 10}, {duration: '30s', target: 10}, {duration: '10s', target: 1000}, {duration: '30s', target: 1000}, {duration: '10s', target: 10}, {duration: '30s', target: 10}]" \
+                 tests/performance/spike-test.js
+
+      - name: Analyze spike test results
+        run: |
+          echo "# Spike Test Report" > spike-test-report.md
+          echo "Generated on: $(date)" >> spike-test-report.md
+          echo "Target URL: ${{ steps.env.outputs.url }}" >> spike-test-report.md
+          echo "" >> spike-test-report.md
+
+          # Analyze recovery time
+          echo "## Spike Test Analysis" >> spike-test-report.md
+          jq -r '.metrics | to_entries[] | select(.key | contains("http_req_duration")) | "- 95th percentile: \(.value."p(95)")ms"' spike-results.json >> spike-test-report.md 2>/dev/null || echo "- Analysis failed" >> spike-test-report.md
+          jq -r '.metrics | to_entries[] | select(.key | contains("http_req_failed")) | "- Error rate during spike: \(.value.rate * 100)%"' spike-results.json >> spike-test-report.md 2>/dev/null || echo "- Analysis failed" >> spike-test-report.md
+
+      - name: Upload spike test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: spike-test-results
+          path: |
+            spike-results.json
+            spike-test-report.md
+
+  # ==========================================
+  # PERFORMANCE ANALYSIS & REPORTING
+  # ==========================================
+  performance-analysis:
+    name: Performance Analysis & Reporting
+    runs-on: ubuntu-latest
+    needs: [smoke-tests, load-tests, stress-tests, spike-tests]
+    if: always()
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all performance results
+        uses: actions/download-artifact@v4
+        with:
+          path: performance-results/
+
+      - name: Generate comprehensive performance report
+        run: |
+          echo "# VirtPLC Performance Test Report" > comprehensive-performance-report.md
+          echo "Generated on: $(date)" >> comprehensive-performance-report.md
+          echo "Branch: ${{ github.ref_name }}" >> comprehensive-performance-report.md
+          echo "Commit: ${{ github.sha }}" >> comprehensive-performance-report.md
+          echo "" >> comprehensive-performance-report.md
+
+          echo "## Test Summary" >> comprehensive-performance-report.md
+          echo "" >> comprehensive-performance-report.md
+          echo "| Test Type | Status | Duration |" >> comprehensive-performance-report.md
+          echo "|-----------|--------|----------|" >> comprehensive-performance-report.md
+          echo "| Smoke Tests | ${{ needs.smoke-tests.result }} | - |" >> comprehensive-performance-report.md
+          echo "| Load Tests | ${{ needs.load-tests.result }} | - |" >> comprehensive-performance-report.md
+          echo "| Stress Tests | ${{ needs.stress-tests.result }} | - |" >> comprehensive-performance-report.md
+          echo "| Spike Tests | ${{ needs.spike-tests.result }} | - |" >> comprehensive-performance-report.md
+          echo "" >> comprehensive-performance-report.md
+
+          echo "## Key Performance Indicators" >> comprehensive-performance-report.md
+          echo "" >> comprehensive-performance-report.md
+
+          # Aggregate results from different test types
+          if [ -f "performance-results/smoke-test-results/smoke-results.json" ]; then
+            echo "### Smoke Test Results" >> comprehensive-performance-report.md
+            jq -r '.metrics | to_entries[] | select(.key | contains("http_req_duration")) | "- Average Response Time: \(.value.avg)ms"' performance-results/smoke-test-results/smoke-results.json >> comprehensive-performance-report.md 2>/dev/null || echo "- Results not available" >> comprehensive-performance-report.md
+            echo "" >> comprehensive-performance-report.md
+          fi
+
+          if [ -f "performance-results/load-test-results/api-load-results.json" ]; then
+            echo "### Load Test Results" >> comprehensive-performance-report.md
+            jq -r '.metrics | to_entries[] | select(.key | contains("http_req_duration")) | "- Average Response Time: \(.value.avg)ms"' performance-results/load-test-results/api-load-results.json >> comprehensive-performance-report.md 2>/dev/null || echo "- Results not available" >> comprehensive-performance-report.md
+            jq -r '.metrics | to_entries[] | select(.key | contains("http_req_failed")) | "- Error Rate: \(.value.rate * 100)%"' performance-results/load-test-results/api-load-results.json >> comprehensive-performance-report.md 2>/dev/null || echo "- Results not available" >> comprehensive-performance-report.md
+            echo "" >> comprehensive-performance-report.md
+          fi
+
+          echo "## Recommendations" >> comprehensive-performance-report.md
+          echo "" >> comprehensive-performance-report.md
+          echo "### Performance Thresholds" >> comprehensive-performance-report.md
+          echo "- Response Time: <500ms (API), <2s (UI)" >> comprehensive-performance-report.md
+          echo "- Error Rate: <1%" >> comprehensive-performance-report.md
+          echo "- Throughput: >1000 requests/second" >> comprehensive-performance-report.md
+          echo "" >> comprehensive-performance-report.md
+          echo "### Optimization Suggestions" >> comprehensive-performance-report.md
+          echo "1. Database query optimization" >> comprehensive-performance-report.md
+          echo "2. Caching strategy implementation" >> comprehensive-performance-report.md
+          echo "3. CDN for static assets" >> comprehensive-performance-report.md
+          echo "4. Horizontal scaling configuration" >> comprehensive-performance-report.md
+
+      - name: Upload comprehensive performance report
+        uses: actions/upload-artifact@v4
+        with:
+          name: comprehensive-performance-report
+          path: comprehensive-performance-report.md
+
+      - name: Comment performance report on PR
+        uses: actions/github-script@v7
+        if: github.event_name == 'pull_request'
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('comprehensive-performance-report.md', 'utf8');
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## 📊 Performance Test Results\n\n${report}`
+            });
+
+      - name: Send performance alert
+        if: failure()
+        run: |
+          echo "Performance tests failed - sending alert"
+          # Add alerting logic here (Slack, Teams, email, etc.)

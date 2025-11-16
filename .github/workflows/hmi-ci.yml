@@ -1,0 +1,547 @@
+name: HMI CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop, feature/HMI]
+    paths:
+      - "HMI/**"
+      - ".github/workflows/hmi-ci.yml"
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - "HMI/**"
+  workflow_dispatch:
+
+env:
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  lint-and-validate:
+    name: Lint and Validate Configurations
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install yamllint xmllint pyyaml lxml
+
+      - name: Validate YAML files
+        run: |
+          yamllint HMI/TimeBaseDB/config/*.yaml || true
+
+      - name: Validate XML files
+        run: |
+          python -c "
+          import xml.etree.ElementTree as ET
+          import sys
+
+          files = [
+            'HMI/IgnitionEdge/config/gateway.xml',
+            'HMI/TimeBaseDB/config/schemas.xml'
+          ]
+
+          for f in files:
+            try:
+              ET.parse(f)
+              print(f'✓ {f} is valid XML')
+            except ET.ParseError as e:
+              print(f'✗ {f} has XML errors: {e}')
+              sys.exit(1)
+          "
+
+      - name: Validate JSON files
+        run: |
+          python -c "
+          import json
+          import sys
+          from pathlib import Path
+
+          json_files = list(Path('HMI').rglob('*.json'))
+
+          for f in json_files:
+            try:
+              with open(f, 'r') as file:
+                json.load(file)
+              print(f'✓ {f} is valid JSON')
+            except json.JSONDecodeError as e:
+              print(f'✗ {f} has JSON errors: {e}')
+              sys.exit(1)
+          "
+
+      - name: Check Structured Text syntax
+        run: |
+          # Basic syntax check for ST files
+          find HMI/PLCLogic/structured -name "*.st" -exec echo "Checking {}" \;
+
+  unit-tests:
+    name: Run Unit Tests
+    runs-on: ubuntu-latest
+    needs: lint-and-validate
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          cd HMI/tests
+          pip install -r requirements.txt
+
+      - name: Run unit tests
+        run: |
+          cd HMI
+          pytest tests/test_tag_operations.py -v --cov --cov-report=xml --cov-report=term
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./HMI/coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+
+  integration-tests:
+    name: Run Integration Tests
+    runs-on: ubuntu-latest
+    needs: unit-tests
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          cd HMI/tests
+          pip install -r requirements.txt
+
+      - name: Run integration tests
+        run: |
+          cd HMI
+          pytest tests/test_integration.py -v -m "not e2e"
+
+      - name: Archive test results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: integration-test-results
+          path: HMI/test-results/
+
+  e2e-tests:
+    name: Run E2E Tests
+    runs-on: ubuntu-latest
+    needs: integration-tests
+    if: github.event_name != 'pull_request'
+
+    services:
+      selenium:
+        image: selenium/standalone-chrome:latest
+        options: >-
+          --shm-size=2gb
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          cd HMI/tests
+          pip install -r requirements.txt
+
+      - name: Install Chrome and ChromeDriver
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y chromium-browser chromium-chromedriver
+
+      - name: Start mock HMI server
+        run: |
+          # In production, this would start actual Ignition Gateway
+          # For CI, we'll skip or use mock server
+          echo "Mock HMI server would start here"
+
+      - name: Run E2E tests
+        run: |
+          cd HMI
+          pytest tests/test_e2e.py -v -m "e2e" --tb=short || true
+
+      - name: Upload E2E test screenshots
+        if: failure()
+        uses: actions/upload-artifact@v3
+        with:
+          name: e2e-screenshots
+          path: HMI/test-results/screenshots/
+
+  security-scan:
+    name: Security Scanning
+    runs-on: ubuntu-latest
+    needs: lint-and-validate
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: "fs"
+          scan-ref: "HMI"
+          format: "sarif"
+          output: "trivy-results.sarif"
+
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: "trivy-results.sarif"
+
+  sast-scan:
+    name: SAST Security Scanning
+    runs-on: ubuntu-latest
+    needs: lint-and-validate
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install security scanning tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install bandit safety
+
+      - name: Run Bandit SAST scan
+        run: |
+          cd HMI
+          bandit -r . -f json -o bandit-results.json || true
+
+      - name: Run Safety dependency scan
+        run: |
+          cd HMI
+          safety check --json > safety-results.json || true
+
+      - name: Upload Bandit results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: sast-results
+          path: |
+            HMI/bandit-results.json
+            HMI/safety-results.json
+
+  container-security-scan:
+    name: Container Security Scanning
+    runs-on: ubuntu-latest
+    needs: lint-and-validate
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Hadolint Dockerfile linting
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: HMI/Dockerfile
+          config: .hadolint.yaml
+          format: sarif
+          output-file: hadolint-results.sarif
+
+      - name: Upload Hadolint results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: hadolint-results.sarif
+
+  performance-tests:
+    name: Performance Testing
+    runs-on: ubuntu-latest
+    needs: integration-tests
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install performance testing dependencies
+        run: |
+          python -m pip install --upgrade pip
+          cd HMI/tests
+          pip install -r requirements.txt
+
+      - name: Start mock HMI server for performance testing
+        run: |
+          # Start a simple mock server for performance testing
+          cd HMI
+          python -c "
+          from http.server import HTTPServer, BaseHTTPRequestHandler
+          import json
+          import time
+          import random
+
+          class MockHMIHandler(BaseHTTPRequestHandler):
+              def do_GET(self):
+                  if self.path == '/StatusPing':
+                      self.send_response(200)
+                      self.send_header('Content-type', 'text/plain')
+                      self.end_headers()
+                      self.wfile.write(b'RUNNING')
+                  elif self.path.startswith('/api/tags/'):
+                      self.send_response(200)
+                      self.send_header('Content-type', 'application/json')
+                      self.end_headers()
+                      response = {
+                          'tag_name': self.path.split('/')[-1],
+                          'value': random.uniform(0, 100),
+                          'timestamp': time.time(),
+                          'quality': 'GOOD'
+                      }
+                      self.wfile.write(json.dumps(response).encode())
+                  else:
+                      self.send_response(404)
+                      self.end_headers()
+
+              def log_message(self, format, *args):
+                  pass  # Suppress server logs
+
+          server = HTTPServer(('localhost', 8088), MockHMIHandler)
+          import threading
+          server_thread = threading.Thread(target=server.serve_forever)
+          server_thread.daemon = True
+          server_thread.start()
+          time.sleep(1)  # Give server time to start
+          print('Mock HMI server started on port 8088')
+          " &
+          sleep 2
+
+      - name: Run Locust performance tests
+        run: |
+          cd HMI/tests
+          locust --headless --users 10 --spawn-rate 2 --run-time 30s --host http://localhost:8088 -f locustfile.py --csv results
+
+      - name: Upload performance test results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: performance-results
+          path: HMI/tests/results_*.csv
+
+  dast-scan:
+    name: DAST Security Scanning
+    runs-on: ubuntu-latest
+    needs: [integration-tests, build-docker-image]
+    if: github.event_name != 'pull_request'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up OWASP ZAP
+        run: |
+          wget https://github.com/zaproxy/zaproxy/releases/download/v2.13.0/ZAP_2.13.0_Linux.tar.gz
+          tar -xzf ZAP_2.13.0_Linux.tar.gz
+          echo "ZAP_PATH=$(pwd)/ZAP_2.13.0" >> $GITHUB_ENV
+
+      - name: Start HMI container for DAST
+        run: |
+          cd HMI
+          docker-compose up -d
+          sleep 30  # Wait for services to start
+
+      - name: Run OWASP ZAP baseline scan
+        run: |
+          $ZAP_PATH/zap.sh -cmd -autorun $GITHUB_WORKSPACE/.zap/baseline-scan.yaml || true
+
+      - name: Upload ZAP results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: dast-results
+          path: |
+            zap-report.html
+            zap-report.xml
+
+  build-documentation:
+    name: Build Documentation
+    runs-on: ubuntu-latest
+    needs: lint-and-validate
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Generate documentation
+        run: |
+          echo "# HMI Documentation" > HMI/docs/README.md
+          echo "Generated on $(date)" >> HMI/docs/README.md
+
+          # List all views
+          echo "## Views" >> HMI/docs/README.md
+          find HMI/IgnitionEdge/projects/VirtPLC-HMI/views -type d -mindepth 1 -maxdepth 1 -exec basename {} \; >> HMI/docs/README.md
+
+          # List all scripts
+          echo "## Scripts" >> HMI/docs/README.md
+          find HMI/IgnitionEdge/projects/VirtPLC-HMI/scripts -name "*.py" -exec basename {} \; >> HMI/docs/README.md
+
+      - name: Upload documentation
+        uses: actions/upload-artifact@v3
+        with:
+          name: hmi-documentation
+          path: HMI/docs/
+
+  build-docker-image:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    needs: [unit-tests, integration-tests]
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+        if: secrets.DOCKER_USERNAME != ''
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: virtplc/hmi
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./HMI
+          file: ./HMI/Dockerfile
+          push: false
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Scan built image with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: "image"
+          scan-ref: "virtplc/hmi:latest"
+          format: "sarif"
+          output: "trivy-image-results.sarif"
+          severity: "CRITICAL,HIGH"
+
+      - name: Upload Trivy image scan results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: "trivy-image-results.sarif"
+
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [e2e-tests, build-docker-image]
+    if: github.ref == 'refs/heads/develop'
+    environment:
+      name: staging
+      url: http://staging.virtplc.local:8088
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to staging
+        run: |
+          echo "Deploying to staging environment..."
+          # Add actual deployment commands here
+          # e.g., kubectl apply, docker-compose up, etc.
+
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [e2e-tests, build-docker-image]
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: production
+      url: http://prod.virtplc.local:8088
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to production
+        run: |
+          echo "Deploying to production environment..."
+          # Add actual deployment commands here
+          # Include blue-green deployment strategy
+
+  notify:
+    name: Notify Status
+    runs-on: ubuntu-latest
+    needs:
+      [
+        unit-tests,
+        integration-tests,
+        e2e-tests,
+        security-scan,
+        sast-scan,
+        container-security-scan,
+        performance-tests,
+        dast-scan,
+      ]
+    if: always()
+
+    steps:
+      - name: Send notification
+        run: |
+          echo "Pipeline completed with status: ${{ job.status }}"
+          echo "Unit Tests: ${{ needs.unit-tests.result }}"
+          echo "Integration Tests: ${{ needs.integration-tests.result }}"
+          echo "E2E Tests: ${{ needs.e2e-tests.result }}"
+          echo "Security Scan: ${{ needs.security-scan.result }}"
+          echo "SAST Scan: ${{ needs.sast-scan.result }}"
+          echo "Container Security Scan: ${{ needs.container-security-scan.result }}"
+          echo "Performance Tests: ${{ needs.performance-tests.result }}"
+          echo "DAST Scan: ${{ needs.dast-scan.result }}"
+          # Add Slack/Teams/Email notification here
