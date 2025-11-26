@@ -2,7 +2,7 @@
 
 ## Overview
 
-Enterprise-grade HMI (Human-Machine Interface) system built on Ignition Edge for real-time factory monitoring and control. Features include motor and conveyor control, real-time data visualization, alarm management, and historical trending with TimeBase integration.
+Enterprise-grade HMI (Human-Machine Interface) system built on Ignition Edge for real-time factory monitoring and control. Features include motor and conveyor control, real-time data visualization, alarm management, and historical trending with TimescaleDB integration.
 
 ## Architecture
 
@@ -17,9 +17,9 @@ Enterprise-grade HMI (Human-Machine Interface) system built on Ignition Edge for
            │              │                │
            │              │                │
     ┌──────▼──────┐  ┌───▼────────┐  ┌───▼──────────┐
-    │  TimeBase   │  │  Backend   │  │ PostgreSQL   │
-    │  Time-Series│  │  OPC-UA    │  │ Relational   │
-    │  Database   │  │  Server    │  │ Database     │
+    │ TimescaleDB │  │  Backend   │  │ PostgreSQL   │
+    │ Time-Series │  │  OPC-UA    │  │ Relational   │
+    │ Database    │  │  Server    │  │ Database     │
     └─────────────┘  └────────────┘  └──────────────┘
 ```
 

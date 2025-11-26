@@ -2,8 +2,8 @@
 <gateway>
   <config version="8.1.28">
     <name>VirtPLC-Gateway</name>
-    <description>Enterprise HMI Gateway for Virtual Factory Control</description>
-    
+    <description>Standalone HMI Gateway for Testing</description>
+
     <!-- System Settings -->
     <system>
       <httpPort>8088</httpPort>
@@ -12,226 +12,33 @@
       <locale>en-US</locale>
       <logLevel>INFO</logLevel>
     </system>
-    
-    <!-- Database Connections -->
-    <databases>
-      <connection>
-        <name>timebase</name>
-        <enabled>true</enabled>
-        <driver>com.epam.deltix.timebase.jdbc.TimeBaseDriver</driver>
-        <url>ddb://timebase:8011</url>
-        <username>admin</username>
-        <encrypted-password>YWRtaW4=</encrypted-password>
-        <validationQuery>SELECT 1</validationQuery>
-        <maxConnections>10</maxConnections>
-      </connection>
-      
-      <connection>
-        <name>postgres</name>
-        <enabled>true</enabled>
-        <driver>org.postgresql.Driver</driver>
-        <url>jdbc:postgresql://postgres:5432/virtplc</url>
-        <username>virtplc</username>
-        <encrypted-password>dmlydHBsYw==</encrypted-password>
-        <validationQuery>SELECT 1</validationQuery>
-        <maxConnections>20</maxConnections>
-      </connection>
-    </databases>
-    
-    <!-- OPC-UA Connections -->
-    <opcua>
-      <connections>
-        <connection>
-          <name>Backend-OPC-UA</name>
-          <enabled>true</enabled>
-          <endpoint>opc.tcp://backend:4840</endpoint>
-          <securityPolicy>None</securityPolicy>
-          <messageMode>Sign</messageMode>
-          <sessionTimeout>600000</sessionTimeout>
-          <requestTimeout>10000</requestTimeout>
-          <publishInterval>1000</publishInterval>
-          <samplingInterval>100</samplingInterval>
-          <queueSize>100</queueSize>
-          <discardOldest>true</discardOldest>
-          
-          <!-- Connection Settings -->
-          <autoReconnect>true</autoReconnect>
-          <reconnectDelay>5000</reconnectDelay>
-          <maxReconnectAttempts>-1</maxReconnectAttempts>
-          
-          <!-- Authentication -->
-          <authentication>
-            <mode>Anonymous</mode>
-          </authentication>
-        </connection>
-      </connections>
-    </opcua>
-    
+
     <!-- Tag Provider Settings -->
     <tagProviders>
       <provider>
         <name>default</name>
         <enabled>true</enabled>
         <type>standard</type>
-        
-        <!-- Tag History -->
+
+        <!-- Tag History (disabled for standalone) -->
         <historyProvider>
-          <enabled>true</enabled>
-          <database>timebase</database>
-          <deadbandMode>absolute</deadbandMode>
-          <maxAgeSeconds>2592000</maxAgeSeconds> <!-- 30 days -->
-          <sampleRate>1000</sampleRate>
+          <enabled>false</enabled>
         </historyProvider>
-        
-        <!-- Tag Alarms -->
+
+        <!-- Tag Alarms (disabled for standalone) -->
         <alarmProvider>
-          <enabled>true</enabled>
-          <database>postgres</database>
-          <journalRetention>90</journalRetention> <!-- 90 days -->
+          <enabled>false</enabled>
         </alarmProvider>
       </provider>
-    </tagProviders>
-    
-    <!-- Perspective Module -->
-    <perspective>
-      <enabled>true</enabled>
-      <projects>
-        <project>
-          <name>VirtPLC-HMI</name>
-          <title>VirtPLC Factory Control</title>
-          <description>Enterprise factory monitoring and control interface</description>
-          <enabled>true</enabled>
-          <inheritable>false</inheritable>
-          
-          <!-- Session Settings -->
-          <sessionTimeout>3600000</sessionTimeout> <!-- 1 hour -->
-          <sessionWarning>300000</sessionWarning> <!-- 5 minutes -->
-          
-          <!-- Security -->
-          <requireAuthentication>false</requireAuthentication>
-          <defaultHomePage>Overview</defaultHomePage>
-          
-          <!-- Mobile Settings -->
-          <mobileSupport>true</mobileSupport>
-          <responsiveDesign>true</responsiveDesign>
-        </project>
-      </projects>
-    </perspective>
-    
-    <!-- Alarm Notification -->
-    <alarmNotification>
-      <enabled>true</enabled>
-      <pipelines>
-        <pipeline>
-          <name>Critical-Alerts</name>
-          <enabled>true</enabled>
-          <priority>Critical</priority>
-          
-          <notifications>
-            <notification>
-              <type>email</type>
-              <enabled>false</enabled>
-              <recipients>ops-team@virtplc.com</recipients>
-            </notification>
-            
-            <notification>
-              <type>sms</type>
-              <enabled>false</enabled>
-            </notification>
-          </notifications>
-        </pipeline>
-        
-        <pipeline>
-          <name>High-Alerts</name>
-          <enabled>true</enabled>
-          <priority>High,Medium</priority>
-          
-          <notifications>
-            <notification>
-              <type>email</type>
-              <enabled>false</enabled>
-              <recipients>ops-team@virtplc.com</recipients>
-            </notification>
-          </notifications>
-        </pipeline>
-      </pipelines>
-    </alarmNotification>
-    
-    <!-- Web Server -->
-    <webserver>
-      <enabled>true</enabled>
-      <threading>
-        <maxThreads>200</maxThreads>
-        <minThreads>10</minThreads>
-      </threading>
-      
-      <!-- CORS Settings -->
-      <cors>
+    <!-- Database Connections -->
+    <databases>
+      <database>
+        <name>TimescaleDB</name>
         <enabled>true</enabled>
-        <allowedOrigins>*</allowedOrigins>
-        <allowedMethods>GET,POST,PUT,DELETE,OPTIONS</allowedMethods>
-        <allowedHeaders>*</allowedHeaders>
-      </cors>
-    </webserver>
-    
-    <!-- Gateway Scripts -->
-    <scripts>
-      <startup>
-        <enabled>true</enabled>
-        <script>
-          # Initialize system on gateway startup
-          logger = system.util.getLogger("Gateway.Startup")
-          logger.info("VirtPLC Gateway starting up...")
-          
-          # Reset emergency stop flag
-          try:
-              system.tag.writeBlocking(["[default]System/EmergencyStop"], [False])
-              logger.info("Emergency stop reset successfully")
-          except Exception as e:
-              logger.error("Failed to reset emergency stop: " + str(e))
-          
-          logger.info("VirtPLC Gateway startup complete")
-        </script>
-      </startup>
-      
-      <shutdown>
-        <enabled>true</enabled>
-        <script>
-          # Cleanup on gateway shutdown
-          logger = system.util.getLogger("Gateway.Shutdown")
-          logger.info("VirtPLC Gateway shutting down...")
-          
-          # Stop all motors
-          try:
-              system.tag.writeBlocking([
-                  "[default]Motor1/Run",
-                  "[default]Motor2/Run",
-                  "[default]Conveyor1/Running"
-              ], [False, False, False])
-              logger.info("All equipment stopped successfully")
-          except Exception as e:
-              logger.error("Failed to stop equipment: " + str(e))
-          
-          logger.info("VirtPLC Gateway shutdown complete")
-        </script>
-      </shutdown>
-    </scripts>
-    
-    <!-- Redundancy (for future enterprise deployment) -->
-    <redundancy>
-      <enabled>false</enabled>
-      <role>independent</role>
-    </redundancy>
-    
-    <!-- Backup Settings -->
-    <backup>
-      <enabled>true</enabled>
-      <schedule>
-        <frequency>daily</frequency>
-        <time>02:00</time>
-      </schedule>
-      <retention>7</retention>
-      <location>/backup/gateway</location>
-    </backup>
-  </config>
-</gateway>
+        <driver>PostgreSQL</driver>
+        <connectUrl>jdbc:postgresql://timescale:5432/virtplc</connectUrl>
+        <username>virtplc</username>
+        <password>virtplc123</password>
+        <validationQuery>SELECT 1</validationQuery>
+      </database>
+    </databases>

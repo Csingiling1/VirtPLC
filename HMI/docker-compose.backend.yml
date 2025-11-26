@@ -5,21 +5,20 @@ version: '3.8'
 # This handles all data storage, historical logging, and monitoring
 
 services:
-  # TimeBase - Time-series database for historical data
-  timebase:
-    image: deltixhub/timebase-server:6.0
-    container_name: virtplc-backend-timebase
-    hostname: timebase
+  # TimescaleDB - Time-series database for historical data
+  timescale:
+    image: timescale/timescaledb:latest-pg15
+    container_name: virtplc-backend-timescale
+    hostname: timescale
     ports:
-      - "8011:8011"  # TimeBase API
+      - "5432:5432" # PostgreSQL port
     volumes:
-      - timebase-data:/timebase/data
-      - ./TimeBaseDB/config/timebase.yaml:/timebase/config/timebase.yaml:ro
-      - ./TimeBaseDB/config/schemas.xml:/timebase/config/schemas.xml:ro
+      - timescale-data:/var/lib/postgresql/data
+      - ../backend/init-timescale.sql:/docker-entrypoint-initdb.d/init-timescale.sql:ro
     environment:
-      - TIMEBASE_HOME=/timebase
-      - TIMEBASE_MEMORY=2048M
-      - TIMEBASE_CACHE_SIZE=512M
+      - POSTGRES_DB=virtplc_ts
+      - POSTGRES_USER=virtplc
+      - POSTGRES_PASSWORD=changeme
     deploy:
       resources:
         limits:
@@ -28,7 +27,7 @@ services:
         reservations:
           memory: 1G
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8011/health"]
+      test: [ "CMD-SHELL", "pg_isready -U virtplc -d virtplc_ts" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -62,7 +61,7 @@ services:
         reservations:
           memory: 512M
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U virtplc"]
+      test: [ "CMD-SHELL", "pg_isready -U virtplc" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -81,11 +80,7 @@ services:
     volumes:
       - redis-data:/data
     command: >
-      redis-server
-      --maxmemory 256mb
-      --maxmemory-policy allkeys-lru
-      --appendonly yes
-      --appendfsync everysec
+      redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru --appendonly yes --appendfsync everysec
     deploy:
       resources:
         limits:
@@ -94,7 +89,7 @@ services:
         reservations:
           memory: 256M
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -125,7 +120,7 @@ services:
           cpus: '1'
           memory: 512M
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/health"]
+      test: [ "CMD", "wget", "--spider", "-q", "http://localhost:3000/api/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -160,7 +155,7 @@ services:
           cpus: '1'
           memory: 1G
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9090/-/healthy"]
+      test: [ "CMD", "wget", "--spider", "-q", "http://localhost:9090/-/healthy" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -195,7 +190,7 @@ services:
         ipv4_address: 172.21.0.15
 
 volumes:
-  timebase-data:
+  timescale-data:
     driver: local
   postgres-data:
     driver: local

@@ -282,9 +282,9 @@ services:
       - "8060:8060"   # Gateway Network
     volumes:
       - ignition-data:/usr/local/bin/ignition/data
-      - ./HMI/IgnitionEdge/projects:/projects:ro
-      - ./HMI/IgnitionEdge/config:/config:ro
-      - ./HMI/IgnitionEdge/tags:/tags:ro
+      - ./HMI/IgnitionEdge/projects:/usr/local/bin/ignition/data/projects:ro
+      - ./HMI/IgnitionEdge/config/gateway.xml:/usr/local/bin/ignition/data/gateway.xml:ro
+      - ./HMI/IgnitionEdge/tags:/usr/local/bin/ignition/data/tags:ro
     environment:
       - GATEWAY_ADMIN_USERNAME=${GATEWAY_ADMIN_USERNAME:-admin}
       - GATEWAY_ADMIN_PASSWORD=${GATEWAY_ADMIN_PASSWORD:-password}

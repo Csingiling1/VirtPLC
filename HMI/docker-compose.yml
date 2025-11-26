@@ -18,12 +18,12 @@ services:
     volumes:
       - ignition-data:/usr/local/bin/ignition/data
       - ./IgnitionEdge/projects:/projects:ro
-      - ./IgnitionEdge/config:/config:ro
-      - ./IgnitionEdge/tags:/tags:ro
+      # - ./IgnitionEdge/config/gateway.xml:/usr/local/bin/ignition/data/gateway.xml:ro
+      # - ./IgnitionEdge/tags:/usr/local/bin/ignition/data/tags:ro
     environment:
       - GATEWAY_ADMIN_USERNAME=${GATEWAY_ADMIN_USERNAME:-admin}
       - GATEWAY_ADMIN_PASSWORD=${GATEWAY_ADMIN_PASSWORD:-password}
-      - IGNITION_EDITION=edge
+      - ACCEPT_IGNITION_EULA=Y
       - JAVA_OPTS=-Xmx1g -Xms512m
       - REDIS_HOST=redis-edge
     deploy:
@@ -31,25 +31,24 @@ services:
         limits:
           cpus: '2'
           memory: 2G
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8088/StatusPing"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 120s
+    # healthcheck:
+    #   test: ["CMD", "curl", "-f", "http://localhost:8088/StatusPing"]
+    #   interval: 30s
+    #   timeout: 10s
+    #   retries: 3
+    #   start_period: 120s
     restart: unless-stopped
     networks:
       - edge-network
-      - virtplc-shared
-    depends_on:
-      - redis-edge
+    # depends_on:
+    #   - redis-edge
 
   redis-edge:
     image: redis:7-alpine
     container_name: redis-edge
     hostname: redis-edge
     ports:
-      - "6379:6379"
+      - "6380:6379"
     command: >
       redis-server
       --maxmemory 256mb
@@ -79,5 +78,3 @@ volumes:
 networks:
   edge-network:
     driver: bridge
-  virtplc-shared:
-    external: true

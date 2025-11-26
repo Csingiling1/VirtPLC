@@ -8,94 +8,42 @@
       "tags": [
         {
           "name": "Speed",
-          "valueSource": "opc",
-          "opcServer": "Backend-OPC-UA",
-          "opcItemPath": "ns=2;s=Motor1.Speed",
+          "valueSource": "memory",
           "dataType": "Float4",
-          "tagGroup": "Default Historical",
-          "historyEnabled": true,
-          "deadband": 10.0,
+          "value": 1500.0,
           "units": {
             "engUnit": "RPM"
-          },
-          "alarms": [
-            {
-              "name": "High",
-              "mode": "AboveValue",
-              "setpoint": 2000.0,
-              "priority": "Medium"
-            },
-            {
-              "name": "Critical",
-              "mode": "AboveValue",
-              "setpoint": 2200.0,
-              "priority": "Critical"
-            }
-          ]
+          }
         },
         {
           "name": "Temp",
-          "valueSource": "opc",
-          "opcServer": "Backend-OPC-UA",
-          "opcItemPath": "ns=2;s=Motor1.Temp",
+          "valueSource": "memory",
           "dataType": "Float4",
-          "tagGroup": "Default Historical",
-          "historyEnabled": true,
-          "deadband": 1.0,
+          "value": 45.0,
           "units": {
             "engUnit": "°C"
-          },
-          "alarms": [
-            {
-              "name": "High Temp",
-              "mode": "AboveValue",
-              "setpoint": 75.0,
-              "priority": "Medium"
-            },
-            {
-              "name": "Critical Temp",
-              "mode": "AboveValue",
-              "setpoint": 85.0,
-              "priority": "Critical"
-            }
-          ]
+          }
         },
         {
           "name": "Run",
-          "valueSource": "opc",
-          "opcServer": "Backend-OPC-UA",
-          "opcItemPath": "ns=2;s=Motor1.Run",
+          "valueSource": "memory",
           "dataType": "Boolean",
-          "tagGroup": "Default Historical",
-          "historyEnabled": true
+          "value": false
         },
         {
           "name": "Fault",
-          "valueSource": "opc",
-          "opcServer": "Backend-OPC-UA",
-          "opcItemPath": "ns=2;s=Motor1.Fault",
+          "valueSource": "memory",
           "dataType": "Boolean",
-          "tagGroup": "Default Historical",
-          "historyEnabled": true,
-          "alarms": [
-            {
-              "name": "Motor Fault",
-              "mode": "Equals",
-              "setpoint": true,
-              "priority": "Critical"
-            }
-          ]
+          "value": false
         },
         {
           "name": "TargetSpeed",
-          "valueSource": "opc",
-          "opcServer": "Backend-OPC-UA",
-          "opcItemPath": "ns=2;s=Motor1.TargetSpeed",
+          "valueSource": "memory",
           "dataType": "Float4",
+          "value": 1500.0,
           "units": {
             "engUnit": "RPM"
-          },
-          "value": 1500.0
+          }
         }
       ]
     },
@@ -105,47 +53,33 @@
       "tags": [
         {
           "name": "Speed",
-          "valueSource": "opc",
-          "opcServer": "Backend-OPC-UA",
-          "opcItemPath": "ns=2;s=Motor2.Speed",
+          "valueSource": "memory",
           "dataType": "Float4",
-          "tagGroup": "Default Historical",
-          "historyEnabled": true,
-          "deadband": 10.0,
+          "value": 1200.0,
           "units": {
             "engUnit": "RPM"
           }
         },
         {
           "name": "Temp",
-          "valueSource": "opc",
-          "opcServer": "Backend-OPC-UA",
-          "opcItemPath": "ns=2;s=Motor2.Temp",
+          "valueSource": "memory",
           "dataType": "Float4",
-          "tagGroup": "Default Historical",
-          "historyEnabled": true,
-          "deadband": 1.0,
+          "value": 42.0,
           "units": {
             "engUnit": "°C"
           }
         },
         {
           "name": "Run",
-          "valueSource": "opc",
-          "opcServer": "Backend-OPC-UA",
-          "opcItemPath": "ns=2;s=Motor2.Run",
+          "valueSource": "memory",
           "dataType": "Boolean",
-          "tagGroup": "Default Historical",
-          "historyEnabled": true
+          "value": false
         },
         {
           "name": "Fault",
-          "valueSource": "opc",
-          "opcServer": "Backend-OPC-UA",
-          "opcItemPath": "ns=2;s=Motor2.Fault",
+          "valueSource": "memory",
           "dataType": "Boolean",
-          "tagGroup": "Default Historical",
-          "historyEnabled": true
+          "value": false
         }
       ]
     },
@@ -154,41 +88,28 @@
       "tagType": "Folder",
       "tags": [
         {
+          "name": "Running",
+          "valueSource": "memory",
+          "dataType": "Boolean",
+          "value": false
+        },
+        {
           "name": "Speed",
-          "valueSource": "opc",
-          "opcServer": "Backend-OPC-UA",
-          "opcItemPath": "ns=2;s=Conveyor1.Speed",
+          "valueSource": "memory",
           "dataType": "Float4",
-          "tagGroup": "Default Historical",
-          "historyEnabled": true,
+          "value": 0.0,
           "units": {
             "engUnit": "m/min"
           }
         },
         {
-          "name": "Running",
-          "valueSource": "opc",
-          "opcServer": "Backend-OPC-UA",
-          "opcItemPath": "ns=2;s=Conveyor1.Running",
-          "dataType": "Boolean",
-          "tagGroup": "Default Historical",
-          "historyEnabled": true
-        },
-        {
-          "name": "ItemCount",
-          "valueSource": "opc",
-          "opcServer": "Backend-OPC-UA",
-          "opcItemPath": "ns=2;s=Conveyor1.ItemCount",
-          "dataType": "Int4",
-          "tagGroup": "Default Historical",
-          "historyEnabled": true
-        },
-        {
-          "name": "Emergency",
-          "valueSource": "opc",
-          "opcServer": "Backend-OPC-UA",
-          "opcItemPath": "ns=2;s=Conveyor1.Emergency",
-          "dataType": "Boolean"
+          "name": "Load",
+          "valueSource": "memory",
+          "dataType": "Float4",
+          "value": 0.0,
+          "units": {
+            "engUnit": "%"
+          }
         }
       ]
     },
@@ -197,37 +118,25 @@
       "tagType": "Folder",
       "tags": [
         {
-          "name": "Reset",
-          "valueSource": "opc",
-          "opcServer": "Backend-OPC-UA",
-          "opcItemPath": "ns=2;s=System.Reset",
-          "dataType": "Boolean"
-        },
-        {
           "name": "EmergencyStop",
-          "valueSource": "opc",
-          "opcServer": "Backend-OPC-UA",
-          "opcItemPath": "ns=2;s=System.EmergencyStop",
+          "valueSource": "memory",
           "dataType": "Boolean",
-          "tagGroup": "Default Historical",
-          "historyEnabled": true,
-          "alarms": [
-            {
-              "name": "E-Stop Active",
-              "mode": "Equals",
-              "setpoint": true,
-              "priority": "Critical"
-            }
-          ]
+          "value": false
         },
         {
-          "name": "Mode",
-          "valueSource": "opc",
-          "opcServer": "Backend-OPC-UA",
-          "opcItemPath": "ns=2;s=System.Mode",
+          "name": "ProductionMode",
+          "valueSource": "memory",
+          "dataType": "String",
+          "value": "Standby"
+        },
+        {
+          "name": "TotalProduction",
+          "valueSource": "memory",
           "dataType": "Int4",
-          "tagGroup": "Default Historical",
-          "historyEnabled": true
+          "value": 0,
+          "units": {
+            "engUnit": "units"
+          }
         }
       ]
     }
