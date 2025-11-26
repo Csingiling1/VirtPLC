@@ -651,16 +651,38 @@ class SimulatorApp:
         )
 
     async def start_opcua_server(self, endpoint: str = "opc.tcp://0.0.0.0:4840/virtplc/"):
-        """Start OPC-UA server"""
-        from opcua_server import OPCUAServer
+        """Start MQTT client instead of OPC-UA"""
+        import paho.mqtt.client as mqtt
+        import json
+        import time
         
-        logger.info(f"Starting OPC-UA server at {endpoint}")
-        opcua_server = OPCUAServer(self.db, endpoint)
-        await opcua_server.start()
+        MQTT_BROKER = os.getenv("MQTT_BROKER", "mqtt")
+        MQTT_PORT = int(os.getenv("MQTT_PORT", 1883))
         
-        # Keep the server running
+        def on_message(client, userdata, msg):
+            data = json.loads(msg.payload.decode())
+            logger.info(f"Received MQTT from Unreal: {data}")
+            # Process Unreal commands (update simulator state)
+            # Example: Update PLC data based on MQTT
+        
+        client = mqtt.Client()
+        client.on_message = on_message
+        client.connect(MQTT_BROKER, MQTT_PORT)
+        client.subscribe("unreal/commands")  # Topic from Unreal
+        client.loop_start()
+        
+        logger.info(f"Connected to MQTT broker at {MQTT_BROKER}:{MQTT_PORT}")
+        
+        # Publish simulator data periodically
         while True:
-            await asyncio.sleep(1)
+            # Get current PLC data
+            plc_data = self.db.get_all_tenants()  # Or specific data
+            data = {
+                "timestamp": time.time(),
+                "tenants": {tenant.id: tenant.to_dict() for tenant in plc_data}
+            }
+            client.publish("plc/data", json.dumps(data))
+            await asyncio.sleep(1)  # Publish every second
 
 def main():
     """Main entry point - simplified for multi-tenant testing"""
@@ -671,7 +693,8 @@ def main():
     parser.add_argument("--port", type=int, default=8000, help="Port to bind to")
     parser.add_argument("--db-path", default="data/tenants.json", help="Database file path")
     parser.add_argument("--mode", default=os.getenv("SIMULATOR_MODE", "web-only"), help="Mode: web-only or plc-server")
-    parser.add_argument("--opcua-endpoint", default="opc.tcp://0.0.0.0:4840/virtplc/", help="OPC-UA endpoint")
+    parser.add_argument("--mqtt-broker", default=os.getenv("MQTT_BROKER", "mqtt"), help="MQTT broker host")
+    parser.add_argument("--mqtt-port", type=int, default=int(os.getenv("MQTT_PORT", 1883)), help="MQTT broker port")
     
     args = parser.parse_args()
     
@@ -679,12 +702,12 @@ def main():
     app = SimulatorApp(args.db_path)
     
     if args.mode == "plc-server":
-        # Start OPC-UA server in a separate thread
-        logger.info(f"Starting OPC-UA server in plc-server mode at {args.opcua_endpoint}")
+        # Start MQTT client in a separate thread
+        logger.info(f"Starting MQTT client in plc-server mode connecting to {args.mqtt_broker}:{args.mqtt_port}")
         import threading
-        opcua_thread = threading.Thread(target=lambda: asyncio.run(app.start_opcua_server(args.opcua_endpoint)))
-        opcua_thread.daemon = True
-        opcua_thread.start()
+        mqtt_thread = threading.Thread(target=lambda: asyncio.run(app.start_opcua_server()))  # Renamed but same method
+        mqtt_thread.daemon = True
+        mqtt_thread.start()
         
         # Start web server (blocking)
         app.start_web_server(args.host, args.port)

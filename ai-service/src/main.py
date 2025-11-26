@@ -11,7 +11,6 @@ from datetime import datetime
 
 from .config import settings
 from .services.mcp_client import mcp_client
-from .services.timebase_client import timebase_service
 from .database.models import Base
 from .database import get_engine
 
@@ -34,12 +33,6 @@ async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     logger.info("Database initialized")
     
-    # Connect to TimeBase
-    try:
-        await timebase_service.connect()
-    except Exception as e:
-        logger.warning(f"TimeBase connection failed: {e}")
-    
     # Initialize MCP
     try:
         await mcp_client.initialize()
@@ -50,7 +43,6 @@ async def lifespan(app: FastAPI):
     
     # Shutdown
     logger.info("Shutting down AI Service")
-    await timebase_service.disconnect()
     await mcp_client.close()
 
 

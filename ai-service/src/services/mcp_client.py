@@ -144,12 +144,12 @@ class MCPClient:
             return
         
         try:
-            # Test connection to MCP server
-            response = await self.client.get(f"{self.server_url.replace('/sse', '')}/health")
-            if response.status_code == 200:
-                logger.info("MCP server connection established")
+            # Test connection by listing tools
+            tools = await self.list_tools()
+            if tools:
+                logger.info(f"MCP server connection established - {len(tools)} tools available")
             else:
-                logger.warning(f"MCP server health check failed: {response.status_code}")
+                logger.warning("MCP server connection established but no tools available")
         except Exception as e:
             logger.error(f"MCP initialization failed: {e}")
             raise
@@ -254,9 +254,19 @@ class MCPClient:
                 # Parse the text content
                 text_content = content[0].get("text", "")
                 
-                # The response format is complex, extract the actual data
-                # Look for "Results:" followed by tab-separated data
+                # Try to parse as JSON first (for queries that return JSON)
+                try:
+                    json_data = json.loads(text_content)
+                    if isinstance(json_data, list):
+                        return json_data
+                    elif isinstance(json_data, dict):
+                        return [json_data]
+                except json.JSONDecodeError:
+                    pass
+                
+                # Parse TSV format (tab-separated values)
                 if "Results:" in text_content:
+                    logger.debug("Attempting TSV parsing")
                     # Find the data section
                     lines = text_content.split('\n')
                     data_start = -1
@@ -282,11 +292,19 @@ class MCPClient:
                             if not line or line.startswith('Total rows:'):
                                 break
                             if '\t' in line:
-                                values = [v.strip() for v in line.split('\t')]
+                                values = line.split('\t')
+                                # Clean up values
+                                values = [v.strip() for v in values]
                                 if len(values) == len(headers):
                                     row = dict(zip(headers, values))
+                                    # Parse JSON columns
+                                    for key, value in row.items():
+                                        if key == 'data' and value:
+                                            try:
+                                                row[key] = json.loads(value)
+                                            except json.JSONDecodeError:
+                                                pass
                                     results.append(row)
-                    
                     return results
                 
                 # Fallback: return raw result
@@ -300,49 +318,305 @@ class MCPClient:
     
     async def get_latest_sensor_readings(self, limit: int = 50) -> List[Dict[str, Any]]:
         """
-        Get latest sensor readings from TimescaleDB via MCP
+        Get latest sensor readings from TimescaleDB plc_data table via MCP
         """
         query = f"""
-        SELECT device_id, timestamp, motor1_speed, motor1_temp, motor1_run, motor1_fault,
-               motor2_speed, motor2_temp, motor2_run, motor2_fault, conveyor1_speed,
-               conveyor1_run, sensor1_value, sensor2_value, system_status, quality
-        FROM sensor_data
+        SELECT timestamp, data
+        FROM plc_data
         ORDER BY timestamp DESC
         LIMIT {limit}
         """
         
-        return await self.query_sensor_data(query)
+        raw_data = await self.query_sensor_data(query)
+        
+        # Transform the data to match expected format
+        transformed_data = []
+        for row in raw_data:
+            if 'data' in row and row['data']:
+                # The data is JSON with tenant structure
+                tenant_data = row['data']
+                if isinstance(tenant_data, dict):
+                    for tenant_id, tenant_info in tenant_data.items():
+                        if isinstance(tenant_info, dict) and 'manufacturers' in tenant_info:
+                            for manufacturer in tenant_info.get('manufacturers', []):
+                                for factory in manufacturer.get('factories', []):
+                                    devices = factory.get('devices', [])
+                                    plcs = factory.get('plcs', [])
+                                    for device in devices:
+                                        signals = device.get('signals', [])
+                                        for signal in signals:
+                                            transformed_data.append({
+                                                'timestamp': row.get('timestamp'),
+                                                'device_id': device.get('id', 'unknown'),
+                                                'signal_name': signal.get('name', 'unknown'),
+                                                'value': signal.get('value'),
+                                                'unit': signal.get('unit', ''),
+                                                'status': 'active'
+                                            })
+                                    
+                                    # Also check PLCs for sensors
+                                    for plc in plcs:
+                                        sensors = plc.get('sensors', [])
+                                        for sensor in sensors:
+                                            # The sensor data is in signal_config
+                                            signal_config = sensor.get('signal_config', {})
+                                            transformed_data.append({
+                                                'timestamp': row.get('timestamp'),
+                                                'device_id': plc.get('id', 'unknown'),
+                                                'signal_name': signal_config.get('name', sensor.get('name', 'unknown')),
+                                                'value': signal_config.get('value'),
+                                                'unit': signal_config.get('unit', ''),
+                                                'status': 'active' if sensor.get('is_active', True) else 'inactive'
+                                            })
+        
+        return transformed_data[:limit]
     
     async def get_historical_data(self, device_id: str, hours: int = 24) -> List[Dict[str, Any]]:
         """
-        Get historical data for a specific device
+        Get historical data for a specific device from plc_data table
         """
         query = f"""
-        SELECT device_id, timestamp, motor1_speed, motor1_temp, motor1_run, motor1_fault,
-               motor2_speed, motor2_temp, motor2_run, motor2_fault, conveyor1_speed,
-               conveyor1_run, sensor1_value, sensor2_value, system_status, quality
-        FROM sensor_data
-        WHERE device_id = '{device_id}'
-        AND timestamp >= NOW() - INTERVAL '{hours} hours'
+        SELECT timestamp, 
+               jsonb_object_keys(data) as tenant_id,
+               data->jsonb_object_keys(data) as tenant_data
+        FROM plc_data
+        WHERE timestamp >= NOW() - INTERVAL '{hours} hours'
         ORDER BY timestamp ASC
         """
         
-        return await self.query_sensor_data(query)
+        raw_data = await self.query_sensor_data(query)
+        
+        # Filter and transform data for the specific device
+        transformed_data = []
+        for row in raw_data:
+            if 'tenant_data' in row and row['tenant_data']:
+                tenant_data = row['tenant_data']
+                if isinstance(tenant_data, dict) and 'manufacturers' in tenant_data:
+                    for manufacturer in tenant_data.get('manufacturers', []):
+                        for factory in manufacturer.get('factories', []):
+                            for device in factory.get('devices', []):
+                                if device.get('id') == device_id:
+                                    for signal in device.get('signals', []):
+                                        transformed_data.append({
+                                            'timestamp': row.get('timestamp'),
+                                            'device_id': device.get('id'),
+                                            'signal_name': signal.get('name'),
+                                            'value': signal.get('value'),
+                                            'unit': signal.get('unit', ''),
+                                            'status': 'active'
+                                        })
+        
+        return transformed_data
     
+    async def get_historical_data_for_range(
+        self, 
+        start_time: datetime, 
+        end_time: datetime, 
+        limit: int = 1000
+    ) -> List[Dict[str, Any]]:
+        """
+        Get historical sensor data for a time range from plc_data table
+        """
+        query = f"""
+        SELECT timestamp, data
+        FROM plc_data
+        WHERE timestamp >= '{start_time.isoformat()}'
+        AND timestamp <= '{end_time.isoformat()}'
+        ORDER BY timestamp ASC
+        LIMIT {limit}
+        """
+        
+        raw_data = await self.query_sensor_data(query)
+        
+        # Transform the data to match expected format
+        transformed_data = []
+        for row in raw_data:
+            if 'data' in row and row['data']:
+                # The data is JSON with tenant structure
+                tenant_data = row['data']
+                if isinstance(tenant_data, dict):
+                    for tenant_id, tenant_info in tenant_data.items():
+                        if isinstance(tenant_info, dict) and 'manufacturers' in tenant_info:
+                            for manufacturer in tenant_info.get('manufacturers', []):
+                                for factory in manufacturer.get('factories', []):
+                                    devices = factory.get('devices', [])
+                                    plcs = factory.get('plcs', [])
+                                    for device in devices:
+                                        signals = device.get('signals', [])
+                                        for signal in signals:
+                                            transformed_data.append({
+                                                'timestamp': row.get('timestamp'),
+                                                'device_id': device.get('id', 'unknown'),
+                                                'signal_name': signal.get('name', 'unknown'),
+                                                'value': signal.get('value'),
+                                                'unit': signal.get('unit', ''),
+                                                'status': 'active'
+                                            })
+                                    
+                                    # Also check PLCs for sensors
+                                    for plc in plcs:
+                                        sensors = plc.get('sensors', [])
+                                        for sensor in sensors:
+                                            # The sensor data is in signal_config
+                                            signal_config = sensor.get('signal_config', {})
+                                            transformed_data.append({
+                                                'timestamp': row.get('timestamp'),
+                                                'device_id': plc.get('id', 'unknown'),
+                                                'signal_name': signal_config.get('name', sensor.get('name', 'unknown')),
+                                                'value': signal_config.get('value'),
+                                                'unit': signal_config.get('unit', ''),
+                                                'status': 'active' if sensor.get('is_active', True) else 'inactive'
+                                            })
+        
+        return transformed_data[:limit]
+
+    async def get_filtered_sensor_data(
+        self,
+        start_time: datetime,
+        end_time: datetime,
+        metrics: List[str] = None,
+        devices: List[str] = None,
+        limit: int = 2000
+    ) -> List[Dict[str, Any]]:
+        """
+        Get filtered sensor data based on metrics and device types
+        """
+        query = f"""
+        SELECT timestamp, data
+        FROM plc_data
+        WHERE timestamp >= '{start_time.isoformat()}'
+        AND timestamp <= '{end_time.isoformat()}'
+        ORDER BY timestamp ASC
+        LIMIT {limit}
+        """
+
+        raw_data = await self.query_sensor_data(query)
+
+        # Transform and filter the data
+        transformed_data = []
+        metrics = metrics or []
+        devices = devices or []
+
+        for row in raw_data:
+            if 'data' in row and row['data']:
+                tenant_data = row['data']
+                if isinstance(tenant_data, dict):
+                    for tenant_id, tenant_info in tenant_data.items():
+                        if isinstance(tenant_info, dict) and 'manufacturers' in tenant_info:
+                            for manufacturer in tenant_info.get('manufacturers', []):
+                                for factory in manufacturer.get('factories', []):
+                                    # Process devices
+                                    for device in factory.get('devices', []):
+                                        device_id = device.get('id', '').lower()
+                                        device_name = device.get('name', '').lower()
+
+                                        for signal in device.get('signals', []):
+                                            signal_name = signal.get('name', '').lower()
+
+                                            # Check if device and signal match filters
+                                            device_matches = True
+                                            if devices:
+                                                device_matches = any(
+                                                    device_filter.lower() in device_id or
+                                                    device_filter.lower() in device_name or
+                                                    device_filter.lower() in signal_name
+                                                    for device_filter in devices
+                                                )
+
+                                            # Check if signal matches metrics filter
+                                            signal_matches = True
+                                            if metrics:
+                                                signal_matches = any(
+                                                    metric.lower() in signal_name
+                                                    for metric in metrics
+                                                )
+
+                                            if device_matches and signal_matches:
+                                                transformed_data.append({
+                                                    'timestamp': row.get('timestamp'),
+                                                    'device_id': device.get('id', 'unknown'),
+                                                    'device_name': device.get('name', 'unknown'),
+                                                    'signal_name': signal.get('name', 'unknown'),
+                                                    'value': signal.get('value'),
+                                                    'unit': signal.get('unit', ''),
+                                                    'status': 'active'
+                                                })
+
+                                    # Process PLCs
+                                    for plc in factory.get('plcs', []):
+                                        plc_id = plc.get('id', '').lower()
+                                        plc_name = plc.get('name', '').lower()
+
+                                        for sensor in plc.get('sensors', []):
+                                            signal_config = sensor.get('signal_config', {})
+                                            signal_name = signal_config.get('name', '').lower()
+
+                                            # Check if PLC and sensor match filters
+                                            plc_matches = True
+                                            if devices:
+                                                plc_matches = any(
+                                                    device_filter.lower() in plc_id or
+                                                    device_filter.lower() in plc_name or
+                                                    device_filter.lower() in signal_name
+                                                    for device_filter in devices
+                                                )
+
+                                            # Check if sensor matches metrics filter
+                                            sensor_matches = True
+                                            if metrics:
+                                                sensor_matches = any(
+                                                    metric.lower() in signal_name
+                                                    for metric in metrics
+                                                )
+
+                                            if plc_matches and sensor_matches:
+                                                transformed_data.append({
+                                                    'timestamp': row.get('timestamp'),
+                                                    'device_id': plc.get('id', 'unknown'),
+                                                    'device_name': plc.get('name', 'unknown'),
+                                                    'signal_name': signal_config.get('name', 'unknown'),
+                                                    'value': signal_config.get('value'),
+                                                    'unit': signal_config.get('unit', ''),
+                                                    'status': 'active' if sensor.get('is_active', True) else 'inactive'
+                                                })
+
+        return transformed_data[:limit]
+
     async def get_equipment_status(self) -> List[Dict[str, Any]]:
         """
-        Get current equipment status
+        Get current equipment status from plc_data table
         """
         query = """
-        SELECT device_id, timestamp, motor1_run, motor1_fault, motor2_run, motor2_fault,
-               conveyor1_run, system_status
-        FROM sensor_data
+        SELECT timestamp, 
+               jsonb_object_keys(data) as tenant_id,
+               data->jsonb_object_keys(data) as tenant_data
+        FROM plc_data
         WHERE timestamp >= NOW() - INTERVAL '1 hour'
         ORDER BY timestamp DESC
         LIMIT 10
         """
         
-        return await self.query_sensor_data(query)
+        raw_data = await self.query_sensor_data(query)
+        
+        # Transform to equipment status format
+        status_data = []
+        for row in raw_data:
+            if 'tenant_data' in row and row['tenant_data']:
+                tenant_data = row['tenant_data']
+                if isinstance(tenant_data, dict) and 'manufacturers' in tenant_data:
+                    for manufacturer in tenant_data.get('manufacturers', []):
+                        for factory in manufacturer.get('factories', []):
+                            for device in factory.get('devices', []):
+                                status_data.append({
+                                    'timestamp': row.get('timestamp'),
+                                    'device_id': device.get('id'),
+                                    'device_name': device.get('name', 'Unknown'),
+                                    'status': 'running' if device.get('active', True) else 'stopped',
+                                    'factory': factory.get('name', 'Unknown'),
+                                    'manufacturer': manufacturer.get('name', 'Unknown')
+                                })
+        
+        return status_data
     
     async def close(self):
         """Close MCP client"""

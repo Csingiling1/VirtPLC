@@ -63,7 +63,8 @@ services:
       - SIMULATOR_MODE=plc-server
       - SIMULATOR_HOST=0.0.0.0
       - SIMULATOR_PORT=8080
-      - OPCUA_ENDPOINT=opc.tcp://0.0.0.0:4840/virtplc/
+      - MQTT_BROKER=mqtt
+      - MQTT_PORT=1883
       - UPDATE_INTERVAL=1.0
     volumes:
       - simulator-data:/app/data
@@ -161,6 +162,7 @@ services:
       - "9090:9090"   # Prometheus metrics
     environment:
       - ENVIRONMENT=production
+      - LOG_LEVEL=DEBUG
       - PORT=3001
       - WS_PORT=3002
       - BACKEND_API_URL=http://backend:8080
@@ -258,7 +260,7 @@ services:
       - POSTGRES_INITDB_ARGS=--encoding=UTF-8
     volumes:
       - timescale-data:/var/lib/postgresql/data
-      - ./backend/src/main/resources/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+      - ./backend/init-timescale.sql:/docker-entrypoint-initdb.d/01-timescale-init.sql
     networks:
       - virtplc-network
     healthcheck:
@@ -304,6 +306,18 @@ services:
       start_period: 120s
     restart: unless-stopped
 
+  # MQTT Broker
+  mqtt:
+    image: eclipse-mosquitto:2.0
+    container_name: virtplc-mqtt
+    ports:
+      - "1883:1883"  # MQTT port
+    volumes:
+      - ./mqtt/config:/mosquitto/config:ro
+    networks:
+      - virtplc-network
+    restart: unless-stopped
+
   # Node-RED MQTT to OPC-UA Bridge
   nodered:
     image: nodered/node-red:latest
@@ -329,7 +343,7 @@ services:
     build: ./collector
     container_name: collector
     depends_on:
-      - nodered
+      - mqtt
       - timescale
     environment:
       - TIMESCALE_HOST=timescale
@@ -337,8 +351,8 @@ services:
       - TIMESCALE_USER=virtplc
       - TIMESCALE_PASSWORD=changeme
       - TIMESCALE_DB=virtplc_ts
-      - OPCUA_ENDPOINT=opc.tcp://nodered:4840/virtplc/
-      - COLLECTION_INTERVAL=1000
+      - MQTT_BROKER=mqtt
+      - MQTT_PORT=1883
     ports:
       - "9100:9100"  # prometheus metrics
     networks:

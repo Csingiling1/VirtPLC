@@ -119,7 +119,7 @@ function AIAssistant() {
         });
         setConversations(updated);
         persistConversations(updated, currentConversationId);
-    }, [messages, embeddedCharts, currentConversationId, conversations, persistConversations]);
+    }, [messages, embeddedCharts, currentConversationId, persistConversations]);
 
     const sendQuery = async (content: string, contextMessages: Message[]) => {
         setIsLoading(true);

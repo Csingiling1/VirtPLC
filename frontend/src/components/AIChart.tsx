@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, Legend } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -30,10 +30,17 @@ const AIChart: React.FC<AIChartProps> = ({ suggestion, onClose }) => {
     const [chartConfig, setChartConfig] = useState({
         showGrid: true,
         showTooltip: true,
+        showLegend: true,
         height: 300,
         colors: ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))', 'hsl(var(--chart-5))'],
         library: 'recharts' as 'recharts' | 'chartjs'
     });
+
+    // Memoize dataKeys calculation
+    const dataKeys = useMemo(() =>
+        chartData.length > 0 ? Object.keys(chartData[0]).filter(key => key !== 'timestamp') : [],
+        [chartData]
+    );
 
     const generateReactCode = useCallback(() => {
         const componentName = suggestion.title.replace(/\s+/g, '').replace(/[^a-zA-Z0-9]/g, '');
@@ -136,6 +143,7 @@ const AIChart: React.FC<AIChartProps> = ({ suggestion, onClose }) => {
                         <XAxis dataKey="timestamp" />
                         <YAxis />
                         {showTooltip && <Tooltip />}
+                        {showLegend && <Legend />}
                         ${dataKeys.map((key, index) =>
                 `<Line key="${key}" type="monotone" dataKey="${key}" stroke="${chartConfig.colors[index % chartConfig.colors.length]}" strokeWidth={2} />`
             ).join('\n                        ')}
@@ -149,6 +157,7 @@ const AIChart: React.FC<AIChartProps> = ({ suggestion, onClose }) => {
                         <XAxis dataKey="timestamp" />
                         <YAxis />
                         {showTooltip && <Tooltip />}
+                        {showLegend && <Legend />}
                         ${dataKeys.map((key, index) =>
                 `<Bar key="${key}" dataKey="${key}" fill="${chartConfig.colors[index % chartConfig.colors.length]}" />`
             ).join('\n                        ')}
@@ -173,6 +182,7 @@ const AIChart: React.FC<AIChartProps> = ({ suggestion, onClose }) => {
                             ))}
                         </Pie>
                         {showTooltip && <Tooltip />}
+                        {showLegend && <Legend />}
                     </PieChart>
                 </ResponsiveContainer>`;
         } else {
@@ -199,9 +209,9 @@ const AIChart: React.FC<AIChartProps> = ({ suggestion, onClose }) => {
         }
 
         const reactCode = `import React, { useState, useEffect } from 'react';
-import { ${suggestion.type === 'line_chart' ? 'LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer' :
-                suggestion.type === 'bar_chart' ? 'BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer' :
-                    suggestion.type === 'pie_chart' ? 'PieChart, Pie, Cell, Tooltip, ResponsiveContainer' :
+import { ${suggestion.type === 'line_chart' ? 'LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer' :
+                suggestion.type === 'bar_chart' ? 'BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer' :
+                    suggestion.type === 'pie_chart' ? 'PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer' :
                         'ResponsiveContainer'} } from 'recharts';
 
 interface ${componentName}Props {
@@ -217,7 +227,8 @@ const ${componentName}: React.FC<${componentName}Props> = ({
     endTime = Date.now(),
     height = ${chartConfig.height},
     showGrid = ${chartConfig.showGrid},
-    showTooltip = ${chartConfig.showTooltip}
+    showTooltip = ${chartConfig.showTooltip},
+    showLegend = ${chartConfig.showLegend}
 }) => {
     const [chartData, setChartData] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -342,32 +353,83 @@ export default ${componentName};
             setLoading(true);
             setError(null);
 
-            // Get time range (default to last 24 hours)
-            const endTime = Date.now();
-            const startTime = endTime - (24 * 60 * 60 * 1000); // 24 hours ago
+            // Determine time range based on suggestion data_source
+            let hoursBack = 24; // default
+            if (suggestion.data_source?.includes('7d')) {
+                hoursBack = 24 * 7;
+            } else if (suggestion.data_source?.includes('1h')) {
+                hoursBack = 1;
+            }
 
-            // Fetch data from backend
-            const response = await dataApi.getRange(startTime, endTime);
+            // Get time range
+            const endTime = Date.now();
+            const startTime = endTime - (hoursBack * 60 * 60 * 1000);
+
+            // Fetch data from backend with larger limit for better time series
+            // Construct query from suggestion metrics and devices for intelligent filtering
+            let query: string | undefined;
+            if (suggestion.metrics && suggestion.metrics.length > 0) {
+                query = suggestion.metrics.join(' ');
+                if (suggestion.devices && suggestion.devices.length > 0) {
+                    query += ' ' + suggestion.devices.join(' ');
+                }
+            }
+
+            const response = await dataApi.getRange(startTime, endTime, 0, 2000, query); // Increased limit
             const rawData = response || [];
 
-            // Transform data for the chart
-            const transformedData: ChartDataPoint[] = rawData.map((item: unknown) => {
+            // Transform data for the chart - group by timestamp and create series
+            const dataByTimestamp: Record<string, Record<string, number>> = {};
+            const allowedMetrics = suggestion.metrics || [];
+
+            rawData.forEach((item: unknown) => {
                 const dataItem = item as Record<string, unknown>;
-                return {
-                    timestamp: new Date(dataItem.timestamp as number).toLocaleTimeString(),
-                    // Include all numeric values except timestamp
-                    ...Object.fromEntries(
-                        Object.entries(dataItem)
-                            .filter(([key, value]) =>
-                                key !== 'timestamp' &&
-                                (typeof value === 'number' || (typeof value === 'string' && !isNaN(Number(value))))
-                            )
-                            .map(([key, value]) => [key, typeof value === 'string' ? Number(value) : value])
-                    )
-                };
+                const timestamp = new Date(dataItem.timestamp as number).toLocaleTimeString();
+                const deviceId = String(dataItem.device_id || 'unknown');
+                const signalName = String(dataItem.signal_name || 'unknown').toLowerCase();
+                const value = dataItem.value;
+
+                // Filter by allowed metrics if specified
+                if (allowedMetrics.length > 0) {
+                    const signalMatchesMetric = allowedMetrics.some(metric =>
+                        signalName.includes(metric.toLowerCase()) ||
+                        metric.toLowerCase().includes(signalName)
+                    );
+                    if (!signalMatchesMetric) return; // Skip this data point
+                }
+
+                // Create a unique key for each device-signal combination
+                const seriesKey = `${deviceId}-${signalName}`;
+
+                if (!dataByTimestamp[timestamp]) {
+                    dataByTimestamp[timestamp] = {};
+                }
+
+                // Only include numeric values
+                if (typeof value === 'number' || (typeof value === 'string' && !isNaN(Number(value)))) {
+                    dataByTimestamp[timestamp][seriesKey] = typeof value === 'string' ? Number(value) : value as number;
+                }
             });
 
-            setChartData(transformedData.slice(-50)); // Limit to last 50 points for performance
+            // Convert to array format expected by Recharts and sort by timestamp
+            const transformedData: ChartDataPoint[] = Object.entries(dataByTimestamp)
+                .map(([timestamp, values]) => ({
+                    timestamp,
+                    ...values
+                }))
+                .sort((a, b) => {
+                    // Sort by timestamp for proper time series
+                    const timeA = new Date('1970-01-01T' + a.timestamp).getTime();
+                    const timeB = new Date('1970-01-01T' + b.timestamp).getTime();
+                    return timeA - timeB;
+                });
+
+            // Sample data points for better performance while maintaining time series
+            const sampledData = transformedData.length > 100
+                ? transformedData.filter((_, index) => index % Math.ceil(transformedData.length / 100) === 0)
+                : transformedData;
+
+            setChartData(sampledData);
         } catch (err) {
             setError('Failed to load chart data');
             console.error('Chart data loading error:', err);
@@ -378,17 +440,10 @@ export default ${componentName};
 
     useEffect(() => {
         loadChartData();
-    }, [loadChartData]);
+    }, []); // Remove loadChartData dependency to prevent infinite loops
 
     const renderChart = () => {
-        // Get data keys from chartData, excluding timestamp
-        const dataKeys = chartData.length > 0 ? Object.keys(chartData[0]).filter(key => key !== 'timestamp') : [];
-
-        console.log('Chart suggestion:', suggestion);
-        console.log('Chart data keys:', dataKeys);
-        console.log('Chart data sample:', chartData.slice(0, 2));
-
-        if (suggestion.type === 'line_chart' || suggestion.type === 'line') {
+        if (suggestion.type === 'line_chart' || suggestion.type === 'line' || suggestion.type === 'multi_line_chart') {
             return (
                 <ResponsiveContainer width="100%" height={chartConfig.height}>
                     <LineChart data={chartData}>
@@ -406,6 +461,7 @@ export default ${componentName};
                                 borderRadius: '6px'
                             }}
                         />}
+                        {chartConfig.showLegend && <Legend verticalAlign="bottom" height={36} />}
                         {dataKeys.map((key, index) => (
                             <Line
                                 key={key}
@@ -440,6 +496,7 @@ export default ${componentName};
                                 borderRadius: '6px'
                             }}
                         />}
+                        {chartConfig.showLegend && <Legend verticalAlign="bottom" height={36} />}
                         {dataKeys.map((key, index) => (
                             <Bar
                                 key={key}
@@ -485,6 +542,7 @@ export default ${componentName};
                             ))}
                         </Pie>
                         {chartConfig.showTooltip && <Tooltip />}
+                        {chartConfig.showLegend && <Legend verticalAlign="bottom" height={36} />}
                     </PieChart>
                 </ResponsiveContainer>
             );

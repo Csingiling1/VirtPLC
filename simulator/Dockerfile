@@ -36,4 +36,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8080/simulation/status || exit 1
 
 # Run simulator in PLC server mode
-CMD ["python", "main.py", "--mode", "plc-server", "--host", "0.0.0.0", "--port", "8080", "--opcua-endpoint", "opc.tcp://0.0.0.0:4840/virtplc/"]
+CMD ["python", "main.py", "--mode", "plc-server", "--host", "0.0.0.0", "--port", "8080", "--mqtt-broker", "mqtt", "--mqtt-port", "1883"]

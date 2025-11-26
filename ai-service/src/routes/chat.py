@@ -78,56 +78,231 @@ async def stream_chat_response(prompt: str, symbols: List[str], context_data: st
 
 def generate_chart_suggestions(message: str, symbols: List[str]) -> List[Dict[str, Any]]:
     """
-    Generate intelligent chart suggestions based on context
+    Generate intelligent chart suggestions based on context and user intent
     """
     try:
         chart_suggestions = []
-        
-        # Always suggest key performance indicators
-        chart_suggestions.append({
-            "type": "dashboard",
-            "title": "Equipment Health Dashboard",
-            "description": "Real-time overview of all equipment status and KPIs",
-            "data_source": "realtime",
+
+        # Analyze the message to determine what kind of chart to create
+        message_lower = message.lower()
+
+        # Perform advanced intent analysis
+        intent = analyze_sensor_intent(message_lower)
+
+        # Generate dynamic title and description
+        title, description = generate_chart_title_description(intent, message_lower)
+
+        # Map time range to data source
+        time_range_map = {
+            '1h': 'timescale_1h',
+            '24h': 'timescale_24h',
+            '7d': 'timescale_7d',
+            '30d': 'timescale_30d'
+        }
+        data_source = time_range_map.get(intent['time_range'], 'timescale_24h')
+
+        # Create focused chart suggestion
+        chart_suggestion = {
+            "type": intent['chart_type'],
+            "title": title,
+            "description": description,
+            "data_source": data_source,
+            "symbols": symbols if symbols else ["intelligent_filter"],
+            "metrics": intent['metrics'],
+            "devices": intent['devices'],
+            "context": intent['context'],
             "priority": "high"
-        })
-        
-        # Motor-specific analytics
-        if any(s.lower().startswith('motor') for s in symbols):
-            chart_suggestions.extend([
-                {
-                    "type": "line_chart",
-                    "title": "Motor Temperature Trends",
-                    "description": "Temperature monitoring for predictive maintenance",
-                    "data_source": "timescale_24h",
-                    "symbols": [s for s in symbols if s.lower().startswith('motor')],
-                    "metrics": ["temperature"],
-                    "thresholds": {"warning": 80, "critical": 90},
-                    "priority": "high"
-                },
-                {
-                    "type": "multi_line_chart",
-                    "title": "Motor Performance Metrics",
-                    "description": "Speed, vibration, and current analysis",
-                    "data_source": "timescale_1h",
-                    "symbols": [s for s in symbols if s.lower().startswith('motor')],
-                    "metrics": ["speed", "vibration", "current"],
-                    "priority": "medium"
-                }
-            ])
-        
-        return chart_suggestions
+        }
+
+        return [chart_suggestion]
     except Exception as e:
-        # Return at least the dashboard on error
+        logger.error(f"Error generating chart suggestions: {e}")
+        # Return a single chart on error
         return [{
-            "type": "dashboard",
-            "title": "Equipment Health Dashboard",
-            "description": "Real-time overview of all equipment status and KPIs",
-            "data_source": "realtime",
+            "type": "line_chart",
+            "title": "Sensor Data Overview",
+            "description": "Overview of all available sensor data",
+            "data_source": "timescale_24h",
+            "symbols": ["all_devices"],
+            "metrics": ["temperature", "speed", "vibration"],
             "priority": "high"
         }]
-    
-    # Motor-specific analytics
+
+
+def analyze_sensor_intent(message: str) -> Dict[str, Any]:
+    """
+    Advanced analysis of user message to determine sensor types, devices, and context
+    Returns a dictionary with detailed intent analysis
+    """
+    message_lower = message.lower()
+    intent = {
+        'metrics': [],
+        'devices': [],
+        'context': 'general',
+        'time_range': '24h',
+        'chart_type': 'line_chart'
+    }
+
+    # Advanced sensor type detection with context
+    sensor_patterns = {
+        'temperature': {
+            'keywords': ['temperature', 'temp', 'heat', 'thermal', 'cooling', 'hot', 'cold', 'degrees'],
+            'context': ['motor', 'bearing', 'coolant', 'ambient', 'process']
+        },
+        'speed': {
+            'keywords': ['speed', 'rpm', 'rotation', 'velocity', 'rate'],
+            'context': ['motor', 'pump', 'fan', 'conveyor']
+        },
+        'vibration': {
+            'keywords': ['vibration', 'vibe', 'oscillation', 'shake', 'frequency'],
+            'context': ['motor', 'bearing', 'pump', 'compressor']
+        },
+        'current': {
+            'keywords': ['current', 'amp', 'amperage', 'power', 'load'],
+            'context': ['motor', 'pump', 'heater', 'compressor']
+        },
+        'pressure': {
+            'keywords': ['pressure', 'psi', 'bar', 'hydraulic', 'pneumatic'],
+            'context': ['pump', 'valve', 'cylinder', 'accumulator']
+        },
+        'flow': {
+            'keywords': ['flow', 'rate', 'volume', 'throughput', 'discharge'],
+            'context': ['pump', 'valve', 'pipe', 'tank']
+        },
+        'level': {
+            'keywords': ['level', 'height', 'depth', 'volume', 'capacity'],
+            'context': ['tank', 'reservoir', 'silo', 'hopper']
+        },
+        'position': {
+            'keywords': ['position', 'angle', 'rotation', 'displacement'],
+            'context': ['valve', 'actuator', 'gate', 'damper']
+        }
+    }
+
+    # Detect sensor types with context awareness
+    for sensor_type, config in sensor_patterns.items():
+        if any(keyword in message_lower for keyword in config['keywords']):
+            intent['metrics'].append(sensor_type)
+
+            # Check for device context
+            for device_context in config['context']:
+                if device_context in message_lower:
+                    intent['devices'].append(device_context)
+                    break
+
+    # Device-specific detection
+    device_patterns = {
+        'motor': ['motor', 'drive', 'actuator'],
+        'pump': ['pump', 'centrifugal', 'positive displacement'],
+        'fan': ['fan', 'blower', 'ventilator'],
+        'conveyor': ['conveyor', 'belt', 'transport'],
+        'valve': ['valve', 'gate', 'ball', 'control'],
+        'compressor': ['compressor', 'air', 'gas'],
+        'heater': ['heater', 'heating', 'furnace'],
+        'sensor': ['sensor', 'transducer', 'detector']
+    }
+
+    for device_type, keywords in device_patterns.items():
+        if any(keyword in message_lower for keyword in keywords):
+            intent['devices'].append(device_type)
+
+    # Context detection
+    if any(word in message_lower for word in ['performance', 'efficiency', 'productivity', 'optimization']):
+        intent['context'] = 'performance'
+        if not intent['metrics']:
+            intent['metrics'] = ['speed', 'current', 'vibration']
+    elif any(word in message_lower for word in ['maintenance', 'failure', 'breakdown', 'repair']):
+        intent['context'] = 'maintenance'
+        if not intent['metrics']:
+            intent['metrics'] = ['temperature', 'vibration', 'current']
+    elif any(word in message_lower for word in ['energy', 'power', 'consumption', 'efficiency']):
+        intent['context'] = 'energy'
+        if not intent['metrics']:
+            intent['metrics'] = ['current', 'power', 'voltage']
+
+    # Time range detection
+    if any(phrase in message_lower for phrase in ['last hour', 'past hour', '1 hour']):
+        intent['time_range'] = '1h'
+    elif any(phrase in message_lower for phrase in ['7 days', 'week', 'weekly']):
+        intent['time_range'] = '7d'
+    elif any(phrase in message_lower for phrase in ['30 days', 'month', 'monthly']):
+        intent['time_range'] = '30d'
+
+    # Chart type hints
+    if any(word in message_lower for word in ['compare', 'comparison', 'versus', 'vs']):
+        intent['chart_type'] = 'bar_chart'
+    elif any(word in message_lower for word in ['distribution', 'proportion', 'percentage']):
+        intent['chart_type'] = 'pie_chart'
+
+    # If no metrics found, provide defaults based on context
+    if not intent['metrics']:
+        if intent['context'] == 'performance':
+            intent['metrics'] = ['speed', 'current', 'vibration']
+        elif intent['context'] == 'maintenance':
+            intent['metrics'] = ['temperature', 'vibration']
+        elif intent['context'] == 'energy':
+            intent['metrics'] = ['current', 'power']
+        else:
+            intent['metrics'] = ['temperature', 'speed', 'current']  # General defaults
+
+    return intent
+
+
+def generate_chart_title_description(intent: Dict[str, Any], original_message: str) -> tuple[str, str]:
+    """
+    Generate intelligent chart title and description based on intent analysis
+    """
+    metrics = intent['metrics']
+    devices = intent['devices']
+    context = intent['context']
+    time_range = intent['time_range']
+
+    # Create metric display names
+    metric_names = {
+        'temperature': 'Temperature',
+        'speed': 'Speed',
+        'vibration': 'Vibration',
+        'current': 'Current',
+        'pressure': 'Pressure',
+        'flow': 'Flow',
+        'level': 'Level',
+        'position': 'Position',
+        'power': 'Power',
+        'voltage': 'Voltage'
+    }
+
+    display_metrics = [metric_names.get(m, m.title()) for m in metrics]
+
+    # Generate title based on context
+    if context == 'performance':
+        title = f"Performance Metrics: {', '.join(display_metrics)}"
+    elif context == 'maintenance':
+        title = f"Maintenance Monitoring: {', '.join(display_metrics)}"
+    elif context == 'energy':
+        title = f"Energy Analysis: {', '.join(display_metrics)}"
+    elif devices:
+        device_names = [d.title() for d in devices]
+        title = f"{', '.join(device_names)} {', '.join(display_metrics)}"
+    else:
+        title = f"{', '.join(display_metrics)} Overview"
+
+    # Generate description
+    time_descriptions = {
+        '1h': 'last hour',
+        '24h': 'last 24 hours',
+        '7d': 'past week',
+        '30d': 'past month'
+    }
+    time_desc = time_descriptions.get(time_range, 'recent period')
+
+    if devices:
+        device_str = f" from {', '.join(devices)}"
+    else:
+        device_str = ""
+
+    description = f"Showing {', '.join(display_metrics).lower()} data{device_str} over the {time_desc}"
+
+    return title, description
     if any(s.lower().startswith('motor') for s in symbols):
         chart_suggestions.extend([
             {
