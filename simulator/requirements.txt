@@ -16,5 +16,8 @@ requests==2.31.0
 pyyaml==6.0.1
 python-dotenv==1.0.0
 
+# MQTT client
+paho-mqtt==1.6.1
+
 # Additional dependencies for enhanced simulator
 click==8.1.7  # For CLI interface

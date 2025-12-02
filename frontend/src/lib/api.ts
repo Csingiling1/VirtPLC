@@ -50,11 +50,19 @@ export const dataApi = {
     const response = await api.get('/api/data/latest');
     return response.data;
   },
-  getRange: async (startTime: number, endTime: number) => {
-    const response = await api.get('/api/data/range', {
-      params: { startTime, endTime },
-    });
-    return response.data;
+  getRange: async (startTime: number, endTime: number, page: number = 0, size: number = 1000, query?: string) => {
+    // Use AI service historical data endpoint
+    const params: any = { 
+      start_time: new Date(startTime).toISOString(),
+      end_time: new Date(endTime).toISOString(),
+      limit: size 
+    };
+    if (query) {
+      params.query = query;
+    }
+    const response = await aiApi.get('/api/analysis/historical', { params });
+    // AI service returns { data: array, count: number }
+    return response.data.data || [];
   },
   getHealth: async () => {
     const response = await api.get('/api/data/health');
@@ -108,6 +116,7 @@ export const simulatorApi = {
 
 export const aiApi = axios.create({
   baseURL: AI_API_BASE_URL,
+  timeout: 30000, // Longer timeout for AI operations
   headers: {
     'Content-Type': 'application/json',
   },

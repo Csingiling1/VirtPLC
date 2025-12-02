@@ -4,7 +4,7 @@ LABEL maintainer="VirtPLC Team"
 LABEL description="Ignition Edge HMI for VirtPLC Factory Control System"
 
 # Environment variables
-ENV IGNITION_EDITION=edge
+# ENV IGNITION_EDITION=edge
 ENV GATEWAY_ADMIN_USERNAME=admin
 ENV GATEWAY_ADMIN_PASSWORD=password
 ENV ACCEPT_IGNITION_EULA=Y
@@ -22,16 +22,12 @@ RUN mkdir -p /backup/gateway \
     && mkdir -p /timebase/data \
     && chown -R ignition:ignition /backup /timebase
 
-# Copy gateway configuration
-COPY IgnitionEdge/config/gateway.xml /usr/local/bin/ignition/data/gateway.xml
+# Note: Configuration files are mounted via docker-compose volumes
+# COPY IgnitionEdge/config/gateway.xml /usr/local/bin/ignition/data/gateway.xml
+# COPY IgnitionEdge/tags/ /usr/local/bin/ignition/data/tags/
+# COPY IgnitionEdge/projects/VirtPLC-HMI /usr/local/bin/ignition/data/projects/VirtPLC-HMI
 
-# Copy tag definitions
-COPY IgnitionEdge/tags/ /usr/local/bin/ignition/data/tags/
-
-# Copy project files
-COPY IgnitionEdge/projects/VirtPLC-HMI /usr/local/bin/ignition/data/projects/VirtPLC-HMI
-
-# Set permissions
+# Set permissions (data directory will be mounted)
 RUN chown -R ignition:ignition /usr/local/bin/ignition/data
 
 # Switch back to ignition user

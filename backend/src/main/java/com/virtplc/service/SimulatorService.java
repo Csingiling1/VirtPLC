@@ -1,5 +1,6 @@
 package com.virtplc.service;
 
+import com.virtplc.mcp.TimescaleMCPServer;
 import com.virtplc.model.SimulatorDevice;
 import com.virtplc.model.SignalConfig;
 import lombok.extern.slf4j.Slf4j;
@@ -12,52 +13,57 @@ import org.springframework.web.client.RestClientException;
 import java.util.*;
 
 /**
- * Service for managing simulator devices via REST API
+ * Service for managing simulator devices via MCP (database) and simulator
+ * control
  */
 @Service
 @Slf4j
 public class SimulatorService {
 
+    private final TimescaleMCPServer mcpServer;
     private final RestTemplate restTemplate;
     private final String simulatorBaseUrl;
 
     public SimulatorService(
+            TimescaleMCPServer mcpServer,
             RestTemplate restTemplate,
             @Value("${simulator.base-url:http://localhost:5000}") String simulatorBaseUrl) {
+        this.mcpServer = mcpServer;
         this.restTemplate = restTemplate;
         this.simulatorBaseUrl = simulatorBaseUrl;
     }
 
     /**
-     * Get all devices from simulator
+     * Get all devices (PLCs) from database via MCP
      */
     public List<SimulatorDevice> getAllDevices() {
         try {
-            String url = simulatorBaseUrl + "/devices";
-            ResponseEntity<SimulatorDevice[]> response = restTemplate.getForEntity(url, SimulatorDevice[].class);
-            return Arrays.asList(Objects.requireNonNull(response.getBody()));
-        } catch (RestClientException e) {
-            log.error("Failed to fetch devices from simulator: {}", e.getMessage());
+            List<Map<String, Object>> plcs = mcpServer.getAllPLCs();
+            return plcs.stream().map(this::mapToSimulatorDevice).toList();
+        } catch (Exception e) {
+            log.error("Failed to fetch devices from MCP: {}", e.getMessage());
             return Collections.emptyList();
         }
     }
 
     /**
-     * Get device by ID
+     * Get device by ID from database via MCP
      */
     public Optional<SimulatorDevice> getDevice(String deviceId) {
         try {
-            String url = simulatorBaseUrl + "/devices/" + deviceId;
-            ResponseEntity<SimulatorDevice> response = restTemplate.getForEntity(url, SimulatorDevice.class);
-            return Optional.ofNullable(response.getBody());
-        } catch (RestClientException e) {
-            log.error("Failed to fetch device {}: {}", deviceId, e.getMessage());
+            List<Map<String, Object>> plcs = mcpServer.getAllPLCs();
+            return plcs.stream()
+                    .filter(plc -> deviceId.equals(plc.get("plc_id")))
+                    .findFirst()
+                    .map(this::mapToSimulatorDevice);
+        } catch (Exception e) {
+            log.error("Failed to fetch device from MCP: {}", e.getMessage());
             return Optional.empty();
         }
     }
 
     /**
-     * Create new device
+     * Get tenants from simulator (via simulator API)
      */
     public Optional<SimulatorDevice> createDevice(SimulatorDevice device) {
         try {
@@ -72,13 +78,11 @@ public class SimulatorService {
     }
 
     /**
-     * Update device
+     * Update device (via simulator API)
      */
     public Optional<SimulatorDevice> updateDevice(String deviceId, Map<String, Object> updates) {
         try {
             String url = simulatorBaseUrl + "/devices/" + deviceId;
-            // Note: In a real implementation, you'd use PATCH or PUT
-            // For now, we'll simulate with POST to update endpoint
             restTemplate.put(url, updates);
             return getDevice(deviceId);
         } catch (RestClientException e) {
@@ -88,7 +92,7 @@ public class SimulatorService {
     }
 
     /**
-     * Delete device
+     * Delete device (via simulator API)
      */
     public boolean deleteDevice(String deviceId) {
         try {
@@ -103,7 +107,7 @@ public class SimulatorService {
     }
 
     /**
-     * Get signal value
+     * Get signal value (via simulator API)
      */
     @SuppressWarnings("unchecked")
     public Optional<Double> getSignalValue(String deviceId, String signalName) {
@@ -123,7 +127,7 @@ public class SimulatorService {
     }
 
     /**
-     * Set signal value
+     * Set signal value (via simulator API)
      */
     public boolean setSignalValue(String deviceId, String signalName, Double value) {
         try {
@@ -138,7 +142,7 @@ public class SimulatorService {
     }
 
     /**
-     * Add signal to device
+     * Add signal to device (via simulator API)
      */
     public boolean addSignal(String deviceId, SignalConfig signal) {
         try {
@@ -153,7 +157,7 @@ public class SimulatorService {
     }
 
     /**
-     * Get simulation status
+     * Get simulation status (via simulator API)
      */
     @SuppressWarnings("unchecked")
     public Map<String, Object> getSimulationStatus() {
@@ -169,7 +173,7 @@ public class SimulatorService {
     }
 
     /**
-     * Trigger simulation update
+     * Trigger simulation update (via simulator API)
      */
     public boolean updateSimulation() {
         try {
@@ -183,8 +187,18 @@ public class SimulatorService {
     }
 
     /**
-     * Get tenants from simulator
+     * Get all signals (sensors) from database via MCP
      */
+    public List<Map<String, Object>> getAllSignals() {
+        try {
+            List<Map<String, Object>> sensors = mcpServer.getAllSensors();
+            return sensors.stream().map(this::mapToSignalConfig).toList();
+        } catch (Exception e) {
+            log.error("Failed to fetch signals from MCP: {}", e.getMessage());
+            return Collections.emptyList();
+        }
+    }
+
     @SuppressWarnings("unchecked")
     public List<Map<String, Object>> getTenants() {
         try {
@@ -200,33 +214,58 @@ public class SimulatorService {
 
     /**
      * Filter tenants by manufacturer ID
-     * Filters the tenant hierarchy to only include the specified manufacturer and its factories/PLCs/sensors
      */
     @SuppressWarnings("unchecked")
     public List<Map<String, Object>> filterTenantsByManufacturer(
-            List<Map<String, Object>> tenants, 
+            List<Map<String, Object>> tenants,
             String manufacturerId) {
-        
+
         return tenants.stream()
-            .map(tenant -> {
-                Map<String, Object> filteredTenant = new java.util.HashMap<>(tenant);
-                List<Map<String, Object>> manufacturers = 
-                    (List<Map<String, Object>>) tenant.get("manufacturers");
-                
-                if (manufacturers != null) {
-                    List<Map<String, Object>> filteredManufacturers = manufacturers.stream()
-                        .filter(m -> manufacturerId.equals(m.get("id")))
-                        .collect(java.util.stream.Collectors.toList());
-                    
-                    filteredTenant.put("manufacturers", filteredManufacturers);
-                }
-                
-                return filteredTenant;
-            })
-            .filter(tenant -> {
-                List<?> manufacturers = (List<?>) tenant.get("manufacturers");
-                return manufacturers != null && !manufacturers.isEmpty();
-            })
-            .collect(java.util.stream.Collectors.toList());
+                .map(tenant -> {
+                    Map<String, Object> filteredTenant = new java.util.HashMap<>(tenant);
+                    List<Map<String, Object>> manufacturers = (List<Map<String, Object>>) tenant.get("manufacturers");
+
+                    if (manufacturers != null) {
+                        List<Map<String, Object>> filteredManufacturers = manufacturers.stream()
+                                .filter(m -> manufacturerId.equals(m.get("id")))
+                                .collect(java.util.stream.Collectors.toList());
+
+                        filteredTenant.put("manufacturers", filteredManufacturers);
+                    }
+
+                    return filteredTenant;
+                })
+                .filter(tenant -> {
+                    List<?> manufacturers = (List<?>) tenant.get("manufacturers");
+                    return manufacturers != null && !manufacturers.isEmpty();
+                })
+                .collect(java.util.stream.Collectors.toList());
+    }
+
+    /**
+     * Map database PLC record to SimulatorDevice
+     */
+    private SimulatorDevice mapToSimulatorDevice(Map<String, Object> plcRecord) {
+        return SimulatorDevice.builder()
+                .id((String) plcRecord.get("plc_id"))
+                .name((String) plcRecord.get("name"))
+                .deviceType("PLC")
+                .isActive(true)
+                .signals(Collections.emptyList())
+                .build();
+    }
+
+    /**
+     * Map database sensor record to signal config map
+     */
+    private Map<String, Object> mapToSignalConfig(Map<String, Object> sensorRecord) {
+        Map<String, Object> signal = new HashMap<>();
+        signal.put("id", sensorRecord.get("sensor_id"));
+        signal.put("name", sensorRecord.get("name"));
+        signal.put("deviceId", sensorRecord.get("plc_id"));
+        signal.put("type", "sensor");
+        signal.put("unit", sensorRecord.get("unit"));
+        signal.put("value", sensorRecord.get("signal_value"));
+        return signal;
     }
 }

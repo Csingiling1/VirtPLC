@@ -8,11 +8,10 @@ import org.springframework.scheduling.annotation.EnableScheduling;
  * VirtPLC Backend Application
  *
  * Spring Boot application providing:
- * - OPC-UA server for factory equipment communication
+ * - MQTT integration for factory equipment communication
  * - REST API for frontend and external clients
  * - TimescaleDB integration for historical data
  * - JWT-based authentication
- * - Scheduled data collection from OPC UA
  */
 @SpringBootApplication
 @EnableScheduling

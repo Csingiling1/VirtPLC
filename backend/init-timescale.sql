@@ -2,6 +2,18 @@
 CREATE EXTENSION
 IF NOT EXISTS timescaledb;
 
+-- Create PLC data table
+CREATE TABLE
+IF NOT EXISTS plc_data
+(
+    timestamp TIMESTAMPTZ NOT NULL,
+    data JSONB
+);
+
+-- Convert to hypertable
+SELECT create_hypertable('plc_data', 'timestamp', if_not_exists
+=> TRUE);
+
 -- Create hypertables for time-series data
 -- Convert sensor_data table to hypertable if it exists
 DO $$

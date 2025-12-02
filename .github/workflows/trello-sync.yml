@@ -1,4 +1,4 @@
-name: Trello Card Sync
+name: Taiga User Story Sync
 
 on:
   push:
@@ -7,69 +7,65 @@ on:
     types: [opened, closed, reopened]
 
 jobs:
-  sync-commit-to-trello:
-    name: Sync Commit to Trello
+  sync-commit-to-taiga:
+    name: Sync Commit to Taiga
     runs-on: ubuntu-latest
     if: github.event_name == 'push'
 
     steps:
-      - name: Extract Trello Card and Comment
+      - name: Extract Taiga User Story and Comment
         env:
-          TRELLO_API_KEY: ${{ secrets.TRELLO_API_KEY }}
-          TRELLO_TOKEN: ${{ secrets.TRELLO_TOKEN }}
+          TAIGA_API_TOKEN: ${{ secrets.TAIGA_API_TOKEN }}
         run: |
           COMMIT_MSG="${{ github.event.head_commit.message }}"
           COMMIT_URL="${{ github.event.head_commit.url }}"
           COMMIT_AUTHOR="${{ github.event.head_commit.author.name }}"
 
-          CARD_ID=$(echo "$COMMIT_MSG" | grep -oP '(?:https://trello\.com/c/|#)([a-zA-Z0-9]+)' | tail -1 | sed 's/.*\///' | sed 's/#//')
+          US_ID=$(echo "$COMMIT_MSG" | grep -oP '(?:https://tree\.taiga\.io/[^/]+/us/|#)([0-9]+)' | tail -1 | sed 's/.*\///' | sed 's/#//')
 
-          if [ -n "$CARD_ID" ]; then
-            echo "Found Trello card: $CARD_ID"
+          if [ -n "$US_ID" ]; then
+            echo "Found Taiga user story: $US_ID"
             
             COMMENT="Commit by ${COMMIT_AUTHOR} on branch ${{ github.ref_name }}: ${COMMIT_MSG:0:200}. View at ${COMMIT_URL}"
             
-            curl -X POST "https://api.trello.com/1/cards/${CARD_ID}/actions/comments" \
-              -d "key=${TRELLO_API_KEY}" \
-              -d "token=${TRELLO_TOKEN}" \
-              --data-urlencode "text=${COMMENT}"
+            curl -X POST "https://api.taiga.io/api/v1/userstories/${US_ID}/comments" \
+              -H "Authorization: Bearer ${TAIGA_API_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d "{\"comment\": \"$COMMENT\"}"
           fi
 
-  sync-pr-to-trello:
-    name: Sync PR to Trello
+  sync-pr-to-taiga:
+    name: Sync PR to Taiga
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
 
     steps:
-      - name: Update Trello on PR Event
+      - name: Update Taiga on PR Event
         env:
-          TRELLO_API_KEY: ${{ secrets.TRELLO_API_KEY }}
-          TRELLO_TOKEN: ${{ secrets.TRELLO_TOKEN }}
-          TRELLO_DONE_LIST_ID: ${{ secrets.TRELLO_DONE_LIST_ID }}
+          TAIGA_API_TOKEN: ${{ secrets.TAIGA_API_TOKEN }}
         run: |
           PR_TITLE="${{ github.event.pull_request.title }}"
           PR_BODY="${{ github.event.pull_request.body }}"
           PR_URL="${{ github.event.pull_request.html_url }}"
           PR_MERGED="${{ github.event.pull_request.merged }}"
 
-          CARD_ID=$(echo "$PR_TITLE $PR_BODY" | grep -oP '(?:https://trello\.com/c/|#)([a-zA-Z0-9]+)' | head -1 | sed 's/.*\///' | sed 's/#//')
+          US_ID=$(echo "$PR_TITLE $PR_BODY" | grep -oP '(?:https://tree\.taiga\.io/[^/]+/us/|#)([0-9]+)' | head -1 | sed 's/.*\///' | sed 's/#//')
 
-          if [ -n "$CARD_ID" ]; then
+          if [ -n "$US_ID" ]; then
             if [ "$PR_MERGED" = "true" ]; then
               COMMENT="PR #${{ github.event.pull_request.number }} merged! View at ${PR_URL}"
               
-              if [ -n "$TRELLO_DONE_LIST_ID" ]; then
-                curl -X PUT "https://api.trello.com/1/cards/${CARD_ID}" \
-                  -d "key=${TRELLO_API_KEY}" \
-                  -d "token=${TRELLO_TOKEN}" \
-                  -d "idList=${TRELLO_DONE_LIST_ID}"
-              fi
+              # Optionally update status to Done (assuming status ID 4 for Done; check your Taiga project settings)
+              curl -X PATCH "https://api.taiga.io/api/v1/userstories/${US_ID}" \
+                -H "Authorization: Bearer ${TAIGA_API_TOKEN}" \
+                -H "Content-Type: application/json" \
+                -d "{\"status\": 4}"
             else
               COMMENT="PR #${{ github.event.pull_request.number }} ${{ github.event.action }}: ${PR_TITLE}. View at ${PR_URL}"
             fi
             
-            curl -X POST "https://api.trello.com/1/cards/${CARD_ID}/actions/comments" \
-              -d "key=${TRELLO_API_KEY}" \
-              -d "token=${TRELLO_TOKEN}" \
-              --data-urlencode "text=${COMMENT}"
+            curl -X POST "https://api.taiga.io/api/v1/userstories/${US_ID}/comments" \
+              -H "Authorization: Bearer ${TAIGA_API_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d "{\"comment\": \"$COMMENT\"}"
           fi

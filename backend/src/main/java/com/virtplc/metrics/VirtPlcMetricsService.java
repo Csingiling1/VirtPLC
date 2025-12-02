@@ -15,7 +15,7 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * Custom metrics service for VirtPLC application monitoring
  * Tracks business-specific metrics for sensor data, WebSocket connections,
- * gRPC calls, and system performance
+ * MQTT communications, and system performance
  */
 @Service
 @RequiredArgsConstructor
@@ -35,11 +35,10 @@ public class VirtPlcMetricsService {
     private Counter websocketMessagesReceived;
     private Counter websocketConnectionErrors;
 
-    // gRPC Metrics
-    private Counter grpcRequestsTotal;
-    private Counter grpcRequestsSuccessful;
-    private Counter grpcRequestsFailed;
-    private Timer grpcRequestDuration;
+    // MQTT Metrics
+    private Counter mqttMessagesReceived;
+    private Counter mqttMessagesProcessed;
+    private Counter mqttConnectionErrors;
 
     // Data Pipeline Metrics
     private final AtomicLong dataPipelineBackpressureEvents = new AtomicLong(0);
@@ -86,20 +85,16 @@ public class VirtPlcMetricsService {
                 .description("Total number of WebSocket connection errors")
                 .register(meterRegistry);
 
-        grpcRequestsTotal = Counter.builder("virtplc.grpc.requests.total")
-                .description("Total number of gRPC requests")
+        mqttMessagesReceived = Counter.builder("virtplc.mqtt.messages.received")
+                .description("Total number of MQTT messages received")
                 .register(meterRegistry);
 
-        grpcRequestsSuccessful = Counter.builder("virtplc.grpc.requests.successful")
-                .description("Total number of successful gRPC requests")
+        mqttMessagesProcessed = Counter.builder("virtplc.mqtt.messages.processed")
+                .description("Total number of MQTT messages processed")
                 .register(meterRegistry);
 
-        grpcRequestsFailed = Counter.builder("virtplc.grpc.requests.failed")
-                .description("Total number of failed gRPC requests")
-                .register(meterRegistry);
-
-        grpcRequestDuration = Timer.builder("virtplc.grpc.request.duration")
-                .description("Duration of gRPC requests")
+        mqttConnectionErrors = Counter.builder("virtplc.mqtt.connection.errors")
+                .description("Total number of MQTT connection errors")
                 .register(meterRegistry);
 
         dataPipelineProcessed = Counter.builder("virtplc.pipeline.data.processed")
@@ -187,15 +182,17 @@ public class VirtPlcMetricsService {
         websocketConnectionErrors.increment();
     }
 
-    // gRPC Methods
-    public void recordGrpcRequest(Timer.Sample sample, boolean success) {
-        grpcRequestsTotal.increment();
-        if (success) {
-            grpcRequestsSuccessful.increment();
-        } else {
-            grpcRequestsFailed.increment();
-        }
-        sample.stop(grpcRequestDuration);
+    // MQTT Methods
+    public void incrementMqttMessagesReceived() {
+        mqttMessagesReceived.increment();
+    }
+
+    public void incrementMqttMessagesProcessed() {
+        mqttMessagesProcessed.increment();
+    }
+
+    public void incrementMqttConnectionErrors() {
+        mqttConnectionErrors.increment();
     }
 
     // Data Pipeline Methods
