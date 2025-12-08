@@ -650,8 +650,8 @@ class SimulatorApp:
             log_level="info"
         )
 
-    async def start_opcua_server(self, endpoint: str = "opc.tcp://0.0.0.0:4840/virtplc/"):
-        """Start MQTT client instead of OPC-UA"""
+    async def start_mqtt_client(self):
+        """Start MQTT client"""
         import paho.mqtt.client as mqtt
         import json
         import time
@@ -676,12 +676,43 @@ class SimulatorApp:
         # Publish simulator data periodically
         while True:
             # Get current PLC data
-            plc_data = self.db.get_all_tenants()  # Or specific data
-            data = {
-                "timestamp": time.time(),
-                "tenants": {tenant.id: tenant.to_dict() for tenant in plc_data}
-            }
-            client.publish("plc/data", json.dumps(data))
+            tenants = self.db.get_all_tenants()
+            timestamp = time.time()
+            
+            # Publish individual device data
+            for tenant in tenants:
+                for manufacturer in tenant.manufacturers:
+                    for factory in manufacturer.factories:
+                        # Publish PLCs
+                        for plc in factory.plcs:
+                            topic = f"plc/{plc.id}"
+                            payload = {
+                                "device_id": plc.id,
+                                "type": "plc",
+                                "timestamp": timestamp,
+                                "data": plc.to_dict(),
+                                "metadata": {
+                                    "tenant": tenant.id,
+                                    "factory": factory.id
+                                }
+                            }
+                            client.publish(topic, json.dumps(payload))
+                        
+                        # Publish Sensors
+                        for sensor in factory.sensors:
+                            topic = f"plc/{sensor.id}"
+                            payload = {
+                                "device_id": sensor.id,
+                                "type": "sensor",
+                                "timestamp": timestamp,
+                                "data": sensor.to_dict(),
+                                "metadata": {
+                                    "tenant": tenant.id,
+                                    "factory": factory.id
+                                }
+                            }
+                            client.publish(topic, json.dumps(payload))
+
             await asyncio.sleep(1)  # Publish every second
 
 def main():
@@ -705,7 +736,7 @@ def main():
         # Start MQTT client in a separate thread
         logger.info(f"Starting MQTT client in plc-server mode connecting to {args.mqtt_broker}:{args.mqtt_port}")
         import threading
-        mqtt_thread = threading.Thread(target=lambda: asyncio.run(app.start_opcua_server()))  # Renamed but same method
+        mqtt_thread = threading.Thread(target=lambda: asyncio.run(app.start_mqtt_client()))
         mqtt_thread.daemon = True
         mqtt_thread.start()
         

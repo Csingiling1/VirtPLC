@@ -64,6 +64,8 @@ export interface ChartSuggestion {
   symbols?: string[];
   metrics?: string[];
   time_range?: string;
+  data?: any[]; // Allow direct data injection
+  devices?: string[]; // Add devices field which was used in AIChart
 }
 
 export interface AIChatResponse {

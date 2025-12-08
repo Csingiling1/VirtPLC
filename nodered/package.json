@@ -1,0 +1,13 @@
+{
+    "name": "virtplc-nodered-bridge",
+    "description": "Node-RED MQTT Bridge for VirtPLC",
+    "version": "1.0.0",
+    "dependencies": {
+        "node-red-contrib-mqtt-broker": "^0.2.6"
+    },
+    "node-red": {
+        "settings": {
+            "flowFile": "flows/flows.json"
+        }
+    }
+}

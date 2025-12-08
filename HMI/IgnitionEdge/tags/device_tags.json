@@ -1,0 +1,110 @@
+{
+    "name": "Factory Device",
+    "tagType": "Folder",
+    "tags": [
+        {
+            "valueSource": "memory",
+            "dataType": "Float4",
+            "name": "Device_X_Position",
+            "path": "Factory Device/Device_X_Position",
+            "tagType": "AtomicTag",
+            "documentation": "Device X coordinate position",
+            "engUnit": "meters",
+            "formatString": "#,##0.00",
+            "tooltip": "Current X position of the device",
+            "alarms": [
+                {
+                    "name": "OutOfBounds_X",
+                    "displayPath": "Factory Device/Device_X_Position/OutOfBounds_X",
+                    "enabled": true,
+                    "priority": "Medium",
+                    "mode": "AboveValue",
+                    "setpointA": 100.0,
+                    "label": "X Position Out of Bounds"
+                }
+            ]
+        },
+        {
+            "valueSource": "memory",
+            "dataType": "Float4",
+            "name": "Device_Y_Position",
+            "path": "Factory Device/Device_Y_Position",
+            "tagType": "AtomicTag",
+            "documentation": "Device Y coordinate position",
+            "engUnit": "meters",
+            "formatString": "#,##0.00",
+            "tooltip": "Current Y position of the device",
+            "alarms": [
+                {
+                    "name": "OutOfBounds_Y",
+                    "displayPath": "Factory Device/Device_Y_Position/OutOfBounds_Y",
+                    "enabled": true,
+                    "priority": "Medium",
+                    "mode": "AboveValue",
+                    "setpointA": 100.0,
+                    "label": "Y Position Out of Bounds"
+                }
+            ]
+        },
+        {
+            "valueSource": "memory",
+            "dataType": "Float4",
+            "name": "Device_Speed",
+            "path": "Factory Device/Device_Speed",
+            "tagType": "AtomicTag",
+            "documentation": "Device movement speed",
+            "engUnit": "m/s",
+            "formatString": "#,##0.00",
+            "tooltip": "Current speed of the device"
+        },
+        {
+            "valueSource": "memory",
+            "dataType": "Boolean",
+            "name": "Device_Active",
+            "path": "Factory Device/Device_Active",
+            "tagType": "AtomicTag",
+            "documentation": "Device active status",
+            "tooltip": "True if device is active"
+        },
+        {
+            "valueSource": "memory",
+            "dataType": "String",
+            "name": "Device_Status",
+            "path": "Factory Device/Device_Status",
+            "tagType": "AtomicTag",
+            "documentation": "Device operational status",
+            "tooltip": "Current status: IDLE, MOVING, ERROR"
+        },
+        {
+            "valueSource": "memory",
+            "dataType": "Int4",
+            "name": "Device_ID",
+            "path": "Factory Device/Device_ID",
+            "tagType": "AtomicTag",
+            "documentation": "Unique device identifier",
+            "tooltip": "Device ID number"
+        },
+        {
+            "valueSource": "expr",
+            "dataType": "DateTime",
+            "name": "Last_Update",
+            "path": "Factory Device/Last_Update",
+            "tagType": "AtomicTag",
+            "expression": "now()",
+            "documentation": "Last update timestamp",
+            "tooltip": "Timestamp of last data update"
+        },
+        {
+            "valueSource": "expr",
+            "dataType": "Float4",
+            "name": "Distance_From_Origin",
+            "path": "Factory Device/Distance_From_Origin",
+            "tagType": "AtomicTag",
+            "expression": "sqrt(pow({[.]Device_X_Position}, 2) + pow({[.]Device_Y_Position}, 2))",
+            "documentation": "Calculated distance from origin (0,0)",
+            "engUnit": "meters",
+            "formatString": "#,##0.00",
+            "tooltip": "Distance from origin using Pythagorean theorem"
+        }
+    ]
+}

@@ -1,0 +1,71 @@
+# TimescaleDB Server - Production Only (Server 3)
+# Deploy this on Server 3 in production environment
+# Usage: docker-compose -f docker-compose.timescale.yml up
+
+version: '3.8'
+
+services:
+  timescale:
+    image: timescale/timescaledb:latest-pg16
+    container_name: virtplc-timescale
+    ports:
+      - "5432:5432"  # Standard PostgreSQL port (no conflict on dedicated server)
+    environment:
+      - POSTGRES_DB=virtplc_ts
+      - POSTGRES_USER=virtplc
+      - POSTGRES_PASSWORD=${TIMESCALE_PASSWORD:-changeme}
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8
+      # Performance tuning for production
+      - POSTGRES_MAX_CONNECTIONS=200
+      - POSTGRES_SHARED_BUFFERS=2GB
+      - POSTGRES_EFFECTIVE_CACHE_SIZE=6GB
+      - POSTGRES_MAINTENANCE_WORK_MEM=512MB
+      - POSTGRES_CHECKPOINT_COMPLETION_TARGET=0.9
+      - POSTGRES_WAL_BUFFERS=16MB
+      - POSTGRES_DEFAULT_STATISTICS_TARGET=100
+      - POSTGRES_RANDOM_PAGE_COST=1.1
+      - POSTGRES_EFFECTIVE_IO_CONCURRENCY=200
+      - POSTGRES_WORK_MEM=10485kB
+      - POSTGRES_MIN_WAL_SIZE=1GB
+      - POSTGRES_MAX_WAL_SIZE=4GB
+    volumes:
+      - timescale-data:/var/lib/postgresql/data
+      - ./backend/init-timescale.sql:/docker-entrypoint-initdb.d/01-timescale-init.sql
+      - ./timescale-backup:/backup  # Backup directory
+    networks:
+      - timescale-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U virtplc -d virtplc_ts"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8G
+        reservations:
+          cpus: '2'
+          memory: 4G
+    labels:
+      - "description=TimescaleDB for VirtPLC Time-Series Data"
+      - "environment=production"
+      - "backup=daily"
+
+networks:
+  timescale-network:
+    driver: bridge
+    name: timescale-network
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  timescale-data:
+    name: virtplc-timescale-data
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /data/timescale  # Mount point for dedicated storage

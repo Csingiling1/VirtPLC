@@ -7,7 +7,10 @@ CREATE TABLE
 IF NOT EXISTS plc_data
 (
     timestamp TIMESTAMPTZ NOT NULL,
-    data JSONB
+    device_id TEXT NOT NULL,
+    type TEXT NOT NULL,
+    data JSONB,
+    metadata JSONB
 );
 
 -- Convert to hypertable

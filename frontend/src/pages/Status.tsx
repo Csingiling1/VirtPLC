@@ -12,7 +12,6 @@ const Status = () => {
   const [config, setConfig] = useState({
     simulatorHost: 'localhost',
     simulatorPort: '8000',
-    opcuaEndpoint: 'opc.tcp://simulator:4840',
     backendHost: 'localhost',
     backendPort: '18080',
     tenantId: 'demo-tenant',
@@ -85,15 +84,6 @@ const Status = () => {
                     placeholder="8000"
                   />
                 </div>
-              </div>
-              <div>
-                <Label htmlFor="opcuaEndpoint">OPC-UA Endpoint</Label>
-                <Input
-                  id="opcuaEndpoint"
-                  value={config.opcuaEndpoint}
-                  onChange={(e) => handleInputChange('opcuaEndpoint', e.target.value)}
-                  placeholder="opc.tcp://simulator:4840"
-                />
               </div>
               <div className="flex items-center gap-2">
                 <Badge variant="outline" className="gap-1">

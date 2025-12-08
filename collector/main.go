@@ -12,9 +12,12 @@ import (
 	_ "github.com/lib/pq"
 )
 
-type PLCData struct {
+type DeviceData struct {
+	DeviceID  string                 `json:"device_id"`
+	Type      string                 `json:"type"`
 	Timestamp float64                `json:"timestamp"`
-	Tenants   map[string]interface{} `json:"tenants"`
+	Data      map[string]interface{} `json:"data"`
+	Metadata  map[string]interface{} `json:"metadata"`
 }
 
 func main() {
@@ -50,9 +53,9 @@ func main() {
 
 	log.Printf("Connected to MQTT broker")
 
-	// Subscribe to PLC data
-	client.Subscribe("plc/data", 0, func(client MQTT.Client, msg MQTT.Message) {
-		var data PLCData
+	// Subscribe to Collector data (from Node-RED)
+	client.Subscribe("collector/ingest", 0, func(client MQTT.Client, msg MQTT.Message) {
+		var data DeviceData
 		if err := json.Unmarshal(msg.Payload(), &data); err != nil {
 			log.Printf("Failed to parse MQTT message: %v", err)
 			return
@@ -62,7 +65,7 @@ func main() {
 		if err := processAndStore(db, data); err != nil {
 			log.Printf("Failed to process and store data: %v", err)
 		} else {
-			log.Printf("Successfully processed and stored PLC data")
+			log.Printf("Successfully processed and stored device data: %s", data.DeviceID)
 		}
 	})
 
@@ -87,17 +90,29 @@ func connectDatabase(host, port, user, password, dbname string) (*sql.DB, error)
 	return db, nil
 }
 
-func processAndStore(db *sql.DB, data PLCData) error {
+func processAndStore(db *sql.DB, data DeviceData) error {
 	timestamp := time.Unix(int64(data.Timestamp), 0)
 
 	// Example: Insert into a table (adjust based on your schema)
 	query := `
-		INSERT INTO plc_data (timestamp, data)
-		VALUES ($1, $2)
+		INSERT INTO plc_data (timestamp, device_id, type, data, metadata)
+		VALUES ($1, $2, $3, $4, $5)
 	`
 
-	jsonData, err := json.Marshal(data.Tenants)
+	jsonData, err := json.Marshal(data.Data)
 	if err != nil {
+		return err
+	}
+	
+	jsonMetadata, err := json.Marshal(data.Metadata)
+	if err != nil {
+		return err
+	}
+
+	_, err = db.Exec(query, timestamp, data.DeviceID, data.Type, jsonData, jsonMetadata)
+	return err
+}
+}
 		return err
 	}
 

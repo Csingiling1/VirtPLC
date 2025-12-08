@@ -353,6 +353,13 @@ export default ${componentName};
             setLoading(true);
             setError(null);
 
+            // If data is provided directly in suggestion, use it
+            if (suggestion.data && suggestion.data.length > 0) {
+                setChartData(suggestion.data);
+                setLoading(false);
+                return;
+            }
+
             // Determine time range based on suggestion data_source
             let hoursBack = 24; // default
             if (suggestion.data_source?.includes('7d')) {

@@ -1,0 +1,88 @@
+[
+    {
+        "id": "tab-plc-flow",
+        "type": "tab",
+        "label": "PLC Data Flow",
+        "disabled": false,
+        "info": "Routes PLC data to Collector and Ignition"
+    },
+    {
+        "id": "mqtt-broker",
+        "type": "mqtt-broker",
+        "name": "VirtPLC Broker",
+        "broker": "${MQTT_BROKER}",
+        "port": "${MQTT_PORT}",
+        "clientid": "nodered-router",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": "4",
+        "keepalive": "60",
+        "cleansession": true,
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthPayload": "",
+        "closeTopic": "",
+        "closeQos": "0",
+        "closePayload": "",
+        "willTopic": "",
+        "willQos": "0",
+        "willPayload": ""
+    },
+    {
+        "id": "mqtt-in-plc",
+        "type": "mqtt in",
+        "z": "tab-plc-flow",
+        "name": "PLC Input",
+        "topic": "plc/+",
+        "qos": "0",
+        "datatype": "json",
+        "broker": "mqtt-broker",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 150,
+        "y": 160,
+        "wires": [
+            [
+                "mqtt-out-collector",
+                "debug-node"
+            ]
+        ]
+    },
+    {
+        "id": "mqtt-out-collector",
+        "type": "mqtt out",
+        "z": "tab-plc-flow",
+        "name": "To Collector",
+        "topic": "collector/ingest",
+        "qos": "0",
+        "retain": "",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "mqtt-broker",
+        "x": 450,
+        "y": 160,
+        "wires": []
+    },
+    {
+        "id": "debug-node",
+        "type": "debug",
+        "z": "tab-plc-flow",
+        "name": "debug",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 430,
+        "y": 240,
+        "wires": []
+    }
+]
