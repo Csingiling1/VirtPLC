@@ -63,6 +63,8 @@ services:
       - SIMULATOR_PORT=8080
       - MQTT_BROKER=mqtt
       - MQTT_PORT=1883
+      - MQTT_USERNAME=${MQTT_USERNAME}
+      - MQTT_PASSWORD=${MQTT_PASSWORD}
       - UPDATE_INTERVAL=1.0
     volumes:
       - simulator-data:/app/data
@@ -327,7 +329,7 @@ services:
     ports:
       - "1883:1883"  # MQTT port
     volumes:
-      - ./mqtt/config:/mosquitto/config:ro
+      - ./mqtt/config:/mosquitto/config
     networks:
       - virtplc-network
     restart: unless-stopped
@@ -355,17 +357,19 @@ services:
   collector:
     build: ./collector
     container_name: collector
+    environment:
+      - MQTT_BROKER=mqtt
+      - MQTT_PORT=1883
+      - MQTT_USERNAME=${MQTT_USERNAME}
+      - MQTT_PASSWORD=${MQTT_PASSWORD}
+      - TIMESCALE_HOST=timescale
+      - TIMESCALE_PORT=5432
+      - TIMESCALE_USER=${TIMESCALE_USER}
+      - TIMESCALE_PASSWORD=${TIMESCALE_PASSWORD}
+      - TIMESCALE_DB=${TIMESCALE_DB}
     depends_on:
       - mqtt
       - timescale
-    environment:
-      - TIMESCALE_HOST=timescale
-      - TIMESCALE_PORT=5432
-      - TIMESCALE_USER=virtplc
-      - TIMESCALE_PASSWORD=changeme
-      - TIMESCALE_DB=virtplc_ts
-      - MQTT_BROKER=mqtt
-      - MQTT_PORT=1883
     ports:
       - "9100:9100"  # prometheus metrics
     networks:

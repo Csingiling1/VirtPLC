@@ -658,6 +658,8 @@ class SimulatorApp:
         
         MQTT_BROKER = os.getenv("MQTT_BROKER", "mqtt")
         MQTT_PORT = int(os.getenv("MQTT_PORT", 1883))
+        MQTT_USERNAME = os.getenv("MQTT_USERNAME", "")
+        MQTT_PASSWORD = os.getenv("MQTT_PASSWORD", "")
         
         def on_message(client, userdata, msg):
             data = json.loads(msg.payload.decode())
@@ -666,6 +668,8 @@ class SimulatorApp:
             # Example: Update PLC data based on MQTT
         
         client = mqtt.Client()
+        if MQTT_USERNAME:
+            client.username_pw_set(MQTT_USERNAME, MQTT_PASSWORD)
         client.on_message = on_message
         client.connect(MQTT_BROKER, MQTT_PORT)
         client.subscribe("unreal/commands")  # Topic from Unreal
@@ -697,21 +701,24 @@ class SimulatorApp:
                                 }
                             }
                             client.publish(topic, json.dumps(payload))
-                        
-                        # Publish Sensors
-                        for sensor in factory.sensors:
-                            topic = f"plc/{sensor.id}"
-                            payload = {
-                                "device_id": sensor.id,
-                                "type": "sensor",
-                                "timestamp": timestamp,
-                                "data": sensor.to_dict(),
-                                "metadata": {
-                                    "tenant": tenant.id,
-                                    "factory": factory.id
+                            logger.debug(f"Published PLC data to {topic}")
+                            
+                            # Publish Sensors within this PLC
+                            for sensor in plc.sensors:
+                                topic = f"plc/{sensor.id}"
+                                payload = {
+                                    "device_id": sensor.id,
+                                    "type": "sensor",
+                                    "timestamp": timestamp,
+                                    "data": sensor.to_dict(),
+                                    "metadata": {
+                                        "tenant": tenant.id,
+                                        "factory": factory.id,
+                                        "plc": plc.id
+                                    }
                                 }
-                            }
-                            client.publish(topic, json.dumps(payload))
+                                client.publish(topic, json.dumps(payload))
+                                logger.debug(f"Published sensor data to {topic}")
 
             await asyncio.sleep(1)  # Publish every second
 

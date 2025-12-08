@@ -1,78 +1,296 @@
 [
     {
-        "id": "tab-plc-flow",
+        "id": "a1b2c3d4e5f6",
         "type": "tab",
-        "label": "PLC Data Flow",
+        "label": "PLC Data Pipeline",
         "disabled": false,
-        "info": "Routes PLC data to Collector and Ignition"
+        "info": "Complete pipeline: Simulator → Node-RED → Collector → TimescaleDB"
     },
     {
-        "id": "mqtt-broker",
+        "id": "mqtt_broker_cfg",
         "type": "mqtt-broker",
-        "name": "VirtPLC Broker",
-        "broker": "${MQTT_BROKER}",
-        "port": "${MQTT_PORT}",
+        "name": "VirtPLC MQTT Broker",
+        "broker": "mqtt",
+        "port": "1883",
         "clientid": "nodered-router",
         "autoConnect": true,
         "usetls": false,
         "protocolVersion": "4",
         "keepalive": "60",
         "cleansession": true,
-        "birthTopic": "",
+        "birthTopic": "nodered/status",
         "birthQos": "0",
-        "birthPayload": "",
-        "closeTopic": "",
+        "birthPayload": "online",
+        "birthMsg": {},
+        "closeTopic": "nodered/status",
         "closeQos": "0",
-        "closePayload": "",
-        "willTopic": "",
+        "closePayload": "offline",
+        "closeMsg": {},
+        "willTopic": "nodered/status",
         "willQos": "0",
-        "willPayload": ""
+        "willPayload": "offline",
+        "willMsg": {},
+        "credentials": {
+            "user": "virtplc",
+            "password": "virtplc123"
+        }
     },
     {
-        "id": "mqtt-in-plc",
+        "id": "plc_input",
         "type": "mqtt in",
-        "z": "tab-plc-flow",
-        "name": "PLC Input",
+        "z": "a1b2c3d4e5f6",
+        "name": "PLC Device Data",
         "topic": "plc/+",
-        "qos": "0",
+        "qos": "1",
         "datatype": "json",
-        "broker": "mqtt-broker",
+        "broker": "mqtt_broker_cfg",
         "nl": false,
         "rap": true,
         "rh": 0,
         "inputs": 0,
-        "x": 150,
-        "y": 160,
+        "x": 130,
+        "y": 140,
         "wires": [
             [
-                "mqtt-out-collector",
-                "debug-node"
+                "log_incoming",
+                "validate_data"
             ]
         ]
     },
     {
-        "id": "mqtt-out-collector",
+        "id": "log_incoming",
+        "type": "debug",
+        "z": "a1b2c3d4e5f6",
+        "name": "Log: Incoming Data",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": true,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "payload.device_id",
+        "statusType": "msg",
+        "x": 370,
+        "y": 80,
+        "wires": []
+    },
+    {
+        "id": "validate_data",
+        "type": "function",
+        "z": "a1b2c3d4e5f6",
+        "name": "Validate & Enrich",
+        "func": "// Validate required fields\nif (!msg.payload.device_id || !msg.payload.timestamp) {\n    node.warn('Missing required fields');\n    return null;\n}\n\n// Increment message counter for statistics\nlet count = context.get('messageCount') || 0;\ncount++;\ncontext.set('messageCount', count);\n\n// Enrich with metadata\nmsg.enriched = {\n    ...msg.payload,\n    processed_at: new Date().toISOString(),\n    node_red_version: '1.0',\n    topic_original: msg.topic\n};\n\n// Add quality indicators\nmsg.enriched.data_quality = {\n    valid: true,\n    latency_ms: Date.now() - (msg.payload.timestamp * 1000)\n};\n\nnode.status({\n    fill: 'green',\n    shape: 'dot',\n    text: `Device: ${msg.payload.device_id} (Total: ${count})`\n});\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 370,
+        "y": 140,
+        "wires": [
+            [
+                "route_data",
+                "log_enriched"
+            ]
+        ]
+    },
+    {
+        "id": "log_enriched",
+        "type": "debug",
+        "z": "a1b2c3d4e5f6",
+        "name": "Log: Enriched",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "enriched",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 570,
+        "y": 80,
+        "wires": []
+    },
+    {
+        "id": "route_data",
+        "type": "switch",
+        "z": "a1b2c3d4e5f6",
+        "name": "Route by Type",
+        "property": "payload.type",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "eq",
+                "v": "plc",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "sensor",
+                "vt": "str"
+            },
+            {
+                "t": "else"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 3,
+        "x": 570,
+        "y": 140,
+        "wires": [
+            [
+                "format_plc"
+            ],
+            [
+                "format_sensor"
+            ],
+            [
+                "log_unknown"
+            ]
+        ]
+    },
+    {
+        "id": "format_plc",
+        "type": "function",
+        "z": "a1b2c3d4e5f6",
+        "name": "Format PLC Data",
+        "func": "msg.payload = {\n    ...msg.enriched,\n    category: 'PLC',\n    priority: 'high'\n};\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 770,
+        "y": 120,
+        "wires": [
+            [
+                "send_to_collector",
+                "log_outgoing"
+            ]
+        ]
+    },
+    {
+        "id": "format_sensor",
+        "type": "function",
+        "z": "a1b2c3d4e5f6",
+        "name": "Format Sensor Data",
+        "func": "msg.payload = {\n    ...msg.enriched,\n    category: 'Sensor',\n    priority: 'medium'\n};\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 780,
+        "y": 160,
+        "wires": [
+            [
+                "send_to_collector",
+                "log_outgoing"
+            ]
+        ]
+    },
+    {
+        "id": "log_unknown",
+        "type": "debug",
+        "z": "a1b2c3d4e5f6",
+        "name": "Log: Unknown Type",
+        "active": true,
+        "tosidebar": true,
+        "console": true,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 780,
+        "y": 200,
+        "wires": []
+    },
+    {
+        "id": "send_to_collector",
         "type": "mqtt out",
-        "z": "tab-plc-flow",
+        "z": "a1b2c3d4e5f6",
         "name": "To Collector",
         "topic": "collector/ingest",
-        "qos": "0",
-        "retain": "",
+        "qos": "1",
+        "retain": "false",
         "respTopic": "",
         "contentType": "",
         "userProps": "",
         "correl": "",
         "expiry": "",
-        "broker": "mqtt-broker",
-        "x": 450,
-        "y": 160,
+        "broker": "mqtt_broker_cfg",
+        "x": 970,
+        "y": 140,
         "wires": []
     },
     {
-        "id": "debug-node",
+        "id": "log_outgoing",
         "type": "debug",
-        "z": "tab-plc-flow",
-        "name": "debug",
+        "z": "a1b2c3d4e5f6",
+        "name": "Log: Outgoing to Collector",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": true,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "payload.device_id",
+        "statusType": "msg",
+        "x": 1000,
+        "y": 200,
+        "wires": []
+    },
+    {
+        "id": "stats_inject",
+        "type": "inject",
+        "z": "a1b2c3d4e5f6",
+        "name": "Every 30s",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "30",
+        "crontab": "",
+        "once": true,
+        "onceDelay": "5",
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 130,
+        "y": 280,
+        "wires": [
+            [
+                "stats_counter"
+            ]
+        ]
+    },
+    {
+        "id": "stats_counter",
+        "type": "function",
+        "z": "a1b2c3d4e5f6",
+        "name": "Message Statistics",
+        "func": "// Initialize counter in context\nlet count = context.get('messageCount') || 0;\nlet lastReset = context.get('lastReset') || Date.now();\n\n// Reset every hour\nif (Date.now() - lastReset > 3600000) {\n    count = 0;\n    lastReset = Date.now();\n    context.set('lastReset', lastReset);\n}\n\ncontext.set('messageCount', count);\n\nmsg.payload = {\n    total_messages: count,\n    uptime_seconds: (Date.now() - lastReset) / 1000,\n    messages_per_second: count / ((Date.now() - lastReset) / 1000)\n};\n\nnode.status({\n    fill: 'blue',\n    shape: 'ring',\n    text: `Total: ${count} msgs`\n});\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 360,
+        "y": 280,
+        "wires": [
+            [
+                "log_stats"
+            ]
+        ]
+    },
+    {
+        "id": "log_stats",
+        "type": "debug",
+        "z": "a1b2c3d4e5f6",
+        "name": "Log: Statistics",
         "active": true,
         "tosidebar": true,
         "console": false,
@@ -81,8 +299,8 @@
         "targetType": "msg",
         "statusVal": "",
         "statusType": "auto",
-        "x": 430,
-        "y": 240,
+        "x": 580,
+        "y": 280,
         "wires": []
     }
 ]
