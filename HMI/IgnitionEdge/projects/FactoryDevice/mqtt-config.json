@@ -1,0 +1,42 @@
+{
+    "transmitterName": "Factory Device MQTT",
+    "description": "Publishes factory device position data to MQTT broker",
+    "enabled": true,
+    "brokerUrl": "tcp://localhost:1883",
+    "clientId": "ignition-factory-device",
+    "username": "",
+    "password": "",
+    "keepAliveInterval": 60,
+    "connectionTimeout": 30,
+    "qos": 1,
+    "retained": false,
+    "historicalTagGroup": "Default",
+    "transmissionMode": "OnChange",
+    "tagGroups": [
+        {
+            "name": "DevicePosition",
+            "tagPaths": [
+                "[default]Factory Device/Device_X_Position",
+                "[default]Factory Device/Device_Y_Position",
+                "[default]Factory Device/Device_Speed",
+                "[default]Factory Device/Device_Active",
+                "[default]Factory Device/Device_Status",
+                "[default]Factory Device/Device_ID"
+            ],
+            "topicFormat": "unreal/factory/{tagName}",
+            "includeQuality": true,
+            "includeTimestamp": true,
+            "payloadFormat": "json"
+        }
+    ],
+    "messageFormat": {
+        "type": "JSON",
+        "structure": {
+            "tagName": "{tagName}",
+            "value": "{value}",
+            "quality": "{quality}",
+            "timestamp": "{timestamp}",
+            "deviceId": 1
+        }
+    }
+}

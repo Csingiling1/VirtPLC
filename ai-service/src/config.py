@@ -59,6 +59,13 @@ class Settings(BaseSettings):
     anomaly_threshold: float = Field(default=2.0, env="ANOMALY_THRESHOLD")
     min_data_points: int = Field(default=10, env="MIN_DATA_POINTS")
     
+    # TimescaleDB (for plc_data queries)
+    timescale_host: str = Field(default="timescale", env="TIMESCALE_HOST")
+    timescale_port: int = Field(default=5432, env="TIMESCALE_PORT")
+    timescale_db: str = Field(default="virtplc_ts", env="TIMESCALE_DB")
+    timescale_user: str = Field(default="virtplc", env="TIMESCALE_USER")
+    timescale_password: str = Field(default="changeme", env="TIMESCALE_PASSWORD")
+    
     # Logging
     log_level: str = Field(default="INFO", env="LOG_LEVEL")
     log_format: str = Field(default="json", env="LOG_FORMAT")

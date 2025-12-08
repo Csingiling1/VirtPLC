@@ -12,9 +12,18 @@ import (
 	_ "github.com/lib/pq"
 )
 
-type PLCData struct {
-	Timestamp float64                `json:"timestamp"`
-	Tenants   map[string]interface{} `json:"tenants"`
+type DeviceData struct {
+	DeviceID       string                 `json:"device_id"`
+	Type           string                 `json:"type"`
+	Timestamp      float64                `json:"timestamp"`
+	Data           map[string]interface{} `json:"data"`
+	Metadata       map[string]interface{} `json:"metadata"`
+	ProcessedAt    string                 `json:"processed_at,omitempty"`
+	NodeRedVersion string                 `json:"node_red_version,omitempty"`
+	TopicOriginal  string                 `json:"topic_original,omitempty"`
+	DataQuality    map[string]interface{} `json:"data_quality,omitempty"`
+	Category       string                 `json:"category,omitempty"`
+	Priority       string                 `json:"priority,omitempty"`
 }
 
 func main() {
@@ -42,6 +51,20 @@ func main() {
 
 	// MQTT Client
 	opts := MQTT.NewClientOptions().AddBroker(fmt.Sprintf("tcp://%s:%s", mqttBroker, mqttPort))
+	opts.SetClientID("virtplc-collector")
+	opts.SetCleanSession(true)
+	opts.SetAutoReconnect(true)
+	
+	mqttUsername := getEnv("MQTT_USERNAME", "")
+	mqttPassword := getEnv("MQTT_PASSWORD", "")
+	if mqttUsername != "" {
+		log.Printf("Using MQTT authentication with username: %s", mqttUsername)
+		opts.SetUsername(mqttUsername)
+		opts.SetPassword(mqttPassword)
+	} else {
+		log.Printf("WARNING: No MQTT credentials provided")
+	}
+	
 	client := MQTT.NewClient(opts)
 	if token := client.Connect(); token.Wait() && token.Error() != nil {
 		log.Fatalf("Failed to connect to MQTT broker: %v", token.Error())
@@ -50,9 +73,9 @@ func main() {
 
 	log.Printf("Connected to MQTT broker")
 
-	// Subscribe to PLC data
-	client.Subscribe("plc/data", 0, func(client MQTT.Client, msg MQTT.Message) {
-		var data PLCData
+	// Subscribe to Collector data (from Node-RED)
+	client.Subscribe("collector/ingest", 0, func(client MQTT.Client, msg MQTT.Message) {
+		var data DeviceData
 		if err := json.Unmarshal(msg.Payload(), &data); err != nil {
 			log.Printf("Failed to parse MQTT message: %v", err)
 			return
@@ -62,7 +85,7 @@ func main() {
 		if err := processAndStore(db, data); err != nil {
 			log.Printf("Failed to process and store data: %v", err)
 		} else {
-			log.Printf("Successfully processed and stored PLC data")
+			log.Printf("Successfully processed and stored device data: %s", data.DeviceID)
 		}
 	})
 
@@ -87,21 +110,52 @@ func connectDatabase(host, port, user, password, dbname string) (*sql.DB, error)
 	return db, nil
 }
 
-func processAndStore(db *sql.DB, data PLCData) error {
+func processAndStore(db *sql.DB, data DeviceData) error {
 	timestamp := time.Unix(int64(data.Timestamp), 0)
 
-	// Example: Insert into a table (adjust based on your schema)
+	// Enrich metadata with Node-RED processing information
+	enrichedMetadata := make(map[string]interface{})
+	for k, v := range data.Metadata {
+		enrichedMetadata[k] = v
+	}
+	
+	// Add Node-RED enrichment fields to metadata
+	if data.ProcessedAt != "" {
+		enrichedMetadata["processed_at"] = data.ProcessedAt
+	}
+	if data.NodeRedVersion != "" {
+		enrichedMetadata["node_red_version"] = data.NodeRedVersion
+	}
+	if data.TopicOriginal != "" {
+		enrichedMetadata["topic_original"] = data.TopicOriginal
+	}
+	if data.DataQuality != nil {
+		enrichedMetadata["data_quality"] = data.DataQuality
+	}
+	if data.Category != "" {
+		enrichedMetadata["category"] = data.Category
+	}
+	if data.Priority != "" {
+		enrichedMetadata["priority"] = data.Priority
+	}
+
+	// Insert into database
 	query := `
-		INSERT INTO plc_data (timestamp, data)
-		VALUES ($1, $2)
+		INSERT INTO plc_data (timestamp, device_id, type, data, metadata)
+		VALUES ($1, $2, $3, $4, $5)
 	`
 
-	jsonData, err := json.Marshal(data.Tenants)
+	jsonData, err := json.Marshal(data.Data)
+	if err != nil {
+		return err
+	}
+	
+	jsonMetadata, err := json.Marshal(enrichedMetadata)
 	if err != nil {
 		return err
 	}
 
-	_, err = db.Exec(query, timestamp, string(jsonData))
+	_, err = db.Exec(query, timestamp, data.DeviceID, data.Type, jsonData, jsonMetadata)
 	return err
 }
 

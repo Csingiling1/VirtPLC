@@ -5,9 +5,16 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Bot, User, Send, BarChart3, TrendingUp, Plus, Trash2, MessageSquare, Edit3, X, Clock } from 'lucide-react';
+import { Bot, User, Send, BarChart3, TrendingUp, Plus, Trash2, MessageSquare, Edit3, X, Clock, Terminal } from 'lucide-react';
 import { AIChatResponse, ChartSuggestion } from '../types';
 import AIChart from '../components/AIChart';
+import ArtifactRenderer from '../components/ArtifactRenderer';
+
+interface Artifact {
+    type: string;
+    title: string;
+    content: string;
+}
 
 interface Message {
     id: string;
@@ -16,6 +23,8 @@ interface Message {
     timestamp: Date;
     chartSuggestions?: ChartSuggestion[];
     isStreaming?: boolean;
+    artifacts?: Artifact[];
+    logs?: string[];
 }
 
 interface Conversation {
@@ -51,7 +60,15 @@ function AIAssistant() {
     const CURRENT_KEY = 'aiAssistant.currentConversationId';
 
     // Raw types for parsing storage safely
-    type RawMessage = { id: string; role: 'user' | 'assistant'; content: string; timestamp: string; chartSuggestions?: ChartSuggestion[] };
+    type RawMessage = {
+        id: string;
+        role: 'user' | 'assistant';
+        content: string;
+        timestamp: string;
+        chartSuggestions?: ChartSuggestion[];
+        artifacts?: Artifact[];
+        logs?: string[];
+    };
     type RawConversation = { id: string; title: string; messages?: RawMessage[]; embeddedCharts?: { id: string; suggestion: ChartSuggestion }[]; updatedAt: string };
 
     // Load conversations from localStorage on mount
@@ -65,7 +82,15 @@ function AIAssistant() {
                     ? parsedRaw.map((c) => ({
                         id: c.id,
                         title: c.title,
-                        messages: (c.messages || []).map(m => ({ id: m.id, role: m.role, content: m.content, chartSuggestions: m.chartSuggestions, timestamp: new Date(m.timestamp) })),
+                        messages: (c.messages || []).map(m => ({
+                            id: m.id,
+                            role: m.role,
+                            content: m.content,
+                            chartSuggestions: m.chartSuggestions,
+                            timestamp: new Date(m.timestamp),
+                            artifacts: m.artifacts,
+                            logs: m.logs
+                        })),
                         embeddedCharts: c.embeddedCharts || [],
                         updatedAt: c.updatedAt,
                     }))
@@ -121,6 +146,29 @@ function AIAssistant() {
         persistConversations(updated, currentConversationId);
     }, [messages, embeddedCharts, currentConversationId, persistConversations]);
 
+    const parseContent = (text: string) => {
+        const artifactRegex = /<artifact\s+type="([^"]+)"\s+title="([^"]+)">([\s\S]*?)<\/artifact>/g;
+        const toolRegex = /\[TOOL:.*?\]/g;
+
+        const artifacts: Artifact[] = [];
+        let cleanText = text;
+        let match;
+
+        while ((match = artifactRegex.exec(text)) !== null) {
+            artifacts.push({
+                type: match[1],
+                title: match[2],
+                content: match[3].trim()
+            });
+            cleanText = cleanText.replace(match[0], '');
+        }
+
+        const logs = text.match(toolRegex) || [];
+        cleanText = cleanText.replace(toolRegex, '');
+
+        return { cleanText, artifacts, logs };
+    };
+
     const sendQuery = async (content: string, contextMessages: Message[]) => {
         setIsLoading(true);
 
@@ -173,21 +221,31 @@ function AIAssistant() {
 
                                 if (data.chunk) {
                                     fullContent += data.chunk;
+                                    const { cleanText, artifacts, logs } = parseContent(fullContent);
+
                                     setMessages(prev => prev.map(msg =>
                                         msg.id === assistantMessageId
-                                            ? { ...msg, content: fullContent }
+                                            ? {
+                                                ...msg,
+                                                content: cleanText,
+                                                artifacts: artifacts,
+                                                logs: logs as string[]
+                                            }
                                             : msg
                                     ));
                                 }
 
                                 if (data.done) {
+                                    const { cleanText, artifacts, logs } = parseContent(fullContent);
                                     // Update message with chart suggestions and mark as complete
                                     setMessages(prev => prev.map(msg =>
                                         msg.id === assistantMessageId
                                             ? {
                                                 ...msg,
-                                                content: fullContent,
+                                                content: cleanText,
                                                 chartSuggestions: data.chart_suggestions,
+                                                artifacts: artifacts,
+                                                logs: logs as string[],
                                                 isStreaming: false
                                             }
                                             : msg
@@ -537,7 +595,24 @@ function AIAssistant() {
                                                         </div>
                                                     ) : message.isStreaming ? (
                                                         <div className="space-y-2">
+                                                            {message.logs && message.logs.length > 0 && (
+                                                                <div className="mb-2 space-y-1">
+                                                                    {message.logs.map((log, i) => (
+                                                                        <div key={i} className="text-xs text-gray-400 font-mono flex items-center gap-1">
+                                                                            <Terminal className="h-3 w-3" />
+                                                                            {log.replace('[TOOL: ', '').replace(']', '')}
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            )}
                                                             <div className="whitespace-pre-wrap">{message.content}</div>
+                                                            {message.artifacts && message.artifacts.map((artifact, i) => (
+                                                                <ArtifactRenderer
+                                                                    key={i}
+                                                                    content={artifact.content}
+                                                                    title={artifact.title}
+                                                                />
+                                                            ))}
                                                             <div className="flex items-center space-x-1">
                                                                 <div className="flex space-x-1">
                                                                     <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
@@ -548,7 +623,26 @@ function AIAssistant() {
                                                             </div>
                                                         </div>
                                                     ) : (
-                                                        <div className="whitespace-pre-wrap">{message.content}</div>
+                                                        <div className="space-y-2">
+                                                            {message.logs && message.logs.length > 0 && (
+                                                                <div className="mb-2 space-y-1">
+                                                                    {message.logs.map((log, i) => (
+                                                                        <div key={i} className="text-xs text-gray-400 font-mono flex items-center gap-1">
+                                                                            <Terminal className="h-3 w-3" />
+                                                                            {log.replace('[TOOL: ', '').replace(']', '')}
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                            <div className="whitespace-pre-wrap">{message.content}</div>
+                                                            {message.artifacts && message.artifacts.map((artifact, i) => (
+                                                                <ArtifactRenderer
+                                                                    key={i}
+                                                                    content={artifact.content}
+                                                                    title={artifact.title}
+                                                                />
+                                                            ))}
+                                                        </div>
                                                     )}
                                                     <div className={`flex items-center justify-between mt-2 ${message.role === 'user' ? 'text-blue-100' : 'text-gray-500'}`}>
                                                         <span className="text-xs">

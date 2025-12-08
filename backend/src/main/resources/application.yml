@@ -47,7 +47,6 @@ cors:
 logging:
   level:
     com.virtplc: DEBUG
-    org.eclipse.milo: INFO
     org.springframework.security: DEBUG
 
 # Actuator and Metrics Configuration
@@ -82,11 +81,6 @@ metrics:
 # MCP Configuration
 mcp:
   enabled: true
-
-# OPC UA Collection Configuration
-opcua:
-  collection:
-    enabled: false
 
 # Alerting Configuration
 virtplc:

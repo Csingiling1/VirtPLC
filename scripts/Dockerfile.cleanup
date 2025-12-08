@@ -1,0 +1,30 @@
+FROM postgres:16-alpine
+
+# Install cron
+RUN apk add --no-cache bash dcron
+
+# Create app directory
+WORKDIR /app
+
+# Copy scripts
+COPY scripts/timescale_cleanup.sh /app/scripts/
+COPY scripts/timescale_cleanup.cron /etc/crontabs/root
+
+# Make script executable
+RUN chmod +x /app/scripts/timescale_cleanup.sh
+
+# Create log directory
+RUN mkdir -p /var/log && touch /var/log/timescale_cleanup.log
+
+# Create startup script
+RUN echo '#!/bin/bash' > /app/start.sh && \
+    echo 'echo "Starting cron service for TimescaleDB cleanup..."' >> /app/start.sh && \
+    echo 'printenv | grep -v "no_proxy" >> /etc/environment' >> /app/start.sh && \
+    echo 'crond -f -l 2' >> /app/start.sh && \
+    chmod +x /app/start.sh
+
+# Health check
+HEALTHCHECK --interval=1h --timeout=10s --start-period=5s --retries=2 \
+    CMD pgrep crond || exit 1
+
+CMD ["/app/start.sh"]

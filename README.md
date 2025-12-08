@@ -1,14 +1,10 @@
-# VirtPLC - PLC + HMI Control System
+# VirtPLC - Industrial IoT & Control System
 
-An Accenture Challenge - Control & Visualization Subteam
-
-## Branch: feature/HMI
-
-This branch contains the Ignition Edge HMI dashboard and PLC control logic for the virtual factory.
+An Accenture Challenge - Full-Stack IIoT Platform with Multi-Tenant Architecture
 
 ## Overview
 
-Industrial control dashboard providing real-time monitoring, control, and data logging for factory equipment via OPC-UA.
+Complete Industrial IoT platform providing real-time PLC data collection, AI-powered analytics, and multi-tenant SaaS deployment capabilities. Features MQTT-based data pipeline with Node-RED enrichment, TimescaleDB for time-series storage, and Kubernetes-ready multi-tenant isolation.
 
 ## Project Structure
 
@@ -34,24 +30,113 @@ Docs/                  # Documentation
 
 ## Quick Start
 
-1. Install Ignition Edge (maker.inductiveautomation.com)
-2. Follow `Docs/Setup.md` for configuration
-3. Import HMI project from `IgnitionEdge/projects/`
-4. Configure OPC-UA connection to `opc.tcp://backend:4840`
-5. Start TimeBaseDB and configure historian
+### Docker Compose (Development/Single-Tenant)
+```bash
+# Development mode with hot reload
+./deploy.sh dev
+
+# Production mode (single tenant)
+./deploy.sh prod
+
+# View logs
+docker-compose logs -f
+
+# Access services:
+# - Frontend: http://localhost:3000
+# - Backend API: http://localhost:8080
+# - AI Service: http://localhost:3001
+# - Node-RED: http://localhost:1880
+```
+
+### Kubernetes (Multi-Tenant SaaS)
+```bash
+# Automated setup (builds images, deploys infrastructure, provisions 2 demo tenants)
+./setup-k8s.sh
+
+# Manually provision additional tenants
+cd kubernetes
+./provision-tenant.sh <tenant_id> "Company Name" <domain>
+
+# Test multi-tenant isolation
+./kubernetes/test-isolation.sh
+
+# Access tenants:
+# - Tenant 1: http://acme.virtplc.local
+# - Tenant 2: http://techcorp.virtplc.local
+```
+
+See: **[K8S_GETTING_STARTED.md](K8S_GETTING_STARTED.md)** for full Kubernetes setup guide
+
+## Architecture
+
+### Data Pipeline
+```
+PLC Simulator → MQTT (plc/{device_id}) → Node-RED (Enrichment) 
+    → Collector → TimescaleDB → AI Service (Natural Language Queries)
+```
+
+### Components
+- **Simulator**: Python-based PLC/factory simulator with 35+ devices
+- **MQTT Broker**: Eclipse Mosquitto 2.0 with authentication
+- **Node-RED**: Data validation, enrichment, and routing
+- **Collector**: Go service writing to TimescaleDB
+- **TimescaleDB**: PostgreSQL + timescaledb extension for time-series data
+- **Backend**: Spring Boot (Java) REST API
+- **Frontend**: React + TypeScript + Vite
+- **AI Service**: FastAPI + Ollama for natural language factory queries
+- **Cleanup Service**: Automated data retention (deletes 25% every 2 months)
+
+### Multi-Tenant Kubernetes Architecture
+- **Shared Infrastructure**: PostgreSQL, Redis, Ollama, MQTT, Node-RED (virtplc-system namespace)
+- **Isolated Tenants**: Each company gets separate namespace with backend, frontend, AI service
+- **Network Policies**: Prevent cross-tenant communication
+- **Database Schemas**: Separate schema per tenant (tenant_acme123, tenant_tech456)
+- **Custom Domains**: Ingress routes traffic by domain (acme.virtplc.com, techcorp.virtplc.com)
 
 ## Features
 
-- Real-time equipment monitoring dashboards
-- Interactive control panels (Start/Stop/Reset)
-- Live data visualization with charts
-- Alarm and fault management
-- Historical data trending with TimeBaseDB
-- OPC-UA tag synchronization
+### Core Platform
+- ✅ Real-time PLC data collection (MQTT-based)
+- ✅ Data enrichment and validation (Node-RED)
+- ✅ Time-series storage with automatic compression (TimescaleDB)
+- ✅ RESTful API for factory data access
+- ✅ Interactive frontend dashboard
+- ✅ Automated data cleanup (retention policies)
+
+### AI Capabilities
+- ✅ Natural language queries ("Show me average temperature for PLC001")
+- ✅ Factory statistics and summaries
+- ✅ Sensor value lookups by name
+- ✅ Time-series analysis and aggregations
+- ✅ Device search and filtering
+
+### Multi-Tenant Features (Kubernetes)
+- ✅ Isolated namespaces per tenant
+- ✅ Network policy enforcement
+- ✅ Separate database schemas
+- ✅ Custom domain routing
+- ✅ Resource quotas and limits
+- ✅ Automated tenant provisioning
+- ✅ Zero-downtime rolling updates
 
 ## Documentation
 
-- **Setup.md** - Installation and configuration steps
-- **HMI-Design.md** - Dashboard layout and components
-- **Tag-Configuration.md** - Complete tag definitions
-- **Integration.md** - Backend and database integration
+### Deployment
+- **[K8S_GETTING_STARTED.md](K8S_GETTING_STARTED.md)** - Quick start for Kubernetes multi-tenant deployment
+- **[docs/deployment/KUBERNETES_QUICKSTART.md](docs/deployment/KUBERNETES_QUICKSTART.md)** - Detailed K8s setup guide
+- **[docs/deployment/K8S_COMMANDS.md](docs/deployment/K8S_COMMANDS.md)** - Kubernetes command reference
+- **[docs/deployment/DEPLOYMENT_COMPARISON.md](docs/deployment/DEPLOYMENT_COMPARISON.md)** - Docker Compose vs Kubernetes comparison
+- **[DEPLOYMENT_PROFILES.md](DEPLOYMENT_PROFILES.md)** - Docker Compose profiles (dev, stage2, prod)
+- **[README_DOCKER.md](README_DOCKER.md)** - Docker Compose architecture
+
+### Services & Features
+- **[AI_SERVICE_UPDATES.md](AI_SERVICE_UPDATES.md)** - AI service capabilities and API
+- **[PIPELINE_STATUS.md](PIPELINE_STATUS.md)** - Data pipeline verification
+- **[docs/ORCHESTRATION.md](docs/ORCHESTRATION.md)** - System orchestration guide
+- **[docs/Setup.md](docs/Setup.md)** - Initial setup instructions
+- **[docs/Integration.md](docs/Integration.md)** - Service integration guide
+
+### Kubernetes
+- **[kubernetes/README.md](kubernetes/README.md)** - Architecture overview
+- **[kubernetes/provision-tenant.sh](kubernetes/provision-tenant.sh)** - Tenant provisioning script
+- **[kubernetes/test-isolation.sh](kubernetes/test-isolation.sh)** - Multi-tenant isolation tests

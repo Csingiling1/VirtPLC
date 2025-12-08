@@ -70,9 +70,9 @@ const LandingPage = () => {
         },
         {
             icon: <Network className="h-10 w-10 text-primary" />,
-            title: "OPC UA Server",
+            title: "MQTT Broker",
             description: "Industrial protocol gateway connecting to PLC devices and sensors.",
-            tech: "Python, OPC UA, MQTT"
+            tech: "Python, MQTT"
         },
         {
             icon: <Lock className="h-10 w-10 text-primary" />,

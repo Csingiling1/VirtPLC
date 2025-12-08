@@ -1,5 +1,11 @@
+# Base docker-compose.yml - Common service definitions
+# Use with profile-specific overlays:
+#   Dev (single machine):     docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+#   Stage2 (2 computers):     docker-compose -f docker-compose.yml -f docker-compose.stage2.yml up
+#   Production (3 servers):   docker-compose -f docker-compose.yml -f docker-compose.prod.yml up
+
 services:
-  # Spring Boot Backend with OPC-UA Server
+  # Spring Boot Backend
   backend:
     build:
       context: ./backend
@@ -7,18 +13,11 @@ services:
     container_name: virtplc-backend
     ports:
       - "18080:8080"   # REST API
-      - "14840:4840"   # OPC-UA Server
       - "8000:8000"   # MCP Server
       - "9091:9090"   # gRPC Server
     environment:
       - SPRING_PROFILES_ACTIVE=docker
       - SERVER_PORT=8080
-      - OPCUA_SERVER_ENABLED=false
-      - OPCUA_SERVER_NAMESPACE=http://virtplc.simulator
-      - OPCUA_CLIENT_ENABLED=false
-      - OPCUA_CLIENT_ENDPOINT=opc.tcp://simulator:4840/virtplc/
-      - OPCUA_CLIENT_REQUEST_TIMEOUT=5000
-      - OPCUA_CLIENT_SESSION_TIMEOUT=60000
       - SIMULATOR_API_URL=http://simulator:8080
       - SIMULATOR_WS_URL=ws://simulator:8080/ws/data
       - SIMULATOR_BASE_URL=http://simulator:8080
@@ -56,7 +55,6 @@ services:
       dockerfile: Dockerfile
     container_name: virtplc-simulator
     ports:
-      - "24840:4840"   # OPC-UA Server
       - "5000:8080"    # REST API & WebSocket
     environment:
       - PYTHONUNBUFFERED=1
@@ -65,6 +63,8 @@ services:
       - SIMULATOR_PORT=8080
       - MQTT_BROKER=mqtt
       - MQTT_PORT=1883
+      - MQTT_USERNAME=${MQTT_USERNAME}
+      - MQTT_PASSWORD=${MQTT_PASSWORD}
       - UPDATE_INTERVAL=1.0
     volumes:
       - simulator-data:/app/data
@@ -149,6 +149,22 @@ services:
     #           count: all
     #           capabilities: [gpu]
     # Remove GPU section above if you don't have NVIDIA GPU
+
+  # Ollama Model Initializer
+  ollama-init:
+    image: curlimages/curl:latest
+    container_name: virtplc-ollama-init
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+    volumes:
+      - ./ai-service/init-ollama.sh:/init-ollama.sh
+    entrypoint: ["/bin/sh", "/init-ollama.sh"]
+    depends_on:
+      ollama:
+        condition: service_healthy
+    networks:
+      - virtplc-network
+    restart: no
 
   # AI Analysis Service (Python + FastAPI)
   ai-service:
@@ -313,18 +329,17 @@ services:
     ports:
       - "1883:1883"  # MQTT port
     volumes:
-      - ./mqtt/config:/mosquitto/config:ro
+      - ./mqtt/config:/mosquitto/config
     networks:
       - virtplc-network
     restart: unless-stopped
 
-  # Node-RED MQTT to OPC-UA Bridge
+  # Node-RED MQTT Bridge
   nodered:
     image: nodered/node-red:latest
     container_name: virtplc-nodered
     ports:
       - "1880:1880"   # Node-RED UI
-      - "34840:4840"  # OPC-UA Server
     volumes:
       - nodered-data:/data
       - ./nodered:/data/flows:ro
@@ -342,17 +357,19 @@ services:
   collector:
     build: ./collector
     container_name: collector
+    environment:
+      - MQTT_BROKER=mqtt
+      - MQTT_PORT=1883
+      - MQTT_USERNAME=${MQTT_USERNAME}
+      - MQTT_PASSWORD=${MQTT_PASSWORD}
+      - TIMESCALE_HOST=timescale
+      - TIMESCALE_PORT=5432
+      - TIMESCALE_USER=${TIMESCALE_USER}
+      - TIMESCALE_PASSWORD=${TIMESCALE_PASSWORD}
+      - TIMESCALE_DB=${TIMESCALE_DB}
     depends_on:
       - mqtt
       - timescale
-    environment:
-      - TIMESCALE_HOST=timescale
-      - TIMESCALE_PORT=5432
-      - TIMESCALE_USER=virtplc
-      - TIMESCALE_PASSWORD=changeme
-      - TIMESCALE_DB=virtplc_ts
-      - MQTT_BROKER=mqtt
-      - MQTT_PORT=1883
     ports:
       - "9100:9100"  # prometheus metrics
     networks:
@@ -381,6 +398,27 @@ services:
       timeout: 10s
       retries: 3
     restart: unless-stopped
+
+  # TimescaleDB Cleanup Cronjob - runs every 2 months
+  timescale-cleanup:
+    build:
+      context: .
+      dockerfile: scripts/Dockerfile.cleanup
+    container_name: virtplc-timescale-cleanup
+    environment:
+      - TIMESCALE_HOST=timescale
+      - TIMESCALE_PORT=5432
+      - TIMESCALE_DB=virtplc_ts
+      - TIMESCALE_USER=virtplc
+      - TIMESCALE_PASSWORD=changeme
+    depends_on:
+      timescale:
+        condition: service_healthy
+    networks:
+      - virtplc-network
+    restart: unless-stopped
+    labels:
+      description: "Cronjob to clean up 25% of oldest data every 2 months"
 
 networks:
   virtplc-network:

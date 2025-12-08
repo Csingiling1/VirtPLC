@@ -17,10 +17,6 @@ simulator:
     url: http://simulator:8080
   name: VirtPLC Simulator
 
-opcua:
-  client:
-    enabled: false  # Disable OPC-UA client when using simulator API
-
 ---
 # PLC Configuration (Production)
 spring:
@@ -31,17 +27,6 @@ spring:
 
 data:
   source: plc
-
-plc:
-  name: Production PLC
-  endpoint: opc.tcp://plc-server:4840/production
-
-opcua:
-  client:
-    enabled: true
-    endpoint: opc.tcp://plc-server:4840/production
-    request-timeout: 5000
-    session-timeout: 60000
 
 ---
 # Hybrid Configuration (Both simulator and PLC)
@@ -65,5 +50,7 @@ plc:
 
 opcua:
   client:
-    enabled: true
-    endpoint: opc.tcp://plc-server:4840/production
+simulator:
+  api:
+    url: http://simulator:8080
+  name: VirtPLC Simulator
