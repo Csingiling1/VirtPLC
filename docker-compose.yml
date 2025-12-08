@@ -399,6 +399,27 @@ services:
       retries: 3
     restart: unless-stopped
 
+  # TimescaleDB Cleanup Cronjob - runs every 2 months
+  timescale-cleanup:
+    build:
+      context: .
+      dockerfile: scripts/Dockerfile.cleanup
+    container_name: virtplc-timescale-cleanup
+    environment:
+      - TIMESCALE_HOST=timescale
+      - TIMESCALE_PORT=5432
+      - TIMESCALE_DB=virtplc_ts
+      - TIMESCALE_USER=virtplc
+      - TIMESCALE_PASSWORD=changeme
+    depends_on:
+      timescale:
+        condition: service_healthy
+    networks:
+      - virtplc-network
+    restart: unless-stopped
+    labels:
+      description: "Cronjob to clean up 25% of oldest data every 2 months"
+
 networks:
   virtplc-network:
     driver: bridge

@@ -12,6 +12,7 @@ import os
 from datetime import datetime
 
 from ..services.mcp_client import mcp_client
+from ..services.timescale_client import timescale_client
 from ..database import get_db
 from ..database.models import ChatSession, ChatMessage
 
@@ -21,14 +22,22 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 # Enhanced system prompt for industrial analytics with Tool Use and Artifacts
-SYSTEM_PROMPT = """You are an advanced Industrial AI Assistant for VirtPLC.
-You are capable of complex data analysis, SQL querying, and dashboard generation.
+SYSTEM_PROMPT = """You are an advanced Industrial AI Assistant for VirtPLC factory monitoring system.
+You have access to real-time PLC and sensor data from multiple factories and can answer questions about device status, trends, and anomalies.
 
 AVAILABLE TOOLS:
 - execute_query(query: str): Run a SQL query on the TimescaleDB 'virtplc_ts' database.
-  - Table: sensor_data
-  - Columns: time (TIMESTAMPTZ), tag_name (TEXT), value (DOUBLE PRECISION), quality (TEXT)
-  - Example: SELECT time_bucket('1 hour', time) as bucket, avg(value) FROM sensor_data WHERE tag_name = 'temperature' GROUP BY bucket
+  - Table: plc_data
+  - Columns: timestamp (TIMESTAMPTZ), device_id (TEXT), type (TEXT), data (JSONB), metadata (JSONB)
+  - Example queries:
+    * Recent readings: SELECT * FROM plc_data ORDER BY timestamp DESC LIMIT 10
+    * Device stats: SELECT device_id, COUNT(*) FROM plc_data WHERE timestamp > NOW() - INTERVAL '1 hour' GROUP BY device_id
+    * Sensor values: SELECT timestamp, device_id, data->'signal_config'->>'value' as value FROM plc_data WHERE type='sensor' AND device_id LIKE '%motor_speed%'
+    * Factory summary: SELECT metadata->>'factory' as factory, COUNT(*) as records FROM plc_data GROUP BY factory
+- get_latest_readings(device_id: str | null, limit: int): Get latest sensor/PLC readings
+- get_device_stats(device_id: str, hours: int): Get statistics for a specific device
+- get_factory_summary(factory_id: str | null): Get summary of all devices in factory
+- search_devices(search_term: str): Search for devices by name or ID
 
 TOOL USE SYNTAX:
 To use a tool, you MUST use this exact format on a new line:
@@ -76,27 +85,54 @@ class ChatResponse(BaseModel):
     chart_suggestions: Optional[List[Dict[str, Any]]] = None
 
 async def execute_tool(tool_name: str, args: Dict[str, Any]) -> str:
-    """Execute a tool via MCP client"""
+    """Execute a tool - either TimescaleDB query or helper function"""
     logger.info(f"Executing tool: {tool_name} with args: {args}")
     
-    if tool_name == "execute_query":
-        # Ensure query is safe-ish (basic check)
-        query = args.get("query", "")
-        if not query.lower().strip().startswith("select"):
-            return "Error: Only SELECT queries are allowed."
-        
-        try:
-            # Use MCP client to execute
-            # We assume the tool name in MCP server is 'query' or 'execute_query'
-            # If not, we might need to adjust.
-            result = await mcp_client.call_tool("query", {"query": query})
-            if "error" in result:
-                return f"Tool Error: {result['error']}"
-            return json.dumps(result)
-        except Exception as e:
-            return f"Tool Execution Failed: {str(e)}"
+    try:
+        if tool_name == "execute_query":
+            # Ensure query is safe-ish (basic check)
+            query = args.get("query", "")
+            if not query.lower().strip().startswith("select"):
+                return json.dumps({"error": "Only SELECT queries are allowed"})
             
-    return f"Error: Unknown tool '{tool_name}'"
+            try:
+                results = timescale_client.execute_query(query)
+                return json.dumps({"results": results, "count": len(results)}, default=str)
+            except Exception as e:
+                return json.dumps({"error": f"Query failed: {str(e)}"})
+        
+        elif tool_name == "get_latest_readings":
+            device_id = args.get("device_id")
+            limit = args.get("limit", 100)
+            results = timescale_client.get_latest_readings(device_id, limit)
+            return json.dumps({"results": results, "count": len(results)}, default=str)
+        
+        elif tool_name == "get_device_stats":
+            device_id = args.get("device_id")
+            hours = args.get("hours", 24)
+            if not device_id:
+                return json.dumps({"error": "device_id is required"})
+            result = timescale_client.get_device_stats(device_id, hours)
+            return json.dumps({"result": result}, default=str)
+        
+        elif tool_name == "get_factory_summary":
+            factory_id = args.get("factory_id")
+            results = timescale_client.get_factory_summary(factory_id)
+            return json.dumps({"results": results, "count": len(results)}, default=str)
+        
+        elif tool_name == "search_devices":
+            search_term = args.get("search_term", "")
+            if not search_term:
+                return json.dumps({"error": "search_term is required"})
+            results = timescale_client.search_devices(search_term)
+            return json.dumps({"results": results, "count": len(results)}, default=str)
+        
+        else:
+            return json.dumps({"error": f"Unknown tool '{tool_name}'"})
+            
+    except Exception as e:
+        logger.error(f"Tool execution error: {e}", exc_info=True)
+        return json.dumps({"error": f"Tool execution failed: {str(e)}"})
 
 async def stream_chat_response(prompt: str, context_data: str = "", conversation_history: str = ""):
     """

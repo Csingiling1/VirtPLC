@@ -119,11 +119,12 @@ async def test_endpoint():
 
 
 # Import routers
-from .routes import analysis, chat, dashboard
+from .routes import analysis, chat, dashboard, factory_data
 
 app.include_router(analysis.router, prefix="/api/analysis", tags=["analysis"])
 app.include_router(chat.router, prefix="/api/chat", tags=["chat"])
 app.include_router(dashboard.router, prefix="/api/dashboard", tags=["dashboard"])
+app.include_router(factory_data.router, prefix="/api/factory", tags=["factory"])
 
 
 if __name__ == "__main__":
