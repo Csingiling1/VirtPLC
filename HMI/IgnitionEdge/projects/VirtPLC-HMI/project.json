@@ -8,7 +8,8 @@
     "views": [
       "Overview",
       "MotorControl",
-      "ConveyorControl", 
+      "ConveyorControl",
+      "ControlPanel",
       "Alarms",
       "Trends",
       "Reports"

@@ -101,9 +101,7 @@
           "units": {
             "engUnit": "m/min"
           }
-        }
-      ]
-    },
+        },
     {
       "name": "Conveyor2",
       "tagType": "Folder",
