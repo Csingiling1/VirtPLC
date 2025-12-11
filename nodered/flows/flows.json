@@ -40,7 +40,11 @@
         "broker": "mqtt_broker_cfg",
         "x": 150,
         "y": 100,
-        "wires": [["parse_unreal_data"]]
+        "wires": [
+            [
+                "parse_unreal_data"
+            ]
+        ]
     },
     {
         "id": "parse_unreal_data",
@@ -51,7 +55,13 @@
         "outputs": 1,
         "x": 360,
         "y": 100,
-        "wires": [["route_to_ignition", "route_to_collector", "log_unreal"]]
+        "wires": [
+            [
+                "route_to_ignition",
+                "route_to_collector",
+                "log_unreal"
+            ]
+        ]
     },
     {
         "id": "log_unreal",
@@ -74,7 +84,11 @@
         "outputs": 1,
         "x": 600,
         "y": 100,
-        "wires": [["write_to_ignition"]]
+        "wires": [
+            [
+                "write_to_ignition"
+            ]
+        ]
     },
     {
         "id": "write_to_ignition",
@@ -100,7 +114,11 @@
         "outputs": 1,
         "x": 600,
         "y": 140,
-        "wires": [["send_to_collector"]]
+        "wires": [
+            [
+                "send_to_collector"
+            ]
+        ]
     },
     {
         "id": "send_to_collector",
@@ -128,7 +146,11 @@
         "broker": "mqtt_broker_cfg",
         "x": 150,
         "y": 300,
-        "wires": [["parse_ignition_command"]]
+        "wires": [
+            [
+                "parse_ignition_command"
+            ]
+        ]
     },
     {
         "id": "parse_ignition_command",
@@ -139,7 +161,12 @@
         "outputs": 1,
         "x": 380,
         "y": 300,
-        "wires": [["route_to_unreal", "log_command"]]
+        "wires": [
+            [
+                "route_to_unreal",
+                "log_command"
+            ]
+        ]
     },
     {
         "id": "log_command",
@@ -162,7 +189,11 @@
         "outputs": 1,
         "x": 600,
         "y": 300,
-        "wires": [["send_to_unreal"]]
+        "wires": [
+            [
+                "send_to_unreal"
+            ]
+        ]
     },
     {
         "id": "send_to_unreal",
@@ -198,7 +229,11 @@
         "payloadType": "jsonata",
         "x": 160,
         "y": 400,
-        "wires": [["publish_heartbeat"]]
+        "wires": [
+            [
+                "publish_heartbeat"
+            ]
+        ]
     },
     {
         "id": "publish_heartbeat",
