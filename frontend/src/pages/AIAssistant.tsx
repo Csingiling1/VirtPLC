@@ -173,19 +173,19 @@ function AIAssistant() {
         setIsLoading(true);
 
         try {
-            // Create streaming assistant message
+            // Create placeholder assistant message
             const assistantMessageId = (Date.now() + 1).toString();
-            const streamingMessage: Message = {
+            const placeholderMessage: Message = {
                 id: assistantMessageId,
                 role: 'assistant',
-                content: '',
+                content: 'Thinking...',
                 timestamp: new Date(),
                 isStreaming: true
             };
 
-            setMessages(prev => [...prev, streamingMessage]);
+            setMessages(prev => [...prev, placeholderMessage]);
 
-            // Call AI service with streaming
+            // Call AI service (non-streaming)
             const response = await fetch('http://localhost:3001/api/chat/message', {
                 method: 'POST',
                 headers: {
@@ -193,89 +193,37 @@ function AIAssistant() {
                 },
                 body: JSON.stringify({
                     message: content,
-                    context: { messages: contextMessages.map(m => ({ role: m.role, content: m.content })) },
-                    stream: true
+                    session_id: currentConversationId ? parseInt(currentConversationId.split('-')[1] || '1') : 1,
+                    context: { messages: contextMessages.map(m => ({ role: m.role, content: m.content })) }
                 }),
             });
 
             if (!response.ok) {
-                throw new Error('Failed to get streaming response');
+                throw new Error(`Failed to get response: ${response.status}`);
             }
 
-            const reader = response.body?.getReader();
-            const decoder = new TextDecoder();
-            let fullContent = '';
+            const data: AIChatResponse = await response.json();
 
-            if (reader) {
-                while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
+            const { cleanText, artifacts, logs } = parseContent(data.response || '');
 
-                    const chunk = decoder.decode(value);
-                    const lines = chunk.split('\n');
-
-                    for (const line of lines) {
-                        if (line.startsWith('data: ')) {
-                            try {
-                                const data = JSON.parse(line.slice(6));
-
-                                if (data.chunk) {
-                                    fullContent += data.chunk;
-                                    const { cleanText, artifacts, logs } = parseContent(fullContent);
-
-                                    setMessages(prev => prev.map(msg =>
-                                        msg.id === assistantMessageId
-                                            ? {
-                                                ...msg,
-                                                content: cleanText,
-                                                artifacts: artifacts,
-                                                logs: logs as string[]
-                                            }
-                                            : msg
-                                    ));
-                                }
-
-                                if (data.done) {
-                                    const { cleanText, artifacts, logs } = parseContent(fullContent);
-                                    // Update message with chart suggestions and mark as complete
-                                    setMessages(prev => prev.map(msg =>
-                                        msg.id === assistantMessageId
-                                            ? {
-                                                ...msg,
-                                                content: cleanText,
-                                                chartSuggestions: data.chart_suggestions,
-                                                artifacts: artifacts,
-                                                logs: logs as string[],
-                                                isStreaming: false
-                                            }
-                                            : msg
-                                    ));
-                                    setIsLoading(false);
-                                    return;
-                                }
-
-                                if (data.error) {
-                                    throw new Error(data.error);
-                                }
-                            } catch (e) {
-                                console.error('Failed to parse streaming data:', e);
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Fallback: mark as complete if streaming ends without done signal
+            // Update message with actual response
             setMessages(prev => prev.map(msg =>
                 msg.id === assistantMessageId
-                    ? { ...msg, isStreaming: false }
+                    ? {
+                        ...msg,
+                        content: cleanText,
+                        chartSuggestions: data.chart_suggestions,
+                        artifacts: artifacts,
+                        logs: logs as string[],
+                        isStreaming: false
+                    }
                     : msg
             ));
 
         } catch (error: unknown) {
-            console.error('AI streaming error:', error);
+            console.error('AI error:', error);
 
-            // Remove the streaming message and add error message
+            // Remove the placeholder message and add error message
             setMessages(prev => prev.filter(msg => !msg.isStreaming));
 
             let errorContent = 'Sorry, I encountered an error. Please try again later.';

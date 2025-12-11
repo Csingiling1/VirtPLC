@@ -3,9 +3,10 @@ Analysis routes for predictive analytics
 """
 from fastapi import APIRouter, HTTPException
 from typing import List, Dict, Any
+from datetime import datetime
 import logging
 
-from ..services.mcp_client import mcp_client
+from ..services.timescale_client import timescale_service
 
 logger = logging.getLogger(__name__)
 
@@ -13,21 +14,18 @@ router = APIRouter()
 
 
 @router.get("/predict")
-async def predict_anomalies(symbols: List[str] = None):
+async def predict_anomalies(devices: List[str] = None):
     """
     Predict anomalies in sensor data
     """
     try:
-        if not symbols:
-            symbols = ["Motor1", "Motor2", "Sensor1"]
-
-        # Get recent data from TimescaleDB via MCP
-        data = await mcp_client.get_latest_sensor_readings(limit=100)
+        # Get recent data from TimescaleDB
+        data = await timescale_service.get_latest_data(limit=100)
 
         # For now, return basic analysis based on data
         analysis = {
             "status": "data_retrieved", 
-            "symbols": symbols,
+            "devices": devices or [],
             "total_readings": len(data),
             "latest_timestamp": data[0].get("timestamp") if data else None
         }
@@ -72,34 +70,16 @@ async def get_historical_data(
     """
     try:
         # Parse timestamps
-        from datetime import datetime
         start_dt = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
         end_dt = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
         
-        # If query is provided, analyze intent for filtering
-        metrics = None
-        devices = None
-        if query:
-            from .chat import analyze_sensor_intent
-            intent = analyze_sensor_intent(query)
-            metrics = intent.get('metrics', [])
-            devices = intent.get('devices', [])
-        
-        # Get filtered historical data from MCP
-        if metrics or devices:
-            data = await mcp_client.get_filtered_sensor_data(
-                start_dt, end_dt, metrics=metrics, devices=devices, limit=limit
-            )
-        else:
-            # Fallback to unfiltered data if no query provided
-            data = await mcp_client.get_historical_data_for_range(start_dt, end_dt, limit)
+        # Get historical data from TimescaleDB
+        data = await timescale_service.get_historical_data_for_range(start_dt, end_dt, limit)
         
         return {
             "data": data,
             "count": len(data),
             "filters_applied": {
-                "metrics": metrics,
-                "devices": devices,
                 "query": query
             }
         }

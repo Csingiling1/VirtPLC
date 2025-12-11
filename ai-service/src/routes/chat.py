@@ -23,53 +23,50 @@ logger = logging.getLogger(__name__)
 
 # Enhanced system prompt for industrial analytics with Tool Use and Artifacts
 SYSTEM_PROMPT = """You are an advanced Industrial AI Assistant for VirtPLC factory monitoring system.
-You have access to real-time PLC and sensor data from multiple factories and can answer questions about device status, trends, and anomalies.
+You have access to real-time PLC and sensor data from TimescaleDB via MCP (Model Context Protocol) tools.
 
-AVAILABLE TOOLS:
-- execute_query(query: str): Run a SQL query on the TimescaleDB 'virtplc_ts' database.
-  - Table: plc_data
-  - Columns: timestamp (TIMESTAMPTZ), device_id (TEXT), type (TEXT), data (JSONB), metadata (JSONB)
-  - Example queries:
-    * Recent readings: SELECT * FROM plc_data ORDER BY timestamp DESC LIMIT 10
-    * Device stats: SELECT device_id, COUNT(*) FROM plc_data WHERE timestamp > NOW() - INTERVAL '1 hour' GROUP BY device_id
-    * Sensor values: SELECT timestamp, device_id, data->'signal_config'->>'value' as value FROM plc_data WHERE type='sensor' AND device_id LIKE '%motor_speed%'
-    * Factory summary: SELECT metadata->>'factory' as factory, COUNT(*) as records FROM plc_data GROUP BY factory
-- get_latest_readings(device_id: str | null, limit: int): Get latest sensor/PLC readings
-- get_device_stats(device_id: str, hours: int): Get statistics for a specific device
-- get_factory_summary(factory_id: str | null): Get summary of all devices in factory
-- search_devices(search_term: str): Search for devices by name or ID
+AVAILABLE MCP TOOLS:
+You can use these tools by responding with: [TOOL: tool_name {"arg": "value"}]
 
-TOOL USE SYNTAX:
-To use a tool, you MUST use this exact format on a new line:
-[TOOL: tool_name {"arg_name": "arg_value"}]
+1. query - Execute SQL queries on TimescaleDB
+   - Schema: plc_data(timestamp TIMESTAMPTZ, device_id TEXT, type TEXT, data JSONB, metadata JSONB)
+   - Example: [TOOL: query {"sql": "SELECT device_id, data->'signal_config'->>'value' as value FROM plc_data WHERE type='sensor' ORDER BY timestamp DESC LIMIT 10"}]
 
-Example:
-[TOOL: execute_query {"query": "SELECT avg(value) FROM sensor_data"}]
+2. list_tables - List all available database tables
+3. describe_table - Get schema for a specific table
+4. list_schemas - List all database schemas
 
-ARTIFACT GENERATION:
-To create a dashboard or chart, use the <artifact> tag. This will render a UI component for the user.
-Format:
-<artifact type="dashboard" title="Dashboard Title">
+CREATING INTERACTIVE CHARTS AND DASHBOARDS:
+When asked to create charts or dashboards, generate an <artifact> tag with EXECUTABLE React/Recharts code:
+
+<artifact type="react" title="Dashboard Name">
 {
   "charts": [
     {
-      "type": "line" | "bar" | "scatter" | "area",
-      "title": "Chart Title",
-      "data_source": "sql",
-      "query": "SELECT ...",
-      "x_axis": "time",
-      "y_axis": "value"
+      "type": "line",
+      "title": "Temperature Trend",
+      "query": "SELECT timestamp, device_id, (data->'signal_config'->>'value')::float as value FROM plc_data WHERE device_id LIKE '%temperature%' ORDER BY timestamp DESC LIMIT 100",
+      "x_field": "timestamp",
+      "y_field": "value",
+      "group_by": "device_id"
     }
   ]
 }
 </artifact>
 
-GUIDELINES:
-1. When asked for aggregations (avg, min, max), ALWAYS use the execute_query tool.
-2. Compare values by writing SQL queries that fetch data from different time ranges.
-3. If the user asks for a chart, generate an <artifact>.
-4. Be concise in your text response, let the data and artifacts speak.
-5. You can chain tool calls. After getting a tool result, you can call another tool or give the final answer.
+IMPORTANT GUIDELINES:
+1. Always use MCP tools to query actual data from TimescaleDB
+2. When creating charts, include the FULL SQL query that fetches the data
+3. Use proper field mapping: x_field, y_field, group_by
+4. Chart types: line, bar, area, scatter, pie
+5. After using a tool, summarize findings clearly and concisely
+6. Generate artifacts with real queries, not placeholders
+
+Example workflow for "Show temperature data":
+1. [TOOL: query {"sql": "SELECT device_id FROM plc_data WHERE device_id LIKE '%temperature%' GROUP BY device_id LIMIT 5"}]
+2. Analyze results
+3. Generate artifact with query that fetches time-series data
+4. Provide brief explanation
 """
 
 class ChatRequest(BaseModel):
@@ -85,22 +82,36 @@ class ChatResponse(BaseModel):
     chart_suggestions: Optional[List[Dict[str, Any]]] = None
 
 async def execute_tool(tool_name: str, args: Dict[str, Any]) -> str:
-    """Execute a tool - either TimescaleDB query or helper function"""
-    logger.info(f"Executing tool: {tool_name} with args: {args}")
+    """Execute MCP tools for database access"""
+    logger.info(f"Executing MCP tool: {tool_name} with args: {args}")
     
     try:
-        if tool_name == "execute_query":
-            # Ensure query is safe-ish (basic check)
-            query = args.get("query", "")
-            if not query.lower().strip().startswith("select"):
-                return json.dumps({"error": "Only SELECT queries are allowed"})
+        # Use MCP client for all database operations
+        if tool_name == "query":
+            sql = args.get("sql", "")
+            if not sql.strip():
+                return json.dumps({"error": "SQL query is required"})
             
-            try:
-                results = timescale_client.execute_query(query)
-                return json.dumps({"results": results, "count": len(results)}, default=str)
-            except Exception as e:
-                return json.dumps({"error": f"Query failed: {str(e)}"})
+            # Execute via MCP server
+            result = await mcp_client.call_tool("query", {"sql": sql})
+            return json.dumps(result, default=str)
         
+        elif tool_name == "list_tables":
+            result = await mcp_client.call_tool("list_tables", {})
+            return json.dumps(result, default=str)
+        
+        elif tool_name == "describe_table":
+            table_name = args.get("table_name", "")
+            if not table_name:
+                return json.dumps({"error": "table_name is required"})
+            result = await mcp_client.call_tool("describe_table", {"table_name": table_name})
+            return json.dumps(result, default=str)
+        
+        elif tool_name == "list_schemas":
+            result = await mcp_client.call_tool("list_schemas", {})
+            return json.dumps(result, default=str)
+        
+        # Legacy fallback tools (use direct TimescaleDB)
         elif tool_name == "get_latest_readings":
             device_id = args.get("device_id")
             limit = args.get("limit", 100)
@@ -115,18 +126,6 @@ async def execute_tool(tool_name: str, args: Dict[str, Any]) -> str:
             result = timescale_client.get_device_stats(device_id, hours)
             return json.dumps({"result": result}, default=str)
         
-        elif tool_name == "get_factory_summary":
-            factory_id = args.get("factory_id")
-            results = timescale_client.get_factory_summary(factory_id)
-            return json.dumps({"results": results, "count": len(results)}, default=str)
-        
-        elif tool_name == "search_devices":
-            search_term = args.get("search_term", "")
-            if not search_term:
-                return json.dumps({"error": "search_term is required"})
-            results = timescale_client.search_devices(search_term)
-            return json.dumps({"results": results, "count": len(results)}, default=str)
-        
         else:
             return json.dumps({"error": f"Unknown tool '{tool_name}'"})
             
@@ -138,13 +137,16 @@ async def stream_chat_response(prompt: str, context_data: str = "", conversation
     """
     Stream chat response with ReAct loop
     """
-    current_prompt = f"{SYSTEM_PROMPT}\n\nContext Data:\n{context_data}\n\nConversation History:\n{conversation_history}\n\nUser Query: {prompt}"
+    current_prompt = f"{SYSTEM_PROMPT}\n\nContext Data:\n{context_data}\n\nConversation History:\n{conversation_history}\n\nUser Query: {prompt}\n\nProvide a clear response. If you need data, use a tool first, then answer based on the results."
     
-    max_turns = 5
+    max_turns = 3
     current_turn = 0
+    final_response = ""
+    accumulated_response = ""
     
     while current_turn < max_turns:
         current_turn += 1
+        logger.info(f"ReAct turn {current_turn}/{max_turns}")
         full_response = ""
         
         # Call Ollama
@@ -158,8 +160,8 @@ async def stream_chat_response(prompt: str, context_data: str = "", conversation
                     "prompt": current_prompt,
                     "stream": True,
                     "options": {
-                        "temperature": 0.1,
-                        "num_predict": 2048
+                        "temperature": 0.2,
+                        "num_predict": 1024
                     }
                 },
                 timeout=120.0
@@ -173,36 +175,49 @@ async def stream_chat_response(prompt: str, context_data: str = "", conversation
                         if "response" in data:
                             chunk = data["response"]
                             full_response += chunk
-                            yield f"data: {json.dumps({'chunk': chunk})}\n\n"
                             
                     except json.JSONDecodeError:
                         continue
 
+        logger.debug(f"Full response: {full_response[:200]}")
+
         # Check for tool calls
         tool_match = re.search(r'\[TOOL:\s*(\w+)\s*({.*?})\]', full_response, re.DOTALL)
         
-        if tool_match:
+        if tool_match and current_turn < max_turns:
             tool_name = tool_match.group(1)
             tool_args_str = tool_match.group(2)
             
             try:
                 tool_args = json.loads(tool_args_str)
-                yield f"data: {json.dumps({'status': f'Running tool: {tool_name}'})}\n\n"
+                logger.info(f"Calling tool: {tool_name}")
+                yield f"data: {json.dumps({'status': f'🔧 {tool_name}'})}\n\n"
                 
                 tool_result = await execute_tool(tool_name, tool_args)
+                logger.info(f"Tool result length: {len(tool_result)}")
                 
                 # Append result to prompt and loop
-                current_prompt += f"\n\n{full_response}\n\n[TOOL_RESULT]:\n{tool_result}\n\n"
+                current_prompt = f"{SYSTEM_PROMPT}\n\nUser Query: {prompt}\n\nYou called tool '{tool_name}' and got this result:\n{tool_result}\n\nNow provide a clear, helpful answer to the user. If creating a chart, use the <artifact> format with actual data from the tool result."
+                accumulated_response = ""
                 continue
                 
-            except json.JSONDecodeError:
-                yield f"data: {json.dumps({'error': 'Failed to parse tool arguments'})}\n\n"
+            except Exception as e:
+                logger.error(f"Tool error: {e}")
+                yield f"data: {json.dumps({'error': f'Tool error: {str(e)}'})}\n\n"
                 break
         
-        # If no tool call, we are done
+        # No tool call - this is the final response
+        accumulated_response += full_response
         break
     
-    yield f"data: {json.dumps({'done': True})}\n\n"
+    # Clean response
+    clean = re.sub(r'\[TOOL:.*?\]', '', accumulated_response, flags=re.DOTALL)
+    clean = re.sub(r'\[TOOL_RESULT\]:.*?(?=\n\n|\Z)', '', clean, flags=re.DOTALL)
+    clean = re.sub(r'\[RESPONSE\]', '', clean)
+    clean = re.sub(r'\[END OF RESPONSE\]', '', clean)
+    clean = clean.strip()
+    
+    yield f"data: {json.dumps({'done': True, 'final_response': clean})}\n\n"
 
 @router.post("/message", response_model=ChatResponse)
 async def chat_message(request: ChatRequest):
@@ -210,14 +225,25 @@ async def chat_message(request: ChatRequest):
     Send a chat message (Non-streaming wrapper)
     """
     response_text = ""
+    final_text = ""
+    logger.info(f"Processing chat message: {request.message[:100]}...")
+    
     async for chunk_str in stream_chat_response(request.message):
         if chunk_str.startswith("data: "):
             data = json.loads(chunk_str[6:])
             if "chunk" in data:
                 response_text += data["chunk"]
+            if "final_response" in data:
+                final_text = data["final_response"]
+    
+    # Use final_response if available, otherwise use accumulated response
+    result = final_text if final_text else response_text
+    
+    logger.info(f"Chat response generated: {len(result)} chars")
+    logger.debug(f"Response preview: {result[:200]}")
     
     return ChatResponse(
-        response=response_text,
+        response=result,
         session_id=1
     )
 

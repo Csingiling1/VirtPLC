@@ -2,9 +2,9 @@
     {
         "id": "main_flow",
         "type": "tab",
-        "label": "Unreal ↔ Ignition ↔ Collector Pipeline",
+        "label": "Complete Data Pipeline",
         "disabled": false,
-        "info": "Bidirectional data flow: Unreal Engine → MQTT → Node-RED → Ignition Edge Tags & Collector → TimescaleDB"
+        "info": "Multi-source pipeline:\n- Simulator (plc/+) → Collector → TimescaleDB\n- Unreal Engine (unreal/factory/#) → Ignition Tags + Collector → TimescaleDB\n- Ignition Commands → Unreal Engine"
     },
     {
         "id": "mqtt_broker_cfg",
@@ -110,7 +110,7 @@
         "type": "function",
         "z": "main_flow",
         "name": "Format for Collector",
-        "func": "// Format data for gRPC collector\nconst deviceId = `${msg.component}_${msg.dataType}`;\n\nmsg.payload = {\n    device_id: deviceId,\n    timestamp: Math.floor(msg.timestamp / 1000),\n    tags: {\n        component: msg.component,\n        type: msg.dataType,\n        source: 'unreal_engine'\n    },\n    fields: msg.payload\n};\n\nmsg.topic = 'collector/ingest';\nreturn msg;",
+        "func": "// Format data for Collector (receives from Unreal Engine)\n// Match the simulator format for consistent TimescaleDB storage\nconst startTime = Date.now();\nconst deviceId = `${msg.component}_${msg.dataType}`;\n\n// Handle different payload structures\nlet fields = {};\nif (typeof msg.payload === 'object' && msg.payload !== null) {\n    fields = msg.payload;\n} else {\n    fields = { value: msg.payload };\n}\n\nmsg.payload = {\n    device_id: deviceId,\n    timestamp: msg.timestamp / 1000, // Convert ms to seconds as float\n    type: 'sensor', // Use 'sensor' type like simulator for consistency\n    data: {\n        id: deviceId,\n        name: `${msg.component} ${msg.dataType}`,\n        signal_config: fields\n    },\n    metadata: {\n        source: 'unreal_engine',\n        component: msg.component,\n        data_type: msg.dataType\n    },\n    processed_at: new Date().toISOString(),\n    node_red_version: '1.0',\n    topic_original: msg.topic,\n    data_quality: {\n        valid: true,\n        latency_ms: Date.now() - startTime\n    },\n    category: 'Unreal',\n    priority: 'high'\n};\n\nmsg.topic = 'collector/ingest';\nreturn msg;",
         "outputs": 1,
         "x": 600,
         "y": 140,
@@ -124,7 +124,7 @@
         "id": "send_to_collector",
         "type": "mqtt out",
         "z": "main_flow",
-        "name": "Send to Collector",
+        "name": "Unreal → Collector",
         "topic": "",
         "qos": "1",
         "retain": "false",
@@ -228,7 +228,7 @@
         "payload": "{\"status\":\"running\",\"timestamp\":\"$now()\"}",
         "payloadType": "jsonata",
         "x": 160,
-        "y": 400,
+        "y": 500,
         "wires": [
             [
                 "publish_heartbeat"
@@ -247,7 +247,200 @@
         "contentType": "",
         "broker": "mqtt_broker_cfg",
         "x": 390,
-        "y": 400,
+        "y": 500,
+        "wires": []
+    },
+    {
+        "id": "simulator_input",
+        "type": "mqtt in",
+        "z": "main_flow",
+        "name": "Simulator Data",
+        "topic": "plc/+",
+        "qos": "1",
+        "datatype": "json",
+        "broker": "mqtt_broker_cfg",
+        "x": 150,
+        "y": 600,
+        "wires": [
+            [
+                "validate_simulator_data",
+                "log_simulator"
+            ]
+        ]
+    },
+    {
+        "id": "log_simulator",
+        "type": "debug",
+        "z": "main_flow",
+        "name": "Log Simulator Data",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "x": 380,
+        "y": 560,
+        "wires": []
+    },
+    {
+        "id": "validate_simulator_data",
+        "type": "function",
+        "z": "main_flow",
+        "name": "Validate & Enrich Simulator",
+        "func": "// Validate required fields\nif (!msg.payload.device_id || !msg.payload.timestamp) {\n    node.warn('Missing required fields');\n    return null;\n}\n\n// Increment message counter\nlet count = context.get('messageCount') || 0;\ncount++;\ncontext.set('messageCount', count);\n\n// Enrich with metadata\nmsg.enriched = {\n    ...msg.payload,\n    processed_at: new Date().toISOString(),\n    node_red_version: '1.0',\n    topic_original: msg.topic,\n    data_quality: {\n        valid: true,\n        latency_ms: Date.now() - (msg.payload.timestamp * 1000)\n    }\n};\n\nnode.status({\n    fill: 'green',\n    shape: 'dot',\n    text: `${msg.payload.device_id} (${count})`\n});\n\nreturn msg;",
+        "outputs": 1,
+        "x": 400,
+        "y": 600,
+        "wires": [
+            [
+                "route_simulator_data"
+            ]
+        ]
+    },
+    {
+        "id": "route_simulator_data",
+        "type": "switch",
+        "z": "main_flow",
+        "name": "Route by Type",
+        "property": "payload.type",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "eq",
+                "v": "plc",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "sensor",
+                "vt": "str"
+            },
+            {
+                "t": "else"
+            }
+        ],
+        "checkall": true,
+        "repair": false,
+        "outputs": 3,
+        "x": 640,
+        "y": 600,
+        "wires": [
+            [
+                "format_plc"
+            ],
+            [
+                "format_sensor"
+            ],
+            [
+                "log_unknown_type"
+            ]
+        ]
+    },
+    {
+        "id": "format_plc",
+        "type": "function",
+        "z": "main_flow",
+        "name": "Format PLC Data",
+        "func": "msg.payload = {\n    ...msg.enriched,\n    category: 'PLC',\n    priority: 'high'\n};\nmsg.topic = 'collector/ingest';\nreturn msg;",
+        "outputs": 1,
+        "x": 840,
+        "y": 580,
+        "wires": [
+            [
+                "send_simulator_to_collector"
+            ]
+        ]
+    },
+    {
+        "id": "format_sensor",
+        "type": "function",
+        "z": "main_flow",
+        "name": "Format Sensor Data",
+        "func": "msg.payload = {\n    ...msg.enriched,\n    category: 'Sensor',\n    priority: 'medium'\n};\nmsg.topic = 'collector/ingest';\nreturn msg;",
+        "outputs": 1,
+        "x": 850,
+        "y": 620,
+        "wires": [
+            [
+                "send_simulator_to_collector"
+            ]
+        ]
+    },
+    {
+        "id": "log_unknown_type",
+        "type": "debug",
+        "z": "main_flow",
+        "name": "Log Unknown Type",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "x": 850,
+        "y": 660,
+        "wires": []
+    },
+    {
+        "id": "send_simulator_to_collector",
+        "type": "mqtt out",
+        "z": "main_flow",
+        "name": "Simulator → Collector",
+        "topic": "",
+        "qos": "1",
+        "retain": "false",
+        "respTopic": "",
+        "contentType": "",
+        "broker": "mqtt_broker_cfg",
+        "x": 1090,
+        "y": 600,
+        "wires": []
+    },
+    {
+        "id": "stats_inject",
+        "type": "inject",
+        "z": "main_flow",
+        "name": "Stats Every 30s",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "30",
+        "crontab": "",
+        "once": true,
+        "onceDelay": "5",
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 170,
+        "y": 750,
+        "wires": [
+            [
+                "calculate_stats"
+            ]
+        ]
+    },
+    {
+        "id": "calculate_stats",
+        "type": "function",
+        "z": "main_flow",
+        "name": "Message Statistics",
+        "func": "let count = context.get('messageCount') || 0;\nlet lastReset = context.get('lastReset') || Date.now();\n\n// Reset every hour\nif (Date.now() - lastReset > 3600000) {\n    count = 0;\n    lastReset = Date.now();\n    context.set('lastReset', lastReset);\n}\n\ncontext.set('messageCount', count);\n\nmsg.payload = {\n    total_messages: count,\n    uptime_seconds: Math.floor((Date.now() - lastReset) / 1000),\n    messages_per_second: (count / ((Date.now() - lastReset) / 1000)).toFixed(2)\n};\n\nnode.status({\n    fill: 'blue',\n    shape: 'ring',\n    text: `Total: ${count} msgs`\n});\n\nreturn msg;",
+        "outputs": 1,
+        "x": 390,
+        "y": 750,
+        "wires": [
+            [
+                "log_stats"
+            ]
+        ]
+    },
+    {
+        "id": "log_stats",
+        "type": "debug",
+        "z": "main_flow",
+        "name": "Log Statistics",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "x": 600,
+        "y": 750,
         "wires": []
     }
 ]
