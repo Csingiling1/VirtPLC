@@ -1,10 +1,10 @@
 [
     {
-        "id": "a1b2c3d4e5f6",
+        "id": "main_flow",
         "type": "tab",
-        "label": "PLC Data Pipeline",
+        "label": "Unreal ↔ Ignition ↔ Collector Pipeline",
         "disabled": false,
-        "info": "Complete pipeline: Simulator → Node-RED → Collector → TimescaleDB"
+        "info": "Bidirectional data flow: Unreal Engine → MQTT → Node-RED → Ignition Edge Tags & Collector → TimescaleDB"
     },
     {
         "id": "mqtt_broker_cfg",
@@ -12,295 +12,207 @@
         "name": "VirtPLC MQTT Broker",
         "broker": "mqtt",
         "port": "1883",
-        "clientid": "nodered-router",
+        "clientid": "nodered-bridge",
         "autoConnect": true,
         "usetls": false,
         "protocolVersion": "4",
         "keepalive": "60",
         "cleansession": true,
         "birthTopic": "nodered/status",
-        "birthQos": "0",
+        "birthQos": "1",
         "birthPayload": "online",
-        "birthMsg": {},
-        "closeTopic": "nodered/status",
-        "closeQos": "0",
-        "closePayload": "offline",
-        "closeMsg": {},
         "willTopic": "nodered/status",
-        "willQos": "0",
+        "willQos": "1",
         "willPayload": "offline",
-        "willMsg": {},
         "credentials": {
             "user": "virtplc",
             "password": "virtplc123"
         }
     },
     {
-        "id": "plc_input",
+        "id": "unreal_data_in",
         "type": "mqtt in",
-        "z": "a1b2c3d4e5f6",
-        "name": "PLC Device Data",
-        "topic": "plc/+",
+        "z": "main_flow",
+        "name": "Unreal Engine Data",
+        "topic": "unreal/factory/#",
         "qos": "1",
         "datatype": "json",
         "broker": "mqtt_broker_cfg",
-        "nl": false,
-        "rap": true,
-        "rh": 0,
-        "inputs": 0,
-        "x": 130,
-        "y": 140,
-        "wires": [
-            [
-                "log_incoming",
-                "validate_data"
-            ]
-        ]
+        "x": 150,
+        "y": 100,
+        "wires": [["parse_unreal_data"]]
     },
     {
-        "id": "log_incoming",
+        "id": "parse_unreal_data",
+        "type": "function",
+        "z": "main_flow",
+        "name": "Parse Unreal Data",
+        "func": "// Expected MQTT topics from Unreal:\n// unreal/factory/conveyor1/rpm\n// unreal/factory/conveyor2/rpm\n// unreal/factory/machine1/position\n// unreal/factory/machine1/status\n\nconst topicParts = msg.topic.split('/');\nconst component = topicParts[2]; // conveyor1, conveyor2, machine1\nconst dataType = topicParts[3];  // rpm, position, status\n\nmsg.component = component;\nmsg.dataType = dataType;\nmsg.timestamp = Date.now();\n\n// Parse payload if string\nif (typeof msg.payload === 'string') {\n    try {\n        msg.payload = JSON.parse(msg.payload);\n    } catch(e) {\n        msg.payload = { value: parseFloat(msg.payload) || msg.payload };\n    }\n}\n\nreturn msg;",
+        "outputs": 1,
+        "x": 360,
+        "y": 100,
+        "wires": [["route_to_ignition", "route_to_collector", "log_unreal"]]
+    },
+    {
+        "id": "log_unreal",
         "type": "debug",
-        "z": "a1b2c3d4e5f6",
-        "name": "Log: Incoming Data",
+        "z": "main_flow",
+        "name": "Log Unreal Data",
         "active": true,
         "tosidebar": true,
         "console": false,
-        "tostatus": true,
-        "complete": "true",
-        "targetType": "full",
-        "statusVal": "payload.device_id",
-        "statusType": "msg",
-        "x": 370,
-        "y": 80,
+        "x": 590,
+        "y": 60,
         "wires": []
     },
     {
-        "id": "validate_data",
+        "id": "route_to_ignition",
         "type": "function",
-        "z": "a1b2c3d4e5f6",
-        "name": "Validate & Enrich",
-        "func": "// Validate required fields\nif (!msg.payload.device_id || !msg.payload.timestamp) {\n    node.warn('Missing required fields');\n    return null;\n}\n\n// Increment message counter for statistics\nlet count = context.get('messageCount') || 0;\ncount++;\ncontext.set('messageCount', count);\n\n// Enrich with metadata\nmsg.enriched = {\n    ...msg.payload,\n    processed_at: new Date().toISOString(),\n    node_red_version: '1.0',\n    topic_original: msg.topic\n};\n\n// Add quality indicators\nmsg.enriched.data_quality = {\n    valid: true,\n    latency_ms: Date.now() - (msg.payload.timestamp * 1000)\n};\n\nnode.status({\n    fill: 'green',\n    shape: 'dot',\n    text: `Device: ${msg.payload.device_id} (Total: ${count})`\n});\n\nreturn msg;",
+        "z": "main_flow",
+        "name": "Map to Ignition Tags",
+        "func": "// Map Unreal data to Ignition tag structure\nlet tagPath = '';\nlet tagValue = null;\n\nswitch(msg.component) {\n    case 'conveyor1':\n        if (msg.dataType === 'rpm') {\n            tagPath = '[default]Conveyor1/RPM';\n            tagValue = msg.payload.value || msg.payload;\n        }\n        break;\n    \n    case 'conveyor2':\n        if (msg.dataType === 'rpm') {\n            tagPath = '[default]Conveyor2/RPM';\n            tagValue = msg.payload.value || msg.payload;\n        }\n        break;\n    \n    case 'machine1':\n        if (msg.dataType === 'position') {\n            // Handle X,Y coordinates\n            return [\n                { topic: 'ignition/tag/write', payload: { tagPath: '[default]Machine1/X', value: msg.payload.x || 0, quality: 'GOOD', timestamp: msg.timestamp }},\n                { topic: 'ignition/tag/write', payload: { tagPath: '[default]Machine1/Y', value: msg.payload.y || 0, quality: 'GOOD', timestamp: msg.timestamp }}\n            ];\n        } else if (msg.dataType === 'status') {\n            return [\n                { topic: 'ignition/tag/write', payload: { tagPath: '[default]Machine1/IsReady', value: msg.payload.isReady || false, quality: 'GOOD', timestamp: msg.timestamp }},\n                { topic: 'ignition/tag/write', payload: { tagPath: '[default]Machine1/IsDone', value: msg.payload.isDone || false, quality: 'GOOD', timestamp: msg.timestamp }}\n            ];\n        }\n        break;\n}\n\nif (tagPath && tagValue !== null) {\n    msg.topic = 'ignition/tag/write';\n    msg.payload = {\n        tagPath: tagPath,\n        value: tagValue,\n        quality: 'GOOD',\n        timestamp: msg.timestamp\n    };\n    return msg;\n}\n\nreturn null;",
         "outputs": 1,
-        "noerr": 0,
-        "initialize": "",
-        "finalize": "",
-        "libs": [],
-        "x": 370,
-        "y": 140,
-        "wires": [
-            [
-                "route_data",
-                "log_enriched"
-            ]
-        ]
+        "x": 600,
+        "y": 100,
+        "wires": [["write_to_ignition"]]
     },
     {
-        "id": "log_enriched",
-        "type": "debug",
-        "z": "a1b2c3d4e5f6",
-        "name": "Log: Enriched",
-        "active": true,
-        "tosidebar": true,
-        "console": false,
-        "tostatus": false,
-        "complete": "enriched",
-        "targetType": "msg",
-        "statusVal": "",
-        "statusType": "auto",
-        "x": 570,
-        "y": 80,
-        "wires": []
-    },
-    {
-        "id": "route_data",
-        "type": "switch",
-        "z": "a1b2c3d4e5f6",
-        "name": "Route by Type",
-        "property": "payload.type",
-        "propertyType": "msg",
-        "rules": [
-            {
-                "t": "eq",
-                "v": "plc",
-                "vt": "str"
-            },
-            {
-                "t": "eq",
-                "v": "sensor",
-                "vt": "str"
-            },
-            {
-                "t": "else"
-            }
-        ],
-        "checkall": "true",
-        "repair": false,
-        "outputs": 3,
-        "x": 570,
-        "y": 140,
-        "wires": [
-            [
-                "format_plc"
-            ],
-            [
-                "format_sensor"
-            ],
-            [
-                "log_unknown"
-            ]
-        ]
-    },
-    {
-        "id": "format_plc",
-        "type": "function",
-        "z": "a1b2c3d4e5f6",
-        "name": "Format PLC Data",
-        "func": "msg.payload = {\n    ...msg.enriched,\n    category: 'PLC',\n    priority: 'high'\n};\nreturn msg;",
-        "outputs": 1,
-        "noerr": 0,
-        "initialize": "",
-        "finalize": "",
-        "libs": [],
-        "x": 770,
-        "y": 120,
-        "wires": [
-            [
-                "send_to_collector",
-                "log_outgoing"
-            ]
-        ]
-    },
-    {
-        "id": "format_sensor",
-        "type": "function",
-        "z": "a1b2c3d4e5f6",
-        "name": "Format Sensor Data",
-        "func": "msg.payload = {\n    ...msg.enriched,\n    category: 'Sensor',\n    priority: 'medium'\n};\nreturn msg;",
-        "outputs": 1,
-        "noerr": 0,
-        "initialize": "",
-        "finalize": "",
-        "libs": [],
-        "x": 780,
-        "y": 160,
-        "wires": [
-            [
-                "send_to_collector",
-                "log_outgoing"
-            ]
-        ]
-    },
-    {
-        "id": "log_unknown",
-        "type": "debug",
-        "z": "a1b2c3d4e5f6",
-        "name": "Log: Unknown Type",
-        "active": true,
-        "tosidebar": true,
-        "console": true,
-        "tostatus": false,
-        "complete": "payload",
-        "targetType": "msg",
-        "statusVal": "",
-        "statusType": "auto",
-        "x": 780,
-        "y": 200,
-        "wires": []
-    },
-    {
-        "id": "send_to_collector",
+        "id": "write_to_ignition",
         "type": "mqtt out",
-        "z": "a1b2c3d4e5f6",
-        "name": "To Collector",
-        "topic": "collector/ingest",
+        "z": "main_flow",
+        "name": "Write Ignition Tags",
+        "topic": "",
         "qos": "1",
         "retain": "false",
         "respTopic": "",
         "contentType": "",
-        "userProps": "",
-        "correl": "",
-        "expiry": "",
         "broker": "mqtt_broker_cfg",
-        "x": 970,
+        "x": 840,
+        "y": 100,
+        "wires": []
+    },
+    {
+        "id": "route_to_collector",
+        "type": "function",
+        "z": "main_flow",
+        "name": "Format for Collector",
+        "func": "// Format data for gRPC collector\nconst deviceId = `${msg.component}_${msg.dataType}`;\n\nmsg.payload = {\n    device_id: deviceId,\n    timestamp: Math.floor(msg.timestamp / 1000),\n    tags: {\n        component: msg.component,\n        type: msg.dataType,\n        source: 'unreal_engine'\n    },\n    fields: msg.payload\n};\n\nmsg.topic = 'collector/ingest';\nreturn msg;",
+        "outputs": 1,
+        "x": 600,
+        "y": 140,
+        "wires": [["send_to_collector"]]
+    },
+    {
+        "id": "send_to_collector",
+        "type": "mqtt out",
+        "z": "main_flow",
+        "name": "Send to Collector",
+        "topic": "",
+        "qos": "1",
+        "retain": "false",
+        "respTopic": "",
+        "contentType": "",
+        "broker": "mqtt_broker_cfg",
+        "x": 840,
         "y": 140,
         "wires": []
     },
     {
-        "id": "log_outgoing",
+        "id": "ignition_commands_in",
+        "type": "mqtt in",
+        "z": "main_flow",
+        "name": "Ignition Commands",
+        "topic": "ignition/command/#",
+        "qos": "1",
+        "datatype": "json",
+        "broker": "mqtt_broker_cfg",
+        "x": 150,
+        "y": 300,
+        "wires": [["parse_ignition_command"]]
+    },
+    {
+        "id": "parse_ignition_command",
+        "type": "function",
+        "z": "main_flow",
+        "name": "Parse Ignition Command",
+        "func": "// Expected topics from Ignition:\n// ignition/command/conveyor1/running\n// ignition/command/conveyor2/running\n// ignition/command/machine1/running\n\nconst topicParts = msg.topic.split('/');\nconst component = topicParts[2];\nconst command = topicParts[3];\n\nmsg.component = component;\nmsg.command = command;\nmsg.commandValue = msg.payload;\n\nnode.status({\n    fill: 'blue',\n    shape: 'dot',\n    text: `${component}.${command} = ${msg.payload}`\n});\n\nreturn msg;",
+        "outputs": 1,
+        "x": 380,
+        "y": 300,
+        "wires": [["route_to_unreal", "log_command"]]
+    },
+    {
+        "id": "log_command",
         "type": "debug",
-        "z": "a1b2c3d4e5f6",
-        "name": "Log: Outgoing to Collector",
+        "z": "main_flow",
+        "name": "Log Commands",
         "active": true,
         "tosidebar": true,
         "console": false,
-        "tostatus": true,
-        "complete": "payload",
-        "targetType": "msg",
-        "statusVal": "payload.device_id",
-        "statusType": "msg",
-        "x": 1000,
-        "y": 200,
+        "x": 590,
+        "y": 260,
         "wires": []
     },
     {
-        "id": "stats_inject",
+        "id": "route_to_unreal",
+        "type": "function",
+        "z": "main_flow",
+        "name": "Format for Unreal",
+        "func": "// Send commands back to Unreal Engine\nconst unrealTopic = `unreal/command/${msg.component}/${msg.command}`;\n\nmsg.topic = unrealTopic;\nmsg.payload = {\n    value: msg.commandValue,\n    timestamp: Date.now(),\n    source: 'ignition'\n};\n\nreturn msg;",
+        "outputs": 1,
+        "x": 600,
+        "y": 300,
+        "wires": [["send_to_unreal"]]
+    },
+    {
+        "id": "send_to_unreal",
+        "type": "mqtt out",
+        "z": "main_flow",
+        "name": "Send to Unreal",
+        "topic": "",
+        "qos": "1",
+        "retain": "false",
+        "respTopic": "",
+        "contentType": "",
+        "broker": "mqtt_broker_cfg",
+        "x": 820,
+        "y": 300,
+        "wires": []
+    },
+    {
+        "id": "heartbeat",
         "type": "inject",
-        "z": "a1b2c3d4e5f6",
-        "name": "Every 30s",
+        "z": "main_flow",
+        "name": "Heartbeat 10s",
         "props": [
             {
                 "p": "payload"
             }
         ],
-        "repeat": "30",
+        "repeat": "10",
         "crontab": "",
         "once": true,
-        "onceDelay": "5",
+        "onceDelay": "2",
         "topic": "",
-        "payload": "",
-        "payloadType": "date",
-        "x": 130,
-        "y": 280,
-        "wires": [
-            [
-                "stats_counter"
-            ]
-        ]
+        "payload": "{\"status\":\"running\",\"timestamp\":\"$now()\"}",
+        "payloadType": "jsonata",
+        "x": 160,
+        "y": 400,
+        "wires": [["publish_heartbeat"]]
     },
     {
-        "id": "stats_counter",
-        "type": "function",
-        "z": "a1b2c3d4e5f6",
-        "name": "Message Statistics",
-        "func": "// Initialize counter in context\nlet count = context.get('messageCount') || 0;\nlet lastReset = context.get('lastReset') || Date.now();\n\n// Reset every hour\nif (Date.now() - lastReset > 3600000) {\n    count = 0;\n    lastReset = Date.now();\n    context.set('lastReset', lastReset);\n}\n\ncontext.set('messageCount', count);\n\nmsg.payload = {\n    total_messages: count,\n    uptime_seconds: (Date.now() - lastReset) / 1000,\n    messages_per_second: count / ((Date.now() - lastReset) / 1000)\n};\n\nnode.status({\n    fill: 'blue',\n    shape: 'ring',\n    text: `Total: ${count} msgs`\n});\n\nreturn msg;",
-        "outputs": 1,
-        "noerr": 0,
-        "initialize": "",
-        "finalize": "",
-        "libs": [],
-        "x": 360,
-        "y": 280,
-        "wires": [
-            [
-                "log_stats"
-            ]
-        ]
-    },
-    {
-        "id": "log_stats",
-        "type": "debug",
-        "z": "a1b2c3d4e5f6",
-        "name": "Log: Statistics",
-        "active": true,
-        "tosidebar": true,
-        "console": false,
-        "tostatus": false,
-        "complete": "payload",
-        "targetType": "msg",
-        "statusVal": "",
-        "statusType": "auto",
-        "x": 580,
-        "y": 280,
+        "id": "publish_heartbeat",
+        "type": "mqtt out",
+        "z": "main_flow",
+        "name": "Publish Heartbeat",
+        "topic": "nodered/heartbeat",
+        "qos": "0",
+        "retain": "false",
+        "respTopic": "",
+        "contentType": "",
+        "broker": "mqtt_broker_cfg",
+        "x": 390,
+        "y": 400,
         "wires": []
     }
 ]

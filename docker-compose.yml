@@ -342,9 +342,14 @@ services:
       - "1880:1880"   # Node-RED UI
     volumes:
       - nodered-data:/data
-      - ./nodered:/data/flows:ro
+      - ./nodered/flows:/data/flows
+      - ./nodered/settings.js:/data/settings.js:ro
     environment:
       - NODE_RED_CREDENTIAL_SECRET=${NODE_RED_CREDENTIAL_SECRET:-your-secret-key}
+      - MQTT_BROKER=mqtt
+      - MQTT_PORT=1883
+    depends_on:
+      - mqtt
     networks:
       - virtplc-network
     healthcheck:
@@ -356,20 +361,22 @@ services:
 
   collector:
     build: ./collector
-    container_name: collector
+    container_name: virtplc-collector
     environment:
       - MQTT_BROKER=mqtt
       - MQTT_PORT=1883
-      - MQTT_USERNAME=${MQTT_USERNAME}
-      - MQTT_PASSWORD=${MQTT_PASSWORD}
+      - MQTT_USERNAME=${MQTT_USERNAME:-virtplc}
+      - MQTT_PASSWORD=${MQTT_PASSWORD:-virtplc123}
       - TIMESCALE_HOST=timescale
       - TIMESCALE_PORT=5432
-      - TIMESCALE_USER=${TIMESCALE_USER}
-      - TIMESCALE_PASSWORD=${TIMESCALE_PASSWORD}
-      - TIMESCALE_DB=${TIMESCALE_DB}
+      - TIMESCALE_USER=${TIMESCALE_USER:-virtplc}
+      - TIMESCALE_PASSWORD=${TIMESCALE_PASSWORD:-changeme}
+      - TIMESCALE_DB=${TIMESCALE_DB:-virtplc_ts}
     depends_on:
-      - mqtt
-      - timescale
+      mqtt:
+        condition: service_started
+      timescale:
+        condition: service_healthy
     ports:
       - "9100:9100"  # prometheus metrics
     networks:

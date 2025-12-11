@@ -1,0 +1,576 @@
+{
+    "custom": {},
+    "params": {},
+    "props": {
+        "defaultSize": {
+            "height": 1080,
+            "width": 1920
+        }
+    },
+    "root": {
+        "children": [
+            {
+                "meta": {
+                    "name": "MainHeader"
+                },
+                "props": {
+                    "style": {
+                        "color": "#2c3e50",
+                        "fontSize": "32px",
+                        "fontWeight": "bold",
+                        "marginBottom": "20px",
+                        "textAlign": "center"
+                    },
+                    "text": "Factory Control Dashboard"
+                },
+                "type": "ia.display.label"
+            },
+            {
+                "children": [
+                    {
+                        "children": [
+                            {
+                                "meta": {
+                                    "name": "Title"
+                                },
+                                "props": {
+                                    "style": {
+                                        "color": "#3498db",
+                                        "fontSize": "20px",
+                                        "fontWeight": "bold",
+                                        "marginBottom": "15px",
+                                        "textAlign": "center"
+                                    },
+                                    "text": "Conveyor 1"
+                                },
+                                "type": "ia.display.label"
+                            },
+                            {
+                                "children": [
+                                    {
+                                        "meta": {
+                                            "name": "Switch"
+                                        },
+                                        "position": {
+                                            "basis": "150px"
+                                        },
+                                        "props": {
+                                            "color": "#3498db",
+                                            "label": {
+                                                "text": "Run Motor"
+                                            },
+                                            "selected": {
+                                                "binding": {
+                                                    "config": {
+                                                        "path": "[default]Conveyor1/Running"
+                                                    },
+                                                    "mode": "bidirectional",
+                                                    "type": "tag"
+                                                }
+                                            }
+                                        },
+                                        "type": "ia.input.toggle-switch"
+                                    },
+                                    {
+                                        "meta": {
+                                            "name": "Gauge"
+                                        },
+                                        "propConfig": {
+                                            "props.value": {
+                                                "binding": {
+                                                    "config": {
+                                                        "fallbackDelay": 2.5,
+                                                        "mode": "direct",
+                                                        "publishInitial": false,
+                                                        "tagPath": "[edge]VirtPLC/FactoryTags/Conveyor1/RPM"
+                                                    },
+                                                    "type": "tag"
+                                                }
+                                            }
+                                        },
+                                        "props": {
+                                            "backgroundColor": "",
+                                            "innerAxis": {
+                                                "data": "secondaryValue",
+                                                "maxValue": 80,
+                                                "percentRadius": 85,
+                                                "show": false,
+                                                "width": 1
+                                            },
+                                            "outerAxis": {
+                                                "data": "value",
+                                                "maxValue": 120,
+                                                "percentRadius": 100,
+                                                "ranges": [
+                                                    {
+                                                        "color": "#77B6D8",
+                                                        "end": 80,
+                                                        "start": 0,
+                                                        "width": 8
+                                                    },
+                                                    {
+                                                        "color": "#6E94D7",
+                                                        "end": 105,
+                                                        "start": 80,
+                                                        "width": 12
+                                                    },
+                                                    {
+                                                        "color": "#7A6BD5",
+                                                        "end": 120,
+                                                        "start": 105,
+                                                        "width": 16
+                                                    }
+                                                ],
+                                                "show": true,
+                                                "width": 1
+                                            }
+                                        },
+                                        "type": "ia.chart.gauge"
+                                    }
+                                ],
+                                "meta": {
+                                    "name": "ControlsRow"
+                                },
+                                "position": {
+                                    "basis": "229px"
+                                },
+                                "props": {
+                                    "alignItems": "center",
+                                    "justifyContent": "space-around"
+                                },
+                                "type": "ia.container.flex"
+                            }
+                        ],
+                        "meta": {
+                            "name": "Conveyor1Card"
+                        },
+                        "props": {
+                            "direction": "column",
+                            "style": {
+                                "backgroundColor": "white",
+                                "borderRadius": "8px",
+                                "boxShadow": "0 2px 5px rgba(0,0,0,0.1)",
+                                "flexGrow": 1,
+                                "padding": "20px"
+                            }
+                        },
+                        "type": "ia.container.flex"
+                    },
+                    {
+                        "children": [
+                            {
+                                "meta": {
+                                    "name": "Title"
+                                },
+                                "props": {
+                                    "style": {
+                                        "color": "#e67e22",
+                                        "fontSize": "20px",
+                                        "fontWeight": "bold",
+                                        "marginBottom": "15px",
+                                        "textAlign": "center"
+                                    },
+                                    "text": "Conveyor 2"
+                                },
+                                "type": "ia.display.label"
+                            },
+                            {
+                                "children": [
+                                    {
+                                        "meta": {
+                                            "name": "Switch"
+                                        },
+                                        "position": {
+                                            "basis": "150px"
+                                        },
+                                        "props": {
+                                            "color": "#e67e22",
+                                            "label": {
+                                                "text": "Run Motor"
+                                            },
+                                            "selected": {
+                                                "binding": {
+                                                    "config": {
+                                                        "path": "[default]Conveyor2/Running"
+                                                    },
+                                                    "mode": "bidirectional",
+                                                    "type": "tag"
+                                                }
+                                            }
+                                        },
+                                        "type": "ia.input.toggle-switch"
+                                    },
+                                    {
+                                        "meta": {
+                                            "name": "Gauge"
+                                        },
+                                        "propConfig": {
+                                            "props.value": {
+                                                "binding": {
+                                                    "config": {
+                                                        "fallbackDelay": 2.5,
+                                                        "mode": "direct",
+                                                        "publishInitial": false,
+                                                        "tagPath": "[edge]VirtPLC/FactoryTags/Conveyor2/RPM"
+                                                    },
+                                                    "type": "tag"
+                                                }
+                                            }
+                                        },
+                                        "props": {
+                                            "backgroundColor": "",
+                                            "innerAxis": {
+                                                "data": "secondaryValue",
+                                                "maxValue": 80,
+                                                "percentRadius": 85,
+                                                "show": false,
+                                                "width": 1
+                                            },
+                                            "outerAxis": {
+                                                "data": "value",
+                                                "maxValue": 120,
+                                                "percentRadius": 100,
+                                                "ranges": [
+                                                    {
+                                                        "color": "#77B6D8",
+                                                        "end": 80,
+                                                        "start": 0,
+                                                        "width": 8
+                                                    },
+                                                    {
+                                                        "color": "#6E94D7",
+                                                        "end": 105,
+                                                        "start": 80,
+                                                        "width": 12
+                                                    },
+                                                    {
+                                                        "color": "#7A6BD5",
+                                                        "end": 120,
+                                                        "start": 105,
+                                                        "width": 16
+                                                    }
+                                                ],
+                                                "show": true,
+                                                "width": 1
+                                            }
+                                        },
+                                        "type": "ia.chart.gauge"
+                                    }
+                                ],
+                                "meta": {
+                                    "name": "ControlsRow"
+                                },
+                                "position": {
+                                    "basis": "231px"
+                                },
+                                "props": {
+                                    "alignItems": "center",
+                                    "justifyContent": "space-around"
+                                },
+                                "type": "ia.container.flex"
+                            }
+                        ],
+                        "meta": {
+                            "name": "Conveyor2Card"
+                        },
+                        "props": {
+                            "direction": "column",
+                            "style": {
+                                "backgroundColor": "white",
+                                "borderRadius": "8px",
+                                "boxShadow": "0 2px 5px rgba(0,0,0,0.1)",
+                                "flexGrow": 1,
+                                "padding": "20px"
+                            }
+                        },
+                        "type": "ia.container.flex"
+                    }
+                ],
+                "meta": {
+                    "name": "ConveyorsRow"
+                },
+                "props": {
+                    "style": {
+                        "gap": "20px"
+                    }
+                },
+                "type": "ia.container.flex"
+            },
+            {
+                "children": [
+                    {
+                        "meta": {
+                            "name": "Title"
+                        },
+                        "props": {
+                            "style": {
+                                "color": "#9b59b6",
+                                "fontSize": "18px",
+                                "fontWeight": "bold"
+                            },
+                            "text": "Machine Control \u0026 Position"
+                        },
+                        "type": "ia.display.label"
+                    },
+                    {
+                        "children": [
+                            {
+                                "meta": {
+                                    "name": "MainSwitch"
+                                },
+                                "props": {
+                                    "label": {
+                                        "text": "Machine Run"
+                                    },
+                                    "selected": {
+                                        "binding": {
+                                            "config": {
+                                                "path": "[default]Machine1/Running"
+                                            },
+                                            "mode": "bidirectional",
+                                            "type": "tag"
+                                        }
+                                    }
+                                },
+                                "type": "ia.input.toggle-switch"
+                            },
+                            {
+                                "children": [
+                                    {
+                                        "meta": {
+                                            "name": "LED"
+                                        },
+                                        "propConfig": {
+                                            "props.style.backgroundColor": {
+                                                "binding": {
+                                                    "config": {
+                                                        "path": "[default]Machine1/IsReady"
+                                                    },
+                                                    "transforms": [
+                                                        {
+                                                            "fallback": "#95a5a6",
+                                                            "input": {
+                                                                "value": true
+                                                            },
+                                                            "output": {
+                                                                "value": "#2ecc71"
+                                                            },
+                                                            "type": "map"
+                                                        }
+                                                    ],
+                                                    "type": "tag"
+                                                }
+                                            }
+                                        },
+                                        "props": {
+                                            "style": {
+                                                "border": "1px solid #ccc",
+                                                "borderRadius": "50%",
+                                                "height": "20px",
+                                                "width": "20px"
+                                            }
+                                        },
+                                        "type": "ia.display.label"
+                                    },
+                                    {
+                                        "meta": {
+                                            "name": "Label"
+                                        },
+                                        "props": {
+                                            "text": "Is Ready"
+                                        },
+                                        "type": "ia.display.label"
+                                    }
+                                ],
+                                "meta": {
+                                    "name": "ReadyIndicator"
+                                },
+                                "props": {
+                                    "alignItems": "center",
+                                    "style": {
+                                        "gap": "10px"
+                                    }
+                                },
+                                "type": "ia.container.flex"
+                            },
+                            {
+                                "children": [
+                                    {
+                                        "meta": {
+                                            "name": "LED"
+                                        },
+                                        "propConfig": {
+                                            "props.style.backgroundColor": {
+                                                "binding": {
+                                                    "config": {
+                                                        "path": "[default]Machine1/IsDone"
+                                                    },
+                                                    "transforms": [
+                                                        {
+                                                            "fallback": "#95a5a6",
+                                                            "input": {
+                                                                "value": true
+                                                            },
+                                                            "output": {
+                                                                "value": "#3498db"
+                                                            },
+                                                            "type": "map"
+                                                        }
+                                                    ],
+                                                    "type": "tag"
+                                                }
+                                            }
+                                        },
+                                        "props": {
+                                            "style": {
+                                                "border": "1px solid #ccc",
+                                                "borderRadius": "50%",
+                                                "height": "20px",
+                                                "width": "20px"
+                                            }
+                                        },
+                                        "type": "ia.display.label"
+                                    },
+                                    {
+                                        "meta": {
+                                            "name": "Label"
+                                        },
+                                        "props": {
+                                            "text": "Is Done"
+                                        },
+                                        "type": "ia.display.label"
+                                    }
+                                ],
+                                "meta": {
+                                    "name": "DoneIndicator"
+                                },
+                                "props": {
+                                    "alignItems": "center",
+                                    "style": {
+                                        "gap": "10px"
+                                    }
+                                },
+                                "type": "ia.container.flex"
+                            }
+                        ],
+                        "meta": {
+                            "name": "StatusRow"
+                        },
+                        "props": {
+                            "alignItems": "center",
+                            "style": {
+                                "gap": "30px",
+                                "marginBottom": "20px"
+                            }
+                        },
+                        "type": "ia.container.flex"
+                    },
+                    {
+                        "children": [
+                            {
+                                "meta": {
+                                    "name": "TargetIcon"
+                                },
+                                "position": {
+                                    "height": 32,
+                                    "width": 32,
+                                    "x": {
+                                        "binding": {
+                                            "config": {
+                                                "path": "[default]Machine1/X"
+                                            },
+                                            "type": "tag"
+                                        }
+                                    },
+                                    "y": {
+                                        "binding": {
+                                            "config": {
+                                                "path": "[default]Machine1/Y"
+                                            },
+                                            "type": "tag"
+                                        }
+                                    }
+                                },
+                                "props": {
+                                    "color": "#e74c3c",
+                                    "path": "material/control_camera",
+                                    "style": {
+                                        "height": "32px",
+                                        "width": "32px"
+                                    }
+                                },
+                                "type": "ia.display.icon"
+                            },
+                            {
+                                "meta": {
+                                    "name": "AxisLabel"
+                                },
+                                "position": {
+                                    "height": 30,
+                                    "width": 200
+                                },
+                                "props": {
+                                    "style": {
+                                        "color": "#7f8c8d",
+                                        "padding": "5px"
+                                    },
+                                    "text": "X / Y Coordinate System (mm)"
+                                },
+                                "type": "ia.display.label"
+                            }
+                        ],
+                        "meta": {
+                            "name": "CoordinateMap"
+                        },
+                        "props": {
+                            "style": {
+                                "backgroundColor": "#ecf0f1",
+                                "border": "2px solid #7f8c8d",
+                                "height": "400px",
+                                "position": "relative",
+                                "width": "600px"
+                            }
+                        },
+                        "type": "ia.container.coord"
+                    }
+                ],
+                "meta": {
+                    "name": "MachineCard"
+                },
+                "position": {
+                    "height": 400,
+                    "rotate": {
+                        "anchor": "50% 50%",
+                        "angle": "0deg"
+                    },
+                    "width": 600,
+                    "x": 700,
+                    "y": 100
+                },
+                "props": {
+                    "direction": "column",
+                    "style": {
+                        "backgroundColor": "white",
+                        "borderRadius": "8px",
+                        "boxShadow": "0 2px 5px rgba(0,0,0,0.1)",
+                        "marginTop": "20px",
+                        "padding": "15px"
+                    }
+                },
+                "type": "ia.container.flex"
+            }
+        ],
+        "meta": {
+            "name": "root"
+        },
+        "props": {
+            "direction": "column",
+            "style": {
+                "backgroundColor": "#ecf0f1",
+                "gap": "20px",
+                "padding": "20px"
+            }
+        },
+        "type": "ia.container.flex"
+    }
+}

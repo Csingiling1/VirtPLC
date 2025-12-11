@@ -1,0 +1,82 @@
+{
+  "name": "FactoryTags",
+  "tagType": "Folder",
+  "tags": [
+    {
+      "name": "Conveyor1",
+      "tagType": "Folder",
+      "tags": [
+        {
+          "name": "Running",
+          "valueSource": "memory",
+          "dataType": "Boolean",
+          "value": false
+        },
+        {
+          "name": "RPM",
+          "valueSource": "memory",
+          "dataType": "Float4",
+          "value": 0.0,
+          "units": { "engUnit": "RPM" }
+        }
+      ]
+    },
+    {
+      "name": "Conveyor2",
+      "tagType": "Folder",
+      "tags": [
+        {
+          "name": "Running",
+          "valueSource": "memory",
+          "dataType": "Boolean",
+          "value": false
+        },
+        {
+          "name": "RPM",
+          "valueSource": "memory",
+          "dataType": "Float4",
+          "value": 0.0,
+          "units": { "engUnit": "RPM" }
+        }
+      ]
+    },
+    {
+      "name": "Machine1",
+      "tagType": "Folder",
+      "tags": [
+        {
+          "name": "Running",
+          "valueSource": "memory",
+          "dataType": "Boolean",
+          "value": false
+        },
+        {
+          "name": "IsReady",
+          "valueSource": "memory",
+          "dataType": "Boolean",
+          "value": true
+        },
+        {
+          "name": "IsDone",
+          "valueSource": "memory",
+          "dataType": "Boolean",
+          "value": false
+        },
+        {
+          "name": "X",
+          "valueSource": "memory",
+          "dataType": "Float4",
+          "value": 50.0,
+          "units": { "engUnit": "mm" }
+        },
+        {
+          "name": "Y",
+          "valueSource": "memory",
+          "dataType": "Float4",
+          "value": 50.0,
+          "units": { "engUnit": "mm" }
+        }
+      ]
+    }
+  ]
+}

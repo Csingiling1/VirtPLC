@@ -1,7 +1,0 @@
-{
-    "title": "Factory Device Monitor",
-    "description": "Monitor factory device position and status",
-    "parent": "global",
-    "enabled": true,
-    "inheritable": true
-}
