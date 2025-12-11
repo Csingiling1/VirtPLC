@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { LineChart, Line, BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 interface ArtifactRendererProps {
@@ -17,12 +18,75 @@ interface ChartConfig {
     group_by?: string;
 }
 
-interface DashboardConfig {
-    charts: ChartConfig[];
-}
+// Component to execute React/TypeScript code
+const ExecutableArtifact: React.FC<{ code: string }> = ({ code }) => {
+    try {
+        // Remove import statements and export default
+        let cleanCode = code.replace(/import\s+.*?from\s+['"].*?['"];?\s*/g, '');
+        cleanCode = cleanCode.replace(/export\s+default\s+/g, '');
+
+        // Create execution context with all needed dependencies
+        const componentFunction = new Function(
+            'React', 'useState', 'useEffect',
+            'LineChart', 'Line', 'BarChart', 'Bar', 'AreaChart', 'Area',
+            'XAxis', 'YAxis', 'CartesianGrid', 'Tooltip', 'Legend', 'ResponsiveContainer',
+            `${cleanCode}\nreturn ${cleanCode.match(/function\s+(\w+)/)?.[1] || 'Component'};`
+        );
+
+        const Component = componentFunction(
+            React, useState, useEffect,
+            LineChart, Line, BarChart, Bar, AreaChart, Area,
+            XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
+        );
+
+        return <Component />;
+    } catch (error) {
+        console.error('Artifact execution error:', error);
+        return (
+            <div className="p-4 bg-red-50 rounded">
+                <p className="text-red-800 font-semibold">Error executing artifact</p>
+                <p className="text-sm text-red-600 mt-2">{error instanceof Error ? error.message : 'Unknown error'}</p>
+            </div>
+        );
+    }
+};
 
 const ArtifactRenderer: React.FC<ArtifactRendererProps> = ({ content, title, onSave }) => {
-    let config: DashboardConfig;
+    // Check if content is React code (tsx/jsx) or JSON config
+    const isReactCode = content.trim().startsWith('import') || content.includes('export default') || content.includes('function');
+
+    if (isReactCode) {
+        // Extract code from markdown code blocks if present
+        const codeMatch = content.match(/```(?:tsx?|jsx?)?\n([\s\S]*?)```/);
+        const code = codeMatch ? codeMatch[1] : content;
+
+        return (
+            <Card className="mt-4">
+                <CardHeader>
+                    <CardTitle>{title}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <Tabs defaultValue="preview" className="w-full">
+                        <TabsList>
+                            <TabsTrigger value="preview">Preview</TabsTrigger>
+                            <TabsTrigger value="code">Code</TabsTrigger>
+                        </TabsList>
+                        <TabsContent value="preview" className="min-h-[400px]">
+                            <ExecutableArtifact code={code} />
+                        </TabsContent>
+                        <TabsContent value="code" className="min-h-[400px]">
+                            <pre className="p-4 bg-gray-900 text-gray-100 rounded overflow-auto text-sm">
+                                <code>{code}</code>
+                            </pre>
+                        </TabsContent>
+                    </Tabs>
+                </CardContent>
+            </Card>
+        );
+    }
+
+    // Legacy JSON format support
+    let config: any;
     try {
         config = JSON.parse(content);
     } catch (e) {
@@ -44,7 +108,7 @@ const ArtifactRenderer: React.FC<ArtifactRendererProps> = ({ content, title, onS
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {config.charts.map((chart, index) => (
+                {config.charts?.map((chart: any, index: number) => (
                     <ExecutableChart key={index} config={chart} />
                 ))}
             </div>
@@ -73,7 +137,7 @@ const ExecutableChart: React.FC<{ config: ChartConfig }> = ({ config }) => {
                 if (!response.ok) throw new Error('Query failed');
 
                 const result = await response.json();
-                
+
                 // Parse tool result from response
                 const match = result.response.match(/\[TOOL_RESULT\]:\s*({.*})/s);
                 if (match) {

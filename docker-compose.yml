@@ -185,7 +185,7 @@ services:
       - MCP_SERVER_URL=http://db-mcp-server:9092/sse
       - OLLAMA_HOST=http://ollama:11434
       # - OLLAMA_MODEL=llama3:8b
-      - OLLAMA_MODEL=qwen2:0.5b
+      - OLLAMA_MODEL=qwen2.5-coder:7b
       - TIMESCALE_HOST=timescale
       - TIMESCALE_PORT=5432
       - TIMESCALE_DB=virtplc_ts

@@ -8,7 +8,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Bot, User, Send, BarChart3, TrendingUp, Plus, Trash2, MessageSquare, Edit3, X, Clock, Terminal } from 'lucide-react';
 import { AIChatResponse, ChartSuggestion } from '../types';
 import AIChart from '../components/AIChart';
-import ArtifactRenderer from '../components/ArtifactRenderer';
+import ArtifactPanel from '../components/ArtifactPanel';
 
 interface Artifact {
     type: string;
@@ -45,6 +45,7 @@ function AIAssistant() {
     const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
     const [editingContent, setEditingContent] = useState('');
     const [isTemporaryMode, setIsTemporaryMode] = useState(false);
+    const [activeArtifact, setActiveArtifact] = useState<Artifact | null>(null);
     const scrollAreaRef = useRef<HTMLDivElement>(null);
 
     // Clear localStorage when entering temporary mode
@@ -154,13 +155,34 @@ function AIAssistant() {
         let cleanText = text;
         let match;
 
+        // First try to find <artifact> tags
         while ((match = artifactRegex.exec(text)) !== null) {
+            let content = match[3].trim();
+            // Remove markdown code block wrapper if present
+            const codeBlockMatch = content.match(/```(?:tsx|jsx|typescript|javascript)?\n([\s\S]*?)```/);
+            if (codeBlockMatch) {
+                content = codeBlockMatch[1].trim();
+            }
             artifacts.push({
                 type: match[1],
                 title: match[2],
-                content: match[3].trim()
+                content: content
             });
             cleanText = cleanText.replace(match[0], '');
+        }
+
+        // Fallback: if no artifacts found, check for tsx/jsx code blocks
+        if (artifacts.length === 0) {
+            const codeBlockRegex = /```(?:tsx|jsx)\n([\s\S]*?)```/g;
+            let codeMatch;
+            while ((codeMatch = codeBlockRegex.exec(text)) !== null) {
+                artifacts.push({
+                    type: 'react',
+                    title: 'Generated Chart',
+                    content: codeMatch[1].trim()
+                });
+                cleanText = cleanText.replace(codeMatch[0], '\n📊 Chart generated - see Artifact panel →');
+            }
         }
 
         const logs = text.match(toolRegex) || [];
@@ -219,6 +241,11 @@ function AIAssistant() {
                     }
                     : msg
             ));
+
+            // Auto-open artifact panel if artifacts were generated
+            if (artifacts.length > 0) {
+                setActiveArtifact(artifacts[0]);
+            }
 
         } catch (error: unknown) {
             console.error('AI error:', error);
@@ -473,7 +500,7 @@ function AIAssistant() {
                 </div>
 
                 {/* Main Chat Area */}
-                <div className="flex-1 flex flex-col">
+                <div className={`flex flex-col transition-all duration-300 ${activeArtifact ? 'w-[60%]' : 'flex-1'}`}>
                     {currentConversationId ? (
                         <>
                             {/* Chat Header */}
@@ -555,11 +582,16 @@ function AIAssistant() {
                                                             )}
                                                             <div className="whitespace-pre-wrap">{message.content}</div>
                                                             {message.artifacts && message.artifacts.map((artifact, i) => (
-                                                                <ArtifactRenderer
+                                                                <Button
                                                                     key={i}
-                                                                    content={artifact.content}
-                                                                    title={artifact.title}
-                                                                />
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    className="mt-2 hover:bg-blue-50 transition-all hover:scale-105 hover:shadow-md"
+                                                                    onClick={() => setActiveArtifact(artifact)}
+                                                                >
+                                                                    <BarChart3 className="h-4 w-4 mr-2" />
+                                                                    View {artifact.title}
+                                                                </Button>
                                                             ))}
                                                             <div className="flex items-center space-x-1">
                                                                 <div className="flex space-x-1">
@@ -584,11 +616,16 @@ function AIAssistant() {
                                                             )}
                                                             <div className="whitespace-pre-wrap">{message.content}</div>
                                                             {message.artifacts && message.artifacts.map((artifact, i) => (
-                                                                <ArtifactRenderer
+                                                                <Button
                                                                     key={i}
-                                                                    content={artifact.content}
-                                                                    title={artifact.title}
-                                                                />
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    className="mt-2 hover:bg-blue-50 transition-all hover:scale-105 hover:shadow-md"
+                                                                    onClick={() => setActiveArtifact(artifact)}
+                                                                >
+                                                                    <BarChart3 className="h-4 w-4 mr-2" />
+                                                                    View {artifact.title}
+                                                                </Button>
                                                             ))}
                                                         </div>
                                                     )}
@@ -734,6 +771,16 @@ function AIAssistant() {
                         </div>
                     )}
                 </div>
+
+                {/* Artifact Panel */}
+                {activeArtifact && (
+                    <div className="w-[40%] border-l border-gray-200">
+                        <ArtifactPanel
+                            artifact={activeArtifact}
+                            onClose={() => setActiveArtifact(null)}
+                        />
+                    </div>
+                )}
             </div>
         </Layout>
     );

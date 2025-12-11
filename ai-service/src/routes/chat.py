@@ -21,52 +21,88 @@ import httpx
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-# Enhanced system prompt for industrial analytics with Tool Use and Artifacts
-SYSTEM_PROMPT = """You are an advanced Industrial AI Assistant for VirtPLC factory monitoring system.
-You have access to real-time PLC and sensor data from TimescaleDB via MCP (Model Context Protocol) tools.
+# System prompt optimized for code generation
+SYSTEM_PROMPT = """You are a PLC data visualization assistant. You MUST fetch real data using MCP tools and generate executable React charts.
 
 AVAILABLE MCP TOOLS:
-You can use these tools by responding with: [TOOL: tool_name {"arg": "value"}]
+[TOOL: query {"sql": "SELECT ..."}] - Execute SQL query and get REAL data from database
 
-1. query - Execute SQL queries on TimescaleDB
-   - Schema: plc_data(timestamp TIMESTAMPTZ, device_id TEXT, type TEXT, data JSONB, metadata JSONB)
-   - Example: [TOOL: query {"sql": "SELECT device_id, data->'signal_config'->>'value' as value FROM plc_data WHERE type='sensor' ORDER BY timestamp DESC LIMIT 10"}]
+DATABASE SCHEMA:
+- Table: plc_data
+- Columns: timestamp (timestamptz), device_id (text), type (text), data (jsonb), metadata (jsonb)
+- Temperature stored in: data->>'temperature' (cast to float)
+- Example: SELECT timestamp, device_id, (data->>'temperature')::float AS temperature FROM plc_data WHERE type = 'temperature' LIMIT 10
 
-2. list_tables - List all available database tables
-3. describe_table - Get schema for a specific table
-4. list_schemas - List all database schemas
+CRITICAL WORKFLOW (ALWAYS FOLLOW):
+1. **ALWAYS use [TOOL: query] to fetch REAL data** - Never use hardcoded sample data!
+2. Parse the query results and convert to JavaScript array format
+3. Write 1-2 sentences explaining what data was found
+4. Generate <artifact> with the REAL data embedded in the code
 
-CREATING INTERACTIVE CHARTS AND DASHBOARDS:
-When asked to create charts or dashboards, generate an <artifact> tag with EXECUTABLE React/Recharts code:
+CHART GENERATION RULES:
+1. **Data Format**: Transform SQL results into: [{timestamp: "ISO_DATE", device: "device_id", value: NUMBER}, ...]
+2. **Multiple Devices**: Use separate Line component for EACH device (not data prop on Line)
+3. **Colors**: Assign unique color per device from: ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6']
+4. **Timestamp Formatting**: Use tickFormatter on XAxis for readable dates
+5. **Responsive**: Always wrap in ResponsiveContainer with width="100%" height={400}
 
-<artifact type="react" title="Dashboard Name">
-{
-  "charts": [
-    {
-      "type": "line",
-      "title": "Temperature Trend",
-      "query": "SELECT timestamp, device_id, (data->'signal_config'->>'value')::float as value FROM plc_data WHERE device_id LIKE '%temperature%' ORDER BY timestamp DESC LIMIT 100",
-      "x_field": "timestamp",
-      "y_field": "value",
-      "group_by": "device_id"
-    }
-  ]
+EXACT ARTIFACT FORMAT (CRITICAL):
+<artifact type="react" title="Descriptive Title">
+```tsx
+import React from 'react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+
+export default function ChartComponent() {
+  // REAL data from database (not sample data!)
+  const data = [
+    {timestamp: "2025-12-11T10:30:00Z", device: "plc1", value: 23.5},
+    {timestamp: "2025-12-11T10:31:00Z", device: "plc1", value: 24.1},
+    {timestamp: "2025-12-11T10:30:00Z", device: "plc2", value: 22.8},
+    // ... more REAL data points
+  ];
+  
+  const devices = [...new Set(data.map(d => d.device))];
+  const colors = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6'];
+  
+  return (
+    <div className="p-6 bg-white rounded-lg shadow">
+      <h2 className="text-xl font-bold mb-4">Chart Title</h2>
+      <ResponsiveContainer width="100%" height={400}>
+        <LineChart data={data}>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis 
+            dataKey="timestamp" 
+            tickFormatter={(ts) => new Date(ts).toLocaleTimeString()} 
+          />
+          <YAxis />
+          <Tooltip labelFormatter={(ts) => new Date(ts).toLocaleString()} />
+          <Legend />
+          {devices.map((device, idx) => (
+            <Line 
+              key={device}
+              type="monotone"
+              dataKey="value"
+              data={data.filter(d => d.device === device)}
+              name={device}
+              stroke={colors[idx % colors.length]}
+              strokeWidth={2}
+              dot={{ r: 3 }}
+              activeDot={{ r: 5 }}
+            />
+          ))}
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
 }
+```
 </artifact>
 
-IMPORTANT GUIDELINES:
-1. Always use MCP tools to query actual data from TimescaleDB
-2. When creating charts, include the FULL SQL query that fetches the data
-3. Use proper field mapping: x_field, y_field, group_by
-4. Chart types: line, bar, area, scatter, pie
-5. After using a tool, summarize findings clearly and concisely
-6. Generate artifacts with real queries, not placeholders
-
-Example workflow for "Show temperature data":
-1. [TOOL: query {"sql": "SELECT device_id FROM plc_data WHERE device_id LIKE '%temperature%' GROUP BY device_id LIMIT 5"}]
-2. Analyze results
-3. Generate artifact with query that fetches time-series data
-4. Provide brief explanation
+REMEMBER: 
+- NEVER use fake/sample data - ALWAYS query database first!
+- Each Line needs its own filtered dataset via data prop
+- Use type="monotone" for smooth connected lines
+- Always include proper timestamp formatting
 """
 
 class ChatRequest(BaseModel):
@@ -135,14 +171,18 @@ async def execute_tool(tool_name: str, args: Dict[str, Any]) -> str:
 
 async def stream_chat_response(prompt: str, context_data: str = "", conversation_history: str = ""):
     """
-    Stream chat response with ReAct loop
+    Stream chat response with ReAct loop and artifact generation
     """
+    # Check if user wants a dashboard/chart
+    wants_visualization = any(keyword in prompt.lower() for keyword in ['chart', 'dashboard', 'visualiz', 'graph', 'plot', 'show'])
+    
     current_prompt = f"{SYSTEM_PROMPT}\n\nContext Data:\n{context_data}\n\nConversation History:\n{conversation_history}\n\nUser Query: {prompt}\n\nProvide a clear response. If you need data, use a tool first, then answer based on the results."
     
     max_turns = 3
     current_turn = 0
     final_response = ""
     accumulated_response = ""
+    tool_results = []
     
     while current_turn < max_turns:
         current_turn += 1
@@ -151,7 +191,7 @@ async def stream_chat_response(prompt: str, context_data: str = "", conversation
         
         # Call Ollama
         async with httpx.AsyncClient() as client:
-            model = os.getenv("OLLAMA_MODEL", "qwen2.5:7b")
+            model = os.getenv("OLLAMA_MODEL", "qwen2.5-coder:7b")
             async with client.stream(
                 "POST",
                 "http://ollama:11434/api/generate",
@@ -160,8 +200,8 @@ async def stream_chat_response(prompt: str, context_data: str = "", conversation
                     "prompt": current_prompt,
                     "stream": True,
                     "options": {
-                        "temperature": 0.2,
-                        "num_predict": 1024
+                        "temperature": 0.3,
+                        "num_predict": 4096
                     }
                 },
                 timeout=120.0
@@ -181,6 +221,12 @@ async def stream_chat_response(prompt: str, context_data: str = "", conversation
 
         logger.debug(f"Full response: {full_response[:200]}")
 
+        # Check for artifact first (if visualization requested)
+        if wants_visualization and '<artifact' in full_response:
+            # Found an artifact - this is the final response
+            accumulated_response += full_response
+            break
+
         # Check for tool calls
         tool_match = re.search(r'\[TOOL:\s*(\w+)\s*({.*?})\]', full_response, re.DOTALL)
         
@@ -194,10 +240,27 @@ async def stream_chat_response(prompt: str, context_data: str = "", conversation
                 yield f"data: {json.dumps({'status': f'🔧 {tool_name}'})}\n\n"
                 
                 tool_result = await execute_tool(tool_name, tool_args)
+                tool_results.append({"tool": tool_name, "args": tool_args, "result": tool_result})
                 logger.info(f"Tool result length: {len(tool_result)}")
                 
-                # Append result to prompt and loop
-                current_prompt = f"{SYSTEM_PROMPT}\n\nUser Query: {prompt}\n\nYou called tool '{tool_name}' and got this result:\n{tool_result}\n\nNow provide a clear, helpful answer to the user. If creating a chart, use the <artifact> format with actual data from the tool result."
+                # If visualization requested and we have data, create artifact
+                if wants_visualization and tool_name == "query" and current_turn == 1:
+                    current_prompt = f"""{SYSTEM_PROMPT}
+
+Query: {prompt}
+Data: {tool_result}
+
+Generate:
+1. 2-3 sentence summary
+2. <artifact type="react" title="...">```tsx
+   - import React + Recharts
+   - embed the data as const
+   - LineChart/BarChart component
+   - export default
+```</artifact>"""
+                else:
+                    current_prompt = f"{SYSTEM_PROMPT}\n\nQuery: {prompt}\nData: {tool_result}\n\nAnswer briefly."
+                
                 accumulated_response = ""
                 continue
                 
@@ -215,6 +278,20 @@ async def stream_chat_response(prompt: str, context_data: str = "", conversation
     clean = re.sub(r'\[TOOL_RESULT\]:.*?(?=\n\n|\Z)', '', clean, flags=re.DOTALL)
     clean = re.sub(r'\[RESPONSE\]', '', clean)
     clean = re.sub(r'\[END OF RESPONSE\]', '', clean)
+    
+    # Fix markdown code blocks to artifact tags
+    # Match ```markdown or ```json followed by chart config
+    artifact_pattern = r'```(?:markdown|json)\s*\n(\{[\s\S]*?"charts"[\s\S]*?\})\s*\n```'
+    
+    def replace_with_artifact(match):
+        content = match.group(1)
+        # Try to extract title from preceding text
+        title = "Dashboard"
+        if "temperature" in accumulated_response.lower():
+            title = "Temperature Monitoring Dashboard"
+        return f'<artifact type="react" title="{title}">\n{content}\n</artifact>'
+    
+    clean = re.sub(artifact_pattern, replace_with_artifact, clean)
     clean = clean.strip()
     
     yield f"data: {json.dumps({'done': True, 'final_response': clean})}\n\n"
