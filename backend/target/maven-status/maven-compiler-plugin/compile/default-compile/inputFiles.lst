@@ -52,7 +52,6 @@
 /home/deginandor/Documents/Programming/VirtPLC/backend/src/main/java/com/virtplc/service/AIService.java
 /home/deginandor/Documents/Programming/VirtPLC/backend/src/main/java/com/virtplc/service/AuthService.java
 /home/deginandor/Documents/Programming/VirtPLC/backend/src/main/java/com/virtplc/service/DashboardService.java
-/home/deginandor/Documents/Programming/VirtPLC/backend/src/main/java/com/virtplc/service/DataCollectionService.java
 /home/deginandor/Documents/Programming/VirtPLC/backend/src/main/java/com/virtplc/service/DataInitializationService.java
 /home/deginandor/Documents/Programming/VirtPLC/backend/src/main/java/com/virtplc/service/DataService.java
 /home/deginandor/Documents/Programming/VirtPLC/backend/src/main/java/com/virtplc/service/DataSourceService.java
