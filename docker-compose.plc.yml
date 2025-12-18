@@ -6,6 +6,28 @@
 version: '3.8'
 
 services:
+  # Ignition Edge HMI
+  ignition-edge:
+    image: inductiveautomation/ignition:8.1.28
+    container_name: plc-ignition-edge
+    ports:
+      - "8088:8088"   # Gateway web interface
+      - "8043:8043"   # SSL
+      - "8060:8060"   # Perspective
+    environment:
+      GATEWAY_ADMIN_USERNAME: admin
+      GATEWAY_ADMIN_PASSWORD: password
+      ACCEPT_IGNITION_EULA: Y
+    volumes:
+      - ignition-data:/usr/local/bin/ignition/data
+      - ./HMI/IgnitionEdge:/restore
+    networks:
+      - plc-network
+    restart: unless-stopped
+    labels:
+      - "description=Ignition Edge HMI for VirtPLC"
+      - "environment=plc"
+
   # Node-RED MQTT Bridge
   nodered:
     image: nodered/node-red:latest
@@ -16,6 +38,7 @@ services:
       - nodered-data:/data
       - ./nodered/flows:/data/flows:ro
       - ./nodered/settings.js:/data/settings.js:ro
+      - ./nodered/package.json:/data/package.json:ro
     environment:
       - NODE_RED_CREDENTIAL_SECRET=${NODE_RED_CREDENTIAL_SECRET:-your-secret-key}
       - TZ=UTC
@@ -56,5 +79,7 @@ networks:
     name: plc-network
 
 volumes:
+  ignition-data:
+    name: plc-ignition-data
   nodered-data:
     name: plc-nodered-data

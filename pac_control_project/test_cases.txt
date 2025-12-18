@@ -1,0 +1,39 @@
+# PAC Control Test Script
+# Use this to test the strategy logic manually
+
+# Test Case 1: All OFF
+Conv1_Run_Command = 0
+Conv2_Run_Command = 0
+Assembler_Run_Command = 0
+Conv1_RPM_Sensor = 100
+Conv2_RPM_Sensor = 200
+Assembler_X_Sensor = 300
+Assembler_Y_Sensor = 400
+
+# Expected outputs: All 0
+# Conv1_RPM_Output = 0
+# Conv2_RPM_Output = 0
+# Assembler_X_Output = 0
+# Assembler_Y_Output = 0
+
+# Test Case 2: Conveyor 1 ON
+Conv1_Run_Command = 1
+Conv2_Run_Command = 0
+Assembler_Run_Command = 0
+
+# Expected outputs:
+# Conv1_RPM_Output = 100 (from sensor)
+# Conv2_RPM_Output = 0
+# Assembler_X_Output = 0
+# Assembler_Y_Output = 0
+
+# Test Case 3: All ON
+Conv1_Run_Command = 1
+Conv2_Run_Command = 1
+Assembler_Run_Command = 1
+
+# Expected outputs:
+# Conv1_RPM_Output = 100
+# Conv2_RPM_Output = 200
+# Assembler_X_Output = 300
+# Assembler_Y_Output = 400

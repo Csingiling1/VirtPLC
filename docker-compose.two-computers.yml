@@ -1,0 +1,224 @@
+version: '3.8'
+
+services:
+  # ==========================================
+  # COMPUTER 1 SERVICES
+  # ==========================================
+  
+  timescale:
+    image: timescale/timescaledb:latest-pg16
+    container_name: virtplc-timescale-c1
+    environment:
+      POSTGRES_DB: ${TIMESCALE_DB:-virtplc}
+      POSTGRES_USER: ${TIMESCALE_USER:-virtplc}
+      POSTGRES_PASSWORD: ${TIMESCALE_PASSWORD:-virtplc123}
+    ports:
+      - "5432:5432"
+    volumes:
+      - timescale-data-c1:/var/lib/postgresql/data
+      - ./backend/init-timescale.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - virtplc-net-c1
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: virtplc-postgres-c1
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-virtplc_app}
+      POSTGRES_USER: ${POSTGRES_USER:-virtplc}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-virtplc123}
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres-data-c1:/var/lib/postgresql/data
+    networks:
+      - virtplc-net-c1
+
+  redis:
+    image: redis:7-alpine
+    container_name: virtplc-redis-c1
+    ports:
+      - "6379:6379"
+    networks:
+      - virtplc-net-c1
+
+  backend:
+    image: ${REGISTRY:-ghcr.io}/${IMAGE_NAME}/backend:${TAG:-latest}
+    container_name: virtplc-backend-c1
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://timescale:5432/${TIMESCALE_DB:-virtplc}
+      SPRING_DATASOURCE_USERNAME: ${TIMESCALE_USER:-virtplc}
+      SPRING_DATASOURCE_PASSWORD: ${TIMESCALE_PASSWORD:-virtplc123}
+      SPRING_REDIS_HOST: redis
+      MQTT_BROKER_URL: tcp://mqtt:1883
+    depends_on:
+      - timescale
+      - postgres
+      - redis
+      - mqtt
+    networks:
+      - virtplc-net-c1
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+
+  frontend:
+    image: ${REGISTRY:-ghcr.io}/${IMAGE_NAME}/frontend:${TAG:-latest}
+    container_name: virtplc-frontend-c1
+    ports:
+      - "3000:80"
+    environment:
+      VITE_API_URL: http://${COMPUTER1_HOST:-localhost}:8080
+      VITE_AI_SERVICE_URL: http://${COMPUTER1_HOST:-localhost}:3001
+    networks:
+      - virtplc-net-c1
+
+  ai-service:
+    image: ${REGISTRY:-ghcr.io}/${IMAGE_NAME}/ai-service:${TAG:-latest}
+    container_name: virtplc-ai-c1
+    ports:
+      - "3001:3001"
+    environment:
+      MCP_SERVER_URL: http://db-mcp-server:9092
+      OLLAMA_URL: http://ollama:11434
+      TIMESCALE_HOST: timescale
+      TIMESCALE_PORT: 5432
+      TIMESCALE_DB: ${TIMESCALE_DB:-virtplc}
+      TIMESCALE_USER: ${TIMESCALE_USER:-virtplc}
+      TIMESCALE_PASSWORD: ${TIMESCALE_PASSWORD:-virtplc123}
+    depends_on:
+      - timescale
+      - ollama
+      - db-mcp-server
+    networks:
+      - virtplc-net-c1
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: virtplc-ollama-c1
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data-c1:/root/.ollama
+      - ./ai-service/init-ollama.sh:/init-ollama.sh
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        ollama serve &
+        sleep 10
+        bash /init-ollama.sh
+        wait
+    networks:
+      - virtplc-net-c1
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8G
+
+  db-mcp-server:
+    image: freepeak/db-mcp-server:latest
+    container_name: virtplc-db-mcp-server-c1
+    ports:
+      - "9092:9092"
+    environment:
+      TIMESCALE_CONNECTION_STRING: postgresql://${TIMESCALE_USER:-virtplc}:${TIMESCALE_PASSWORD:-virtplc123}@timescale:5432/${TIMESCALE_DB:-virtplc}
+      MCP_SERVER_PORT: 9092
+    depends_on:
+      - timescale
+    networks:
+      - virtplc-net-c1
+
+  mqtt:
+    image: eclipse-mosquitto:2
+    container_name: virtplc-mqtt-c1
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./mqtt/config:/mosquitto/config
+      - mqtt-data-c1:/mosquitto/data
+      - mqtt-logs-c1:/mosquitto/log
+    networks:
+      - virtplc-net-c1
+
+  nodered:
+    image: nodered/node-red:latest
+    container_name: virtplc-nodered-c1
+    ports:
+      - "1880:1880"
+    volumes:
+      - nodered-data-c1:/data
+      - ./nodered/flows:/data/flows
+      - ./nodered/settings.js:/data/settings.js
+    environment:
+      NODE_RED_ENABLE_PROJECTS: "true"
+    networks:
+      - virtplc-net-c1
+
+  # ==========================================
+  # COMPUTER 2 SERVICES (PLC Simulation)
+  # ==========================================
+  
+  simulator:
+    image: ${REGISTRY:-ghcr.io}/${IMAGE_NAME}/simulator:${TAG:-latest}
+    container_name: virtplc-simulator-c2
+    ports:
+      - "5000:5000"
+      - "502:502"
+    environment:
+      MQTT_BROKER: ${COMPUTER1_HOST:-localhost}
+      MQTT_PORT: 1883
+      SIMULATOR_MODE: production
+      UPDATE_INTERVAL: 1000
+    volumes:
+      - ./simulator/config.yaml:/app/config.yaml
+    networks:
+      - virtplc-net-c2
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+
+  collector:
+    image: ${REGISTRY:-ghcr.io}/${IMAGE_NAME}/collector:${TAG:-latest}
+    container_name: virtplc-collector-c2
+    environment:
+      PLC_HOST: simulator
+      PLC_PORT: 502
+      BACKEND_URL: http://${COMPUTER1_HOST:-localhost}:8080
+      MQTT_BROKER: ${COMPUTER1_HOST:-localhost}
+      MQTT_PORT: 1883
+    depends_on:
+      - simulator
+    networks:
+      - virtplc-net-c2
+
+networks:
+  virtplc-net-c1:
+    driver: bridge
+  virtplc-net-c2:
+    driver: bridge
+
+volumes:
+  timescale-data-c1:
+  postgres-data-c1:
+  ollama-data-c1:
+  mqtt-data-c1:
+  mqtt-logs-c1:
+  nodered-data-c1:

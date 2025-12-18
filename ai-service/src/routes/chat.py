@@ -12,56 +12,134 @@ import os
 from datetime import datetime
 
 from ..services.mcp_client import mcp_client
-from ..services.timescale_client import timescale_client
 from ..database import get_db
 from ..database.models import ChatSession, ChatMessage
+from ..config import settings
 
 import httpx
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-# System prompt optimized for code generation
-SYSTEM_PROMPT = """You are a PLC data visualization assistant. You MUST fetch real data using MCP tools and generate executable React charts.
+# System prompt optimized for time-series data extraction and visualization
+SYSTEM_PROMPT = """You are an expert Time-Series Database Assistant and Data Visualization Engineer.
+You have access to a TimescaleDB (PostgreSQL) database via the query_timescale tool.
 
-AVAILABLE MCP TOOLS:
-[TOOL: query {"sql": "SELECT ..."}] - Execute SQL query and get REAL data from database
+### CORE OBJECTIVE
+Retrieve sensor data based on user prompts and transform it into React visualizations.
 
-DATABASE SCHEMA:
-- Table: plc_data
-- Columns: timestamp (timestamptz), device_id (text), type (text), data (jsonb), metadata (jsonb)
-- Temperature stored in: data->>'temperature' (cast to float)
-- Example: SELECT timestamp, device_id, (data->>'temperature')::float AS temperature FROM plc_data WHERE type = 'temperature' LIMIT 10
+### ⚠️ CRITICAL RULES
+1. **NEVER TRUNCATE TIME**: Do NOT use LIMIT when user asks for time ranges (e.g., "last 24 hours")
+2. **DOWNSAMPLE INSTEAD**: Use time_bucket() to reduce rows while preserving full time range
+3. **ROW LIMIT**: Keep results under 150 rows using appropriate bucketing
+4. **HARDCODE DATA**: Generate React components with data array embedded directly
 
-CRITICAL WORKFLOW (ALWAYS FOLLOW):
-1. **ALWAYS use [TOOL: query] to fetch REAL data** - Never use hardcoded sample data!
-2. Parse the query results and convert to JavaScript array format
-3. Write 1-2 sentences explaining what data was found
-4. Generate <artifact> with the REAL data embedded in the code
+### 🧠 QUERY STRATEGY
+Categorize requests into three types:
 
-CHART GENERATION RULES:
-1. **Data Format**: Transform SQL results into: [{timestamp: "ISO_DATE", device: "device_id", value: NUMBER}, ...]
-2. **Multiple Devices**: Use separate Line component for EACH device (not data prop on Line)
-3. **Colors**: Assign unique color per device from: ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6']
-4. **Timestamp Formatting**: Use tickFormatter on XAxis for readable dates
-5. **Responsive**: Always wrap in ResponsiveContainer with width="100%" height={400}
+**TYPE 1: Current State** (e.g., "What is motor speed now?")
+- Strategy: ORDER BY timestamp DESC LIMIT 1
+- SQL: SELECT * FROM plc_data WHERE type='sensor' ORDER BY timestamp DESC LIMIT 1
 
-EXACT ARTIFACT FORMAT (CRITICAL):
+**TYPE 2: Scalar Aggregate** (e.g., "What was max temp yesterday?")
+- Strategy: Standard aggregation
+- SQL: SELECT max((data->'signal_config'->>'value')::float) FROM plc_data WHERE ...
+
+**TYPE 3: Time-Series Chart** (e.g., "Show trend for last 24 hours")
+- Strategy: MUST use time_bucket() to downsample
+- Target: ~100 data points
+- Formula: (Total Duration) / 100 = Bucket Interval
+
+### ⏳ BUCKET INTERVAL GUIDE
+- **Last 1 Hour**: time_bucket('30 seconds', timestamp)
+- **Last 6 Hours**: time_bucket('5 minutes', timestamp)
+- **Last 24 Hours**: time_bucket('15 minutes', timestamp)
+- **Last 7 Days**: time_bucket('2 hours', timestamp)
+- **Last 30 Days**: time_bucket('6 hours', timestamp)
+
+### DATABASE SCHEMA
+Table: plc_data (TimescaleDB hypertable)
+- timestamp (TIMESTAMPTZ): When data was recorded
+- device_id (TEXT): Device identifier (e.g., motor_speed_PLC-NY-001)
+- type (TEXT): 'sensor' or 'plc'
+- data (JSONB): Contains signal_config->>'name' and signal_config->>'value'
+- metadata (JSONB): Additional info
+
+Common sensor names: motor_speed, motor_temp, vibration, pressure, flow_rate, level, power_consumption
+
+### QUERY PATTERNS
+
+**Latest N readings (specific sensor):**
+```sql
+SELECT timestamp, device_id, 
+       (data->'signal_config'->>'value')::float AS value
+FROM plc_data
+WHERE type='sensor' 
+  AND data->'signal_config'->>'name' = 'motor_speed'
+ORDER BY timestamp DESC LIMIT 50
+```
+
+**Time-bucketed (24 hours, downsampled):**
+```sql
+SELECT time_bucket('15 minutes', timestamp) AS period,
+       device_id,
+       avg((data->'signal_config'->>'value')::float) AS avg_value,
+       max((data->'signal_config'->>'value')::float) AS max_value
+FROM plc_data
+WHERE type='sensor'
+  AND data->'signal_config'->>'name' = 'motor_temp'
+  AND timestamp > NOW() - INTERVAL '24 hours'
+GROUP BY period, device_id
+ORDER BY period ASC, device_id
+```
+
+**Current state (all sensors):**
+```sql
+SELECT DISTINCT ON (device_id) 
+       timestamp, device_id,
+       (data->'signal_config'->>'value')::float AS value,
+       data->'signal_config'->>'name' AS sensor_name
+FROM plc_data
+WHERE type='sensor'
+ORDER BY device_id, timestamp DESC
+```
+
+### EXECUTION PLAN
+1. **Analyze**: Determine query type and time range
+2. **Calculate**: Choose appropriate bucket interval for time-series
+3. **Execute**: Generate [TOOL: query_timescale] call
+4. **Visualize**: Create React artifact with embedded data
+
+WORKFLOW (Internal - DO NOT output these steps):
+1. Analyze query to determine what data to fetch
+2. Generate SQL query and call [TOOL: query_timescale]
+3. Generate React artifact with the data
+
+OUTPUT FORMAT:
+Just output the <artifact> tag with the React code inside. No explanations, no steps, no SQL shown to user.
+
+
+ARTIFACT FORMAT - CRITICAL RULES:
+1. ALWAYS add key prop to mapped components
+2. Use unique identifiers for keys (device names, indices)
+3. Filter data BEFORE passing to Line component
+4. Format timestamps for readability
+5. The data field for device is 'device_id' (from database query)
+
 <artifact type="react" title="Descriptive Title">
 ```tsx
 import React from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 export default function ChartComponent() {
-  // REAL data from database (not sample data!)
   const data = [
-    {timestamp: "2025-12-11T10:30:00Z", device: "plc1", value: 23.5},
-    {timestamp: "2025-12-11T10:31:00Z", device: "plc1", value: 24.1},
-    {timestamp: "2025-12-11T10:30:00Z", device: "plc2", value: 22.8},
-    // ... more REAL data points
+    // REAL data from database embedded here as array of objects
+    // Each object has: timestamp, device_id, value
+    {timestamp: "2025-12-12T00:00:00Z", device_id: "motor1", value: 1500},
   ];
   
-  const devices = [...new Set(data.map(d => d.device))];
+  // Get unique devices for creating separate lines
+  const devices = [...new Set(data.map(d => d.device_id))];
   const colors = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6'];
   
   return (
@@ -72,24 +150,35 @@ export default function ChartComponent() {
           <CartesianGrid strokeDasharray="3 3" />
           <XAxis 
             dataKey="timestamp" 
-            tickFormatter={(ts) => new Date(ts).toLocaleTimeString()} 
+            tickFormatter={(ts) => {
+              const date = new Date(ts);
+              return date.toLocaleTimeString();
+            }}
           />
           <YAxis />
-          <Tooltip labelFormatter={(ts) => new Date(ts).toLocaleString()} />
+          <Tooltip 
+            labelFormatter={(ts) => {
+              const date = new Date(ts);
+              return date.toLocaleString();
+            }}
+          />
           <Legend />
-          {devices.map((device, idx) => (
-            <Line 
-              key={device}
-              type="monotone"
-              dataKey="value"
-              data={data.filter(d => d.device === device)}
-              name={device}
-              stroke={colors[idx % colors.length]}
-              strokeWidth={2}
-              dot={{ r: 3 }}
-              activeDot={{ r: 5 }}
-            />
-          ))}
+          {devices.map((device, idx) => {
+            const deviceData = data.filter(d => d.device_id === device);
+            return (
+              <Line 
+                key={device}
+                type="monotone"
+                dataKey="value"
+                data={deviceData}
+                name={device}
+                stroke={colors[idx % colors.length]}
+                strokeWidth={2}
+                dot={false}
+                isAnimationActive={false}
+              />
+            );
+          })}
         </LineChart>
       </ResponsiveContainer>
     </div>
@@ -98,11 +187,7 @@ export default function ChartComponent() {
 ```
 </artifact>
 
-REMEMBER: 
-- NEVER use fake/sample data - ALWAYS query database first!
-- Each Line needs its own filtered dataset via data prop
-- Use type="monotone" for smooth connected lines
-- Always include proper timestamp formatting
+IMPORTANT: Always wrap map() return in braces and return statement with key prop!
 """
 
 class ChatRequest(BaseModel):
@@ -117,184 +202,338 @@ class ChatResponse(BaseModel):
     metadata: Optional[Dict[str, Any]] = None
     chart_suggestions: Optional[List[Dict[str, Any]]] = None
 
-async def execute_tool(tool_name: str, args: Dict[str, Any]) -> str:
+async def execute_tool(tool_name: str, args: Dict[str, Any]) -> Dict[str, Any]:
     """Execute MCP tools for database access"""
     logger.info(f"Executing MCP tool: {tool_name} with args: {args}")
     
     try:
-        # Use MCP client for all database operations
-        if tool_name == "query":
-            sql = args.get("sql", "")
+        # Use MCP client for database operations
+        if tool_name == "query" or tool_name == "query_timescale":
+            sql = args.get("query") or args.get("sql", "")
             if not sql.strip():
-                return json.dumps({"error": "SQL query is required"})
+                return {"error": "SQL query is required"}
             
-            # Execute via MCP server
-            result = await mcp_client.call_tool("query", {"sql": sql})
-            return json.dumps(result, default=str)
-        
-        elif tool_name == "list_tables":
-            result = await mcp_client.call_tool("list_tables", {})
-            return json.dumps(result, default=str)
-        
-        elif tool_name == "describe_table":
-            table_name = args.get("table_name", "")
-            if not table_name:
-                return json.dumps({"error": "table_name is required"})
-            result = await mcp_client.call_tool("describe_table", {"table_name": table_name})
-            return json.dumps(result, default=str)
-        
-        elif tool_name == "list_schemas":
-            result = await mcp_client.call_tool("list_schemas", {})
-            return json.dumps(result, default=str)
-        
-        # Legacy fallback tools (use direct TimescaleDB)
-        elif tool_name == "get_latest_readings":
-            device_id = args.get("device_id")
-            limit = args.get("limit", 100)
-            results = timescale_client.get_latest_readings(device_id, limit)
-            return json.dumps({"results": results, "count": len(results)}, default=str)
-        
-        elif tool_name == "get_device_stats":
-            device_id = args.get("device_id")
-            hours = args.get("hours", 24)
-            if not device_id:
-                return json.dumps({"error": "device_id is required"})
-            result = timescale_client.get_device_stats(device_id, hours)
-            return json.dumps({"result": result}, default=str)
+            logger.info(f"Executing SQL: {sql[:200]}...")
+            result = await mcp_client.call_tool("query_timescale", {"query": sql})
+            
+            # Parse MCP response
+            if "content" in result and isinstance(result["content"], list):
+                for content_item in result["content"]:
+                    if content_item.get("type") == "text":
+                        text = content_item.get("text", "")
+                        # Try to extract structured data from the text response
+                        data_rows = parse_mcp_result(text)
+                        if data_rows:
+                            return {"success": True, "data": data_rows, "count": len(data_rows)}
+                
+                # Fallback: return raw text
+                return {"success": True, "raw": result}
+            
+            return result
         
         else:
-            return json.dumps({"error": f"Unknown tool '{tool_name}'"})
+            return {"error": f"Unknown tool '{tool_name}'"}
             
     except Exception as e:
         logger.error(f"Tool execution error: {e}", exc_info=True)
-        return json.dumps({"error": f"Tool execution failed: {str(e)}"})
+        return {"error": f"Tool execution failed: {str(e)}"}
+
+def parse_mcp_result(text: str) -> List[Dict[str, Any]]:
+    """
+    Parse MCP query result text into structured data
+    Handles TSV format from db-mcp-server
+    """
+    try:
+        lines = text.strip().split('\n')
+        if len(lines) < 3:
+            return []
+        
+        # Find header line (contains column names)
+        header_idx = -1
+        headers = []
+        for i, line in enumerate(lines):
+            if '\t' in line and not line.startswith('-'):
+                headers = [h.strip() for h in line.split('\t')]
+                header_idx = i
+                break
+        
+        if header_idx == -1:
+            return []
+        
+        # Find data rows (after separator line)
+        data_rows = []
+        found_separator = False
+        for i in range(header_idx + 1, len(lines)):
+            line = lines[i].strip()
+            if not line:
+                continue
+            if line.startswith('-'):
+                found_separator = True
+                continue
+            if line.startswith('Total rows:'):
+                break
+            if found_separator and '\t' in line:
+                values = [v.strip() for v in line.split('\t')]
+                if len(values) == len(headers):
+                    row = dict(zip(headers, values))
+                    # Try to convert numeric values
+                    for key in row:
+                        if row[key] and row[key].replace('.', '', 1).replace('-', '', 1).isdigit():
+                            try:
+                                row[key] = float(row[key])
+                            except:
+                                pass
+                    data_rows.append(row)
+        
+        return data_rows
+    except Exception as e:
+        logger.error(f"Failed to parse MCP result: {e}")
+        return []
+
+def extract_tool_call(text: str) -> Optional[Dict[str, Any]]:
+    """
+    Robustly extract tool calls from text, handling nested JSON and multiline strings.
+    Returns: dict with 'name', 'args', 'full_match' or None
+    """
+    # Find start of tool call: [TOOL: toolname {
+    match = re.search(r'\[TOOL:\s*(\w+)\s*(\{)', text, re.DOTALL)
+    if not match:
+        return None
+    
+    tool_name = match.group(1)
+    start_brace_index = match.start(2)
+    
+    # Count braces to find the end of the JSON object
+    brace_count = 0
+    in_string = False
+    escape = False
+    
+    for i in range(start_brace_index, len(text)):
+        char = text[i]
+        
+        if escape:
+            escape = False
+            continue
+            
+        if char == '\\':
+            escape = True
+            continue
+            
+        if char == '"':
+            in_string = not in_string
+            continue
+            
+        if not in_string:
+            if char == '{':
+                brace_count += 1
+            elif char == '}':
+                brace_count -= 1
+                
+                if brace_count == 0:
+                    # Found the end of the JSON object
+                    json_str = text[start_brace_index:i+1]
+                    try:
+                        # Verify it's valid JSON
+                        args = json.loads(json_str)
+                        
+                        # Look for the closing ']' after the JSON
+                        end_index = i + 1
+                        remaining = text[end_index:]
+                        closing_bracket_match = re.match(r'\s*\]', remaining)
+                        full_match_end = end_index
+                        if closing_bracket_match:
+                            full_match_end += closing_bracket_match.end()
+                            
+                        full_match = text[match.start():full_match_end]
+                        return {
+                            "name": tool_name,
+                            "args": args,
+                            "full_match": full_match
+                        }
+                    except json.JSONDecodeError as e:
+                        logger.warning(f"Failed to parse JSON in tool call: {e}")
+                        # Continue searching in case this wasn't the real end
+                        pass
+    
+    return None
 
 async def stream_chat_response(prompt: str, context_data: str = "", conversation_history: str = ""):
     """
-    Stream chat response with ReAct loop and artifact generation
+    Stream chat response with tool calling and artifact generation
+    
+    Workflow:
+    1. Send query to Ollama to get tool call for data fetching
+    2. Execute tool to get real data from database via MCP
+    3. Send data back to Ollama to generate React artifact
+    4. Stream the final response with artifact to client
     """
-    # Check if user wants a dashboard/chart
-    wants_visualization = any(keyword in prompt.lower() for keyword in ['chart', 'dashboard', 'visualiz', 'graph', 'plot', 'show'])
+    logger.info(f"Processing query: {prompt[:100]}...")
     
-    current_prompt = f"{SYSTEM_PROMPT}\n\nContext Data:\n{context_data}\n\nConversation History:\n{conversation_history}\n\nUser Query: {prompt}\n\nProvide a clear response. If you need data, use a tool first, then answer based on the results."
+    # Phase 1: Get data requirements and tool call
+    yield f"data: {json.dumps({'status': '🤔 Analyzing query...'})}\n\n"
     
-    max_turns = 3
-    current_turn = 0
-    final_response = ""
-    accumulated_response = ""
-    tool_results = []
+    initial_prompt = f"""{SYSTEM_PROMPT}
+
+User Query: {prompt}
+
+CRITICAL ANALYSIS:
+1. Identify query type (Current State / Aggregate / Time-Series)
+2. If Time-Series with time range: Calculate bucket interval (never use LIMIT alone)
+3. If "last N readings" for specific sensor: Use WHERE sensor_name='X' and LIMIT N
+4. If time period mentioned (hours/days): Use time_bucket() with appropriate interval
+
+Generate ONLY the tool call based on the strategy:
+[TOOL: query_timescale {{"query": "SELECT ..."}}]
+"""
     
-    while current_turn < max_turns:
-        current_turn += 1
-        logger.info(f"ReAct turn {current_turn}/{max_turns}")
-        full_response = ""
-        
-        # Call Ollama
-        async with httpx.AsyncClient() as client:
-            model = os.getenv("OLLAMA_MODEL", "qwen2.5-coder:7b")
+    try:
+        # Call Ollama for initial analysis
+        first_response = ""
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            model = settings.ollama_model
+            logger.info(f"Calling Ollama model: {model}")
+            
             async with client.stream(
                 "POST",
-                "http://ollama:11434/api/generate",
+                f"{settings.ollama_host}/api/generate",
                 json={
                     "model": model,
-                    "prompt": current_prompt,
+                    "prompt": initial_prompt,
                     "stream": True,
                     "options": {
                         "temperature": 0.3,
-                        "num_predict": 4096
+                        "num_predict": 2048
                     }
-                },
-                timeout=120.0
+                }
             ) as response:
                 async for line in response.aiter_lines():
                     if not line.strip():
                         continue
-                    
+                    try:
+                        data = json.loads(line)
+                        if "response" in data:
+                            first_response += data["response"]
+                    except json.JSONDecodeError:
+                        continue
+        
+        logger.debug(f"Initial response: {first_response[:300]}")
+        
+        # Phase 2: Extract and execute tool call
+        tool_data = extract_tool_call(first_response)
+        
+        if not tool_data:
+            # No tool call found, return the response as-is
+            yield f"data: {json.dumps({'done': True, 'final_response': first_response.strip()})}\n\n"
+            return
+        
+        tool_name = tool_data["name"]
+        tool_args = tool_data["args"]
+        
+        yield f"data: {json.dumps({'status': f'📊 Fetching {tool_name} data...'})}\n\n"
+        logger.info(f"Executing tool: {tool_name}")
+        
+        tool_result = await execute_tool(tool_name, tool_args)
+        
+        if "error" in tool_result:
+            error_msg = f"Error fetching data: {tool_result['error']}"
+            yield f"data: {json.dumps({'done': True, 'final_response': error_msg})}\n\n"
+            return
+        
+        # Extract data rows
+        data_rows = tool_result.get("data", [])
+        logger.info(f"Retrieved {len(data_rows)} data rows")
+        
+        if not data_rows:
+            yield f"data: {json.dumps({'done': True, 'final_response': 'No data found for your query.'})}\n\n"
+            return
+        
+        # Phase 3: Generate artifact with the real data
+        yield f"data: {json.dumps({'status': '🎨 Generating visualization...'})}\n\n"
+        
+        # Format data for artifact generation
+        data_summary = f"Retrieved {len(data_rows)} rows with columns: {list(data_rows[0].keys()) if data_rows else []}"
+        data_json = json.dumps(data_rows[:100], indent=2)  # Limit to 100 rows for context
+        
+        artifact_prompt = f"""{SYSTEM_PROMPT}
+
+User Query: {prompt}
+
+Database Query Result ({len(data_rows)} rows retrieved):
+{data_summary}
+
+Sample Data (showing first 100 of {len(data_rows)} rows):
+{data_json[:2000]}
+
+CRITICAL INSTRUCTIONS:
+1. Use 'device_id' field for device names (NOT 'device')
+2. For time-bucketed queries: use 'period' as time field
+3. For raw timestamp queries: use 'timestamp' as time field
+4. Hardcode ALL the data from query results
+5. Add key={{device}} in map() functions
+6. Choose appropriate chart title based on sensor type and time range
+
+Generate ONLY the artifact (no explanations):
+<artifact type="react" title="Descriptive Title">
+```tsx
+[React component with embedded data]
+```
+</artifact>
+"""
+        
+        final_response = ""
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            async with client.stream(
+                "POST",
+                f"{settings.ollama_host}/api/generate",
+                json={
+                    "model": model,
+                    "prompt": artifact_prompt,
+                    "stream": True,
+                    "options": {
+                        "temperature": 0.4,
+                        "num_predict": 4096
+                    }
+                }
+            ) as response:
+                async for line in response.aiter_lines():
+                    if not line.strip():
+                        continue
                     try:
                         data = json.loads(line)
                         if "response" in data:
                             chunk = data["response"]
-                            full_response += chunk
-                            
+                            final_response += chunk
+                            # Stream chunks to client
+                            yield f"data: {json.dumps({'chunk': chunk})}\n\n"
                     except json.JSONDecodeError:
                         continue
-
-        logger.debug(f"Full response: {full_response[:200]}")
-
-        # Check for artifact first (if visualization requested)
-        if wants_visualization and '<artifact' in full_response:
-            # Found an artifact - this is the final response
-            accumulated_response += full_response
-            break
-
-        # Check for tool calls
-        tool_match = re.search(r'\[TOOL:\s*(\w+)\s*({.*?})\]', full_response, re.DOTALL)
         
-        if tool_match and current_turn < max_turns:
-            tool_name = tool_match.group(1)
-            tool_args_str = tool_match.group(2)
-            
-            try:
-                tool_args = json.loads(tool_args_str)
-                logger.info(f"Calling tool: {tool_name}")
-                yield f"data: {json.dumps({'status': f'🔧 {tool_name}'})}\n\n"
-                
-                tool_result = await execute_tool(tool_name, tool_args)
-                tool_results.append({"tool": tool_name, "args": tool_args, "result": tool_result})
-                logger.info(f"Tool result length: {len(tool_result)}")
-                
-                # If visualization requested and we have data, create artifact
-                if wants_visualization and tool_name == "query" and current_turn == 1:
-                    current_prompt = f"""{SYSTEM_PROMPT}
-
-Query: {prompt}
-Data: {tool_result}
-
-Generate:
-1. 2-3 sentence summary
-2. <artifact type="react" title="...">```tsx
-   - import React + Recharts
-   - embed the data as const
-   - LineChart/BarChart component
-   - export default
-```</artifact>"""
-                else:
-                    current_prompt = f"{SYSTEM_PROMPT}\n\nQuery: {prompt}\nData: {tool_result}\n\nAnswer briefly."
-                
-                accumulated_response = ""
-                continue
-                
-            except Exception as e:
-                logger.error(f"Tool error: {e}")
-                yield f"data: {json.dumps({'error': f'Tool error: {str(e)}'})}\n\n"
-                break
+        # Clean up the response to only include artifact
+        # Remove the Step 1, Step 2, Step 3 headers and tool calls
+        clean_response = final_response
         
-        # No tool call - this is the final response
-        accumulated_response += full_response
-        break
-    
-    # Clean response
-    clean = re.sub(r'\[TOOL:.*?\]', '', accumulated_response, flags=re.DOTALL)
-    clean = re.sub(r'\[TOOL_RESULT\]:.*?(?=\n\n|\Z)', '', clean, flags=re.DOTALL)
-    clean = re.sub(r'\[RESPONSE\]', '', clean)
-    clean = re.sub(r'\[END OF RESPONSE\]', '', clean)
-    
-    # Fix markdown code blocks to artifact tags
-    # Match ```markdown or ```json followed by chart config
-    artifact_pattern = r'```(?:markdown|json)\s*\n(\{[\s\S]*?"charts"[\s\S]*?\})\s*\n```'
-    
-    def replace_with_artifact(match):
-        content = match.group(1)
-        # Try to extract title from preceding text
-        title = "Dashboard"
-        if "temperature" in accumulated_response.lower():
-            title = "Temperature Monitoring Dashboard"
-        return f'<artifact type="react" title="{title}">\n{content}\n</artifact>'
-    
-    clean = re.sub(artifact_pattern, replace_with_artifact, clean)
-    clean = clean.strip()
-    
-    yield f"data: {json.dumps({'done': True, 'final_response': clean})}\n\n"
+        # Remove "Step X: ..." sections
+        clean_response = re.sub(r'Step \d+:.*?\n', '', clean_response)
+        
+        # Remove tool call syntax [TOOL: ...]
+        clean_response = re.sub(r'\[TOOL:.*?\]', '', clean_response, flags=re.DOTALL)
+        
+        # Remove any explanatory text before the artifact
+        if '<artifact' in clean_response:
+            # Extract just the artifact part
+            artifact_match = re.search(r'(<artifact.*?</artifact>)', clean_response, re.DOTALL)
+            if artifact_match:
+                clean_response = artifact_match.group(1)
+        elif '```tsx' in clean_response:
+            # Wrap code block in artifact tags if not already wrapped
+            clean_response = f'<artifact type="react" title="Data Visualization">\n{clean_response}\n</artifact>'
+        
+        yield f"data: {json.dumps({'done': True, 'final_response': clean_response.strip()})}\n\n"
+        
+    except Exception as e:
+        logger.error(f"Error in stream_chat_response: {e}", exc_info=True)
+        error_msg = f"An error occurred: {str(e)}"
+        yield f"data: {json.dumps({'done': True, 'final_response': error_msg})}\n\n"
 
 @router.post("/message", response_model=ChatResponse)
 async def chat_message(request: ChatRequest):

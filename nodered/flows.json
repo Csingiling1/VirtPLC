@@ -139,8 +139,8 @@
         "id": "ignition_commands_in",
         "type": "mqtt in",
         "z": "main_flow",
-        "name": "Ignition Commands",
-        "topic": "ignition/command/#",
+        "name": "Ignition Tag Changes",
+        "topic": "ignition/tag/#",
         "qos": "1",
         "datatype": "json",
         "broker": "mqtt_broker_cfg",
@@ -148,16 +148,16 @@
         "y": 300,
         "wires": [
             [
-                "parse_ignition_command"
+                "parse_ignition_tag"
             ]
         ]
     },
     {
-        "id": "parse_ignition_command",
+        "id": "parse_ignition_tag",
         "type": "function",
         "z": "main_flow",
-        "name": "Parse Ignition Command",
-        "func": "// Expected topics from Ignition:\n// ignition/command/conveyor1/running\n// ignition/command/conveyor2/running\n// ignition/command/machine1/running\n\nconst topicParts = msg.topic.split('/');\nconst component = topicParts[2];\nconst command = topicParts[3];\n\nmsg.component = component;\nmsg.command = command;\nmsg.commandValue = msg.payload;\n\nnode.status({\n    fill: 'blue',\n    shape: 'dot',\n    text: `${component}.${command} = ${msg.payload}`\n});\n\nreturn msg;",
+        "name": "Parse Ignition Tag",
+        "func": "// Expected topics from Ignition Edge:\n// ignition/tag/Conveyor1/Running\n// ignition/tag/Conveyor2/Running\n// ignition/tag/Machine1/Running\n\nconst topicParts = msg.topic.split('/');\nconst component = topicParts[2];  // Conveyor1, Conveyor2, Machine1\nconst tagName = topicParts[3];    // Running\n\nmsg.component = component;\nmsg.tagName = tagName;\n\n// Extract value from Ignition tag format\nif (typeof msg.payload === 'object' && msg.payload.value !== undefined) {\n    msg.tagValue = msg.payload.value;\n} else {\n    msg.tagValue = msg.payload;\n}\n\nnode.status({\n    fill: 'blue',\n    shape: 'dot',\n    text: `${component}.${tagName} = ${msg.tagValue}`\n});\n\nreturn msg;",
         "outputs": 1,
         "x": 380,
         "y": 300,
@@ -185,7 +185,7 @@
         "type": "function",
         "z": "main_flow",
         "name": "Format for Unreal",
-        "func": "// Send commands back to Unreal Engine\nconst unrealTopic = `unreal/command/${msg.component}/${msg.command}`;\n\nmsg.topic = unrealTopic;\nmsg.payload = {\n    value: msg.commandValue,\n    timestamp: Date.now(),\n    source: 'ignition'\n};\n\nreturn msg;",
+        "func": "// Send Ignition tag changes to Unreal Engine\n// Map Ignition tag names to Unreal command topics\n\nlet unrealTopic = '';\nlet unrealCommand = {};\n\nswitch(msg.component.toLowerCase()) {\n    case 'conveyor1':\n        if (msg.tagName === 'Running') {\n            unrealTopic = 'unreal/command/conveyor1/running';\n            unrealCommand = {\n                running: msg.tagValue,\n                rpm: msg.tagValue ? 1500 : 0,\n                timestamp: Date.now(),\n                source: 'ignition'\n            };\n        }\n        break;\n    \n    case 'conveyor2':\n        if (msg.tagName === 'Running') {\n            unrealTopic = 'unreal/command/conveyor2/running';\n            unrealCommand = {\n                running: msg.tagValue,\n                rpm: msg.tagValue ? 1200 : 0,\n                timestamp: Date.now(),\n                source: 'ignition'\n            };\n        }\n        break;\n    \n    case 'machine1':\n        if (msg.tagName === 'Running') {\n            unrealTopic = 'unreal/command/machine1/running';\n            unrealCommand = {\n                running: msg.tagValue,\n                timestamp: Date.now(),\n                source: 'ignition'\n            };\n        }\n        break;\n}\n\nif (unrealTopic) {\n    msg.topic = unrealTopic;\n    msg.payload = unrealCommand;\n    return msg;\n}\n\nreturn null;",
         "outputs": 1,
         "x": 600,
         "y": 300,
@@ -291,7 +291,8 @@
         "y": 600,
         "wires": [
             [
-                "route_simulator_data"
+                "route_simulator_data",
+                "write_to_plc_modbus"
             ]
         ]
     },
@@ -377,18 +378,133 @@
         "wires": []
     },
     {
-        "id": "send_simulator_to_collector",
+        "id": "modbus_writer",
+        "type": "modbus-write",
+        "z": "main_flow",
+        "name": "Write to PLC Modbus",
+        "showStatusActivities": true,
+        "showErrors": true,
+        "server": "modbus_plc_server",
+        "x": 650,
+        "y": 640,
+        "wires": [
+            [
+                "log_modbus_write"
+            ]
+        ]
+    },
+    {
+        "id": "log_modbus_write",
+        "type": "debug",
+        "z": "main_flow",
+        "name": "Log Modbus Writes",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "x": 870,
+        "y": 640,
+        "wires": []
+    },
+    {
+        "id": "modbus_plc_server",
+        "type": "modbus-client",
+        "name": "PLC Modbus TCP",
+        "clienttype": "tcp",
+        "bufferCommands": true,
+        "stateLogEnabled": false,
+        "tcpHost": "127.0.0.1",
+        "tcpPort": "502",
+        "tcpType": "DEFAULT",
+        "unit_id": "1",
+        "commandDelay": "1",
+        "clientTimeout": "1000",
+        "reconnectOnTimeout": true,
+        "reconnectTimeout": "2000",
+        "parallelUnitIdsAllowed": true
+    },
+    {
+        "id": "plc_status_reader",
+        "type": "modbus-read",
+        "z": "main_flow",
+        "name": "Read PLC Running Status",
+        "topic": "plc/status/running",
+        "showStatusActivities": true,
+        "logIOActivities": false,
+        "showErrors": true,
+        "unitid": "1",
+        "dataType": "Coil",
+        "adr": "1",
+        "quantity": "5",
+        "rate": "100",
+        "rateUnit": "ms",
+        "server": "modbus_plc_server",
+        "x": 180,
+        "y": 800,
+        "wires": [
+            [
+                "parse_plc_status"
+            ],
+            []
+        ]
+    },
+    {
+        "id": "parse_plc_status",
+        "type": "function",
+        "z": "main_flow",
+        "name": "Parse PLC Status to Unreal",
+        "func": "// PLC sends back running status after processing command\n// msg.payload is array of coil values [Conv1, Conv2, Machine1, ...]\n\nconst coils = msg.payload;\n\n// Coil 1 = Conveyor1 Running\nif (coils[0] !== undefined) {\n    const conv1Running = coils[0];\n    const conv1Msg = {\n        topic: 'unreal/command/conveyor1/running',\n        payload: {\n            running: conv1Running,\n            timestamp: Date.now(),\n            source: 'plc'\n        }\n    };\n    node.send([conv1Msg, null, null]);\n}\n\n// Coil 2 = Conveyor2 Running\nif (coils[1] !== undefined) {\n    const conv2Running = coils[1];\n    const conv2Msg = {\n        topic: 'unreal/command/conveyor2/running',\n        payload: {\n            running: conv2Running,\n            timestamp: Date.now(),\n            source: 'plc'\n        }\n    };\n    node.send([null, conv2Msg, null]);\n}\n\n// Coil 3 = Machine1 Running\nif (coils[2] !== undefined) {\n    const machine1Running = coils[2];\n    const machine1Msg = {\n        topic: 'unreal/command/machine1/running',\n        payload: {\n            running: machine1Running,\n            timestamp: Date.now(),\n            source: 'plc'\n        }\n    };\n    node.send([null, null, machine1Msg]);\n}\n\nreturn null;",
+        "outputs": 3,
+        "x": 450,
+        "y": 800,
+        "wires": [
+            [
+                "send_conv1_to_unreal"
+            ],
+            [
+                "send_conv2_to_unreal"
+            ],
+            [
+                "send_machine1_to_unreal"
+            ]
+        ]
+    },
+    {
+        "id": "send_conv1_to_unreal",
         "type": "mqtt out",
         "z": "main_flow",
-        "name": "Simulator → Collector",
+        "name": "Conv1 → Unreal",
         "topic": "",
         "qos": "1",
         "retain": "false",
-        "respTopic": "",
-        "contentType": "",
         "broker": "mqtt_broker_cfg",
-        "x": 1090,
-        "y": 600,
+        "x": 710,
+        "y": 780,
+        "wires": []
+    },
+    {
+        "id": "send_conv2_to_unreal",
+        "type": "mqtt out",
+        "z": "main_flow",
+        "name": "Conv2 → Unreal",
+        "topic": "",
+        "qos": "1",
+        "retain": "false",
+        "broker": "mqtt_broker_cfg",
+        "x": 710,
+        "y": 820,
+        "wires": []
+    },
+    {
+        "id": "send_machine1_to_unreal",
+        "type": "mqtt out",
+        "z": "main_flow",
+        "name": "Machine1 → Unreal",
+        "topic": "",
+        "qos": "1",
+        "retain": "false",
+        "broker": "mqtt_broker_cfg",
+        "x": 720,
+        "y": 860,
         "wires": []
     },
     {

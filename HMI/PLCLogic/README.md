@@ -2,7 +2,92 @@
 
 This directory contains PLC control logic for the VirtPLC system.
 
-## Ladder Logic Programs
+## Current Implementation - Simple ON/OFF Control with Real Sensor Data
+
+### **PLC Programs (Structured Text)**
+
+1. **`Conveyor1_Control_v2.st`** - Simple ON/OFF control
+   - Reads running command from Ignition (Coil 00001)
+   - Reads real RPM from Node-RED (Register 30001)
+   - Outputs RPM to Ignition (Register 40001, 0 when stopped)
+
+2. **`Conveyor2_Control.st`** - Simple ON/OFF control
+   - Reads running command from Ignition (Coil 00002)
+   - Reads real RPM from Node-RED (Register 30002)
+   - Outputs RPM to Ignition (Register 40002, 0 when stopped)
+
+3. **`ComponentAssembler_Control.st`** - Simple ON/OFF control
+   - Reads running command from Ignition (Coil 00003)
+   - Reads real position/status from Node-RED (Registers 30003-30004, Coils 00004-00005)
+   - Outputs position/status to Ignition (Registers 40003-40004)
+
+### **Modbus Register Map**
+
+#### **Input Registers (3xxxx) - PLC Reads Real Data from Node-RED**
+| Address | Type | Device | Data | Source |
+|---------|------|--------|------|--------|
+| **30001** | Input Reg | Conv1 | Real RPM from simulator | Node-RED writes |
+| **30002** | Input Reg | Conv2 | Real RPM from simulator | Node-RED writes |
+| **30003** | Input Reg | Machine1 | Real X position | Node-RED writes |
+| **30004** | Input Reg | Machine1 | Real Y position | Node-RED writes |
+
+#### **Coils (0xxxx) - PLC Reads Commands & Status**
+| Address | Type | Device | Data | Direction |
+|---------|------|--------|------|-----------|
+| **00001** | Coil (Read/Write) | Conv1 | Running command & status | Ignition ↔ PLC |
+| **00002** | Coil (Read/Write) | Conv2 | Running command & status | Ignition ↔ PLC |
+| **00003** | Coil (Read/Write) | Machine1 | Running command & status | Ignition ↔ PLC |
+| **00004** | Coil (Read) | Machine1 | Real ready status | Node-RED writes |
+| **00005** | Coil (Read) | Machine1 | Real done status | Node-RED writes |
+
+#### **Holding Registers (4xxxx) - PLC Writes to Ignition**
+| Address | Type | Device | Data | Direction |
+|---------|------|--------|------|-----------|
+| **40001** | Holding Reg | Conv1 | RPM value (0 when stopped) | PLC → Ignition |
+| **40002** | Holding Reg | Conv2 | RPM value (0 when stopped) | PLC → Ignition |
+| **40003** | Holding Reg | Machine1 | X position | PLC → Ignition |
+| **40004** | Holding Reg | Machine1 | Y position | PLC → Ignition |
+
+### **Data Flow**
+
+```
+Simulator → MQTT → Node-RED → Modbus TCP → PLC (Input Registers)
+Ignition HMI → Modbus TCP → PLC (Coil Commands)
+PLC → Modbus TCP → Ignition (Holding Registers)
+Ignition → MQTT → Node-RED → Unreal Engine
+```
+
+**Real-time synchronization:**
+- PLC gets real sensor data from Node-RED via Modbus input registers
+- PLC controls ON/OFF state based on Ignition commands
+- PLC outputs processed data (RPM=0 when stopped) to Ignition
+- Node-RED forwards commands to Unreal for visualization
+
+### **Node-RED Integration**
+
+Node-RED flow automatically:
+1. Receives simulator data via MQTT (`plc/+` topics)
+2. Maps sensor data to Modbus registers:
+   - `motor_speed` → Input registers 30001/30002
+   - `position_x/y` → Input registers 30003/30004
+   - `is_ready/done` → Coils 00004/00005
+3. Writes to PLC Modbus TCP server
+4. Forwards Ignition commands to Unreal Engine
+
+### **Testing**
+
+```bash
+# Test PLC reading real data
+mbpoll -a 1 -r 30001 -c 4 -t 4 <PLC_IP>  # Read input registers
+
+# Test PLC writing processed data  
+mbpoll -a 1 -r 40001 -c 4 -t 4 <PLC_IP>  # Read holding registers
+
+# Test coil commands
+mbpoll -a 1 -r 1 -c 5 -t 0 <PLC_IP>      # Read coils
+```
+
+## Legacy Ladder Logic Programs
 
 ### Motor Control Logic
 

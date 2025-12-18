@@ -1,0 +1,46 @@
+Strategy Name,VirtPLC_Conveyor_Assembler
+Description,Conveyor and Assembler Control for VirtPLC
+Version,1.0
+
+[Variables]
+Name,Type,Initial Value,Description
+Conv1_Run_Command,Boolean,0,Conveyor 1 Run Command from HMI
+Conv2_Run_Command,Boolean,0,Conveyor 2 Run Command from HMI
+Assembler_Run_Command,Boolean,0,Assembler Run Command from HMI
+Conv1_RPM_Sensor,Integer,0,Conveyor 1 RPM Sensor Input
+Conv2_RPM_Sensor,Integer,0,Conveyor 2 RPM Sensor Input
+Assembler_X_Sensor,Integer,0,Assembler X Position Sensor
+Assembler_Y_Sensor,Integer,0,Assembler Y Position Sensor
+Conv1_RPM_Output,Integer,0,Conveyor 1 RPM Output
+Conv2_RPM_Output,Integer,0,Conveyor 2 RPM Output
+Assembler_X_Output,Integer,0,Assembler X Output
+Assembler_Y_Output,Integer,0,Assembler Y Output
+
+[Charts]
+Chart Name,Chart Type,Description
+Main_Logic,Flow,Main control logic for conveyors and assembler
+
+[Main_Logic]
+Block Type,Block Name,Parameters,Connections
+Input,Conv1_Run_Command_In,,Conv1_Run_Command
+Input,Conv2_Run_Command_In,,Conv2_Run_Command
+Input,Assembler_Run_Command_In,,Assembler_Run_Command
+Input,Conv1_RPM_Sensor_In,,Conv1_RPM_Sensor
+Input,Conv2_RPM_Sensor_In,,Conv2_RPM_Sensor
+Input,Assembler_X_Sensor_In,,Assembler_X_Sensor
+Input,Assembler_Y_Sensor_In,,Assembler_Y_Sensor
+
+Compare,Conv1_Check,Conv1_Run_Command_In = 1,
+Selector,Conv1_Selector,Conv1_RPM_Sensor_In if Conv1_Check, 0 if not Conv1_Check,Conv1_RPM_Output
+
+Compare,Conv2_Check,Conv2_Run_Command_In = 1,
+Selector,Conv2_Selector,Conv2_RPM_Sensor_In if Conv2_Check, 0 if not Conv2_Check,Conv2_RPM_Output
+
+Compare,Assembler_Check,Assembler_Run_Command_In = 1,
+Selector,Assembler_X_Selector,Assembler_X_Sensor_In if Assembler_Check, 0 if not Assembler_Check,Assembler_X_Output
+Selector,Assembler_Y_Selector,Assembler_Y_Sensor_In if Assembler_Check, 0 if not Assembler_Check,Assembler_Y_Output
+
+Output,Conv1_Output,,Conv1_RPM_Output
+Output,Conv2_Output,,Conv2_RPM_Output
+Output,Assembler_X_Out,,Assembler_X_Output
+Output,Assembler_Y_Out,,Assembler_Y_Output

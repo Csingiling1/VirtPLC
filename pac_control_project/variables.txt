@@ -1,0 +1,19 @@
+# PAC Control Variable Import File
+# Format: Name,Type,Initial Value,Description
+
+# Command Inputs (from HMI)
+Conv1_Run_Command,Boolean,0,Conveyor 1 Run Command from Ignition Edge HMI
+Conv2_Run_Command,Boolean,0,Conveyor 2 Run Command from Ignition Edge HMI
+Assembler_Run_Command,Boolean,0,Assembler Run Command from Ignition Edge HMI
+
+# Sensor Inputs (from Node-RED)
+Conv1_RPM_Sensor,Integer,0,Conveyor 1 RPM Sensor Input from Node-RED
+Conv2_RPM_Sensor,Integer,0,Conveyor 2 RPM Sensor Input from Node-RED
+Assembler_X_Sensor,Integer,0,Assembler X Position Sensor from Node-RED
+Assembler_Y_Sensor,Integer,0,Assembler Y Position Sensor from Node-RED
+
+# Outputs (to Ignition Edge and Node-RED)
+Conv1_RPM_Output,Integer,0,Conveyor 1 RPM Output to Ignition Edge
+Conv2_RPM_Output,Integer,0,Conveyor 2 RPM Output to Ignition Edge
+Assembler_X_Output,Integer,0,Assembler X Output to Ignition Edge
+Assembler_Y_Output,Integer,0,Assembler Y Output to Ignition Edge

@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="VirtPLC_Conveyor_Assembler" version="1.0">
+  <description>Conveyor and Assembler Control for VirtPLC</description>
+
+  <variables>
+    <variable name="Conv1_Run_Command" type="Boolean" initial="0" description="Conveyor 1 Run Command from HMI"/>
+    <variable name="Conv2_Run_Command" type="Boolean" initial="0" description="Conveyor 2 Run Command from HMI"/>
+    <variable name="Assembler_Run_Command" type="Boolean" initial="0" description="Assembler Run Command from HMI"/>
+    <variable name="Conv1_RPM_Sensor" type="Integer" initial="0" description="Conveyor 1 RPM Sensor Input"/>
+    <variable name="Conv2_RPM_Sensor" type="Integer" initial="0" description="Conveyor 2 RPM Sensor Input"/>
+    <variable name="Assembler_X_Sensor" type="Integer" initial="0" description="Assembler X Position Sensor"/>
+    <variable name="Assembler_Y_Sensor" type="Integer" initial="0" description="Assembler Y Position Sensor"/>
+    <variable name="Conv1_RPM_Output" type="Integer" initial="0" description="Conveyor 1 RPM Output"/>
+    <variable name="Conv2_RPM_Output" type="Integer" initial="0" description="Conveyor 2 RPM Output"/>
+    <variable name="Assembler_X_Output" type="Integer" initial="0" description="Assembler X Output"/>
+    <variable name="Assembler_Y_Output" type="Integer" initial="0" description="Assembler Y Output"/>
+  </variables>
+
+  <strategy name="Main_Logic">
+    <flowchart>
+      <block type="Input" name="Conv1_Run_Command_In" variable="Conv1_Run_Command"/>
+      <block type="Input" name="Conv2_Run_Command_In" variable="Conv2_Run_Command"/>
+      <block type="Input" name="Assembler_Run_Command_In" variable="Assembler_Run_Command"/>
+      <block type="Input" name="Conv1_RPM_Sensor_In" variable="Conv1_RPM_Sensor"/>
+      <block type="Input" name="Conv2_RPM_Sensor_In" variable="Conv2_RPM_Sensor"/>
+      <block type="Input" name="Assembler_X_Sensor_In" variable="Assembler_X_Sensor"/>
+      <block type="Input" name="Assembler_Y_Sensor_In" variable="Assembler_Y_Sensor"/>
+
+      <block type="Compare" name="Conv1_Check">
+        <param>Conv1_Run_Command_In = 1</param>
+      </block>
+      <block type="Selector" name="Conv1_Selector">
+        <param>Conv1_RPM_Sensor_In if Conv1_Check</param>
+        <param>0 if not Conv1_Check</param>
+        <output>Conv1_RPM_Output</output>
+      </block>
+
+      <block type="Compare" name="Conv2_Check">
+        <param>Conv2_Run_Command_In = 1</param>
+      </block>
+      <block type="Selector" name="Conv2_Selector">
+        <param>Conv2_RPM_Sensor_In if Conv2_Check</param>
+        <param>0 if not Conv2_Check</param>
+        <output>Conv2_RPM_Output</output>
+      </block>
+
+      <block type="Compare" name="Assembler_Check">
+        <param>Assembler_Run_Command_In = 1</param>
+      </block>
+      <block type="Selector" name="Assembler_X_Selector">
+        <param>Assembler_X_Sensor_In if Assembler_Check</param>
+        <param>0 if not Assembler_Check</param>
+        <output>Assembler_X_Output</output>
+      </block>
+      <block type="Selector" name="Assembler_Y_Selector">
+        <param>Assembler_Y_Sensor_In if Assembler_Check</param>
+        <param>0 if not Assembler_Check</param>
+        <output>Assembler_Y_Output</output>
+      </block>
+    </flowchart>
+  </strategy>
+</project>

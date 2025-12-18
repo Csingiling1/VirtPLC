@@ -3,7 +3,8 @@
     "description": "Node-RED MQTT Bridge for VirtPLC",
     "version": "1.0.0",
     "dependencies": {
-        "node-red-contrib-mqtt-broker": "^0.2.6"
+        "node-red-contrib-mqtt-broker": "^0.2.6",
+        "node-red-contrib-modbus": "^5.23.0"
     },
     "node-red": {
         "settings": {

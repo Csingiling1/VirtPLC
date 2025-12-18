@@ -33,117 +33,6 @@ class MCPClient:
             return
         
         try:
-            # Test connection to MCP server
-            response = await self.client.get("/health")
-            if response.status_code == 200:
-                logger.info("MCP server connection established")
-            else:
-                logger.warning(f"MCP server health check failed: {response.status_code}")
-        except Exception as e:
-            logger.error(f"MCP initialization failed: {e}")
-            raise
-    
-    async def list_tools(self) -> List[Dict[str, Any]]:
-        """
-        List available database tools from MCP server
-        """
-        if not self.enabled:
-            return []
-        
-        try:
-            payload = {
-                "jsonrpc": "2.0",
-                "id": 1,
-                "method": "tools/list",
-                "params": {}
-            }
-            
-            response = await self.client.post("/jsonrpc", json=payload)
-            
-            if response.status_code == 200:
-                result = response.json()
-                tools = result.get("result", {}).get("tools", [])
-                logger.info(f"Retrieved {len(tools)} tools from MCP server")
-                return tools
-            
-            logger.warning(f"Failed to get tools from MCP server: {response.status_code}")
-            return []
-            
-        except Exception as e:
-            logger.error(f"Failed to list tools: {e}")
-            return []
-    
-    async def call_tool(
-        self,
-        tool_name: str,
-        arguments: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """
-        Call a database tool via MCP
-        
-        Example:
-            result = await mcp.call_tool(
-                "query_timescale",
-                {"query": "SELECT * FROM sensor_data LIMIT 10"}
-            )
-        """
-        if not self.enabled:
-            return {"error": "MCP disabled"}
-        
-        try:
-            payload = {
-                "jsonrpc": "2.0",
-                "id": 3,
-                "method": "tools/call",
-                "params": {
-                    "name": tool_name,
-                    "arguments": arguments
-                }
-            }
-            
-            response = await self.client.post("/jsonrpc", json=payload)
-            
-            if response.status_code == 200:
-                result = response.json()
-                return result.get("result", {})
-            else:
-                logger.error(f"MCP tool call failed: {response.status_code} - {response.text}")
-                return {"error": f"HTTP {response.status_code}"}
-                
-        except Exception as e:
-            logger.error(f"Failed to call tool {tool_name}: {e}")
-            return {"error": str(e)}
-import logging
-from typing import List, Dict, Any, Optional
-import httpx
-import json
-from datetime import datetime, timedelta
-
-from ..config import settings
-
-logger = logging.getLogger(__name__)
-
-
-class MCPClient:
-    """
-    MCP Client for communicating with FreePeak db-mcp-server
-    
-    Provides structured database access for AI models via MCP protocol
-    """
-    
-    def __init__(self):
-        self.server_url = settings.mcp_server_url
-        self.timeout = settings.mcp_timeout
-        self.enabled = settings.mcp_enabled
-        self.client = httpx.AsyncClient(timeout=self.timeout)
-    
-    async def initialize(self):
-        """Initialize MCP connection"""
-        if not self.enabled:
-            logger.info("MCP is disabled")
-            return
-        
-        try:
             # Test connection by listing tools
             tools = await self.list_tools()
             if tools:
@@ -152,7 +41,7 @@ class MCPClient:
                 logger.warning("MCP server connection established but no tools available")
         except Exception as e:
             logger.error(f"MCP initialization failed: {e}")
-            raise
+            # Don't raise, just log error so app can start
     
     async def list_tools(self) -> List[Dict[str, Any]]:
         """
@@ -162,7 +51,6 @@ class MCPClient:
             return []
         
         try:
-            # For FreePeak db-mcp-server, use JSON-RPC over HTTP
             payload = {
                 "jsonrpc": "2.0",
                 "id": 1,
@@ -170,16 +58,13 @@ class MCPClient:
                 "params": {}
             }
             
-            response = await self.client.post(
-                f"{self.server_url.replace('/sse', '')}/jsonrpc",
-                json=payload,
-                headers={"Content-Type": "application/json"}
-            )
+            response = await self.client.post("/jsonrpc", json=payload)
             
             if response.status_code == 200:
                 result = response.json()
                 tools = result.get("result", {}).get("tools", [])
-                logger.info(f"Retrieved {len(tools)} tools from MCP server")
+                tool_names = [t.get('name') for t in tools]
+                logger.info(f"Retrieved {len(tools)} tools from MCP server: {tool_names}")
                 return tools
             
             logger.warning(f"Failed to get tools from MCP server: {response.status_code}")
@@ -217,11 +102,7 @@ class MCPClient:
                 }
             }
             
-            response = await self.client.post(
-                f"{self.server_url.replace('/sse', '')}/jsonrpc",
-                json=payload,
-                headers={"Content-Type": "application/json"}
-            )
+            response = await self.client.post("/jsonrpc", json=payload)
             
             if response.status_code == 200:
                 result = response.json()
