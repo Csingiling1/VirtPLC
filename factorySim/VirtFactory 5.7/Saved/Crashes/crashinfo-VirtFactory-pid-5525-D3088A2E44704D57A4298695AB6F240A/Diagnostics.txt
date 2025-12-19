@@ -1,0 +1,25 @@
+Generating report for minidump
+
+Application version 5.7.0.0
+ ... built from changelist 47537391
+
+OS version Linux 6.17.9-arch1-1 (network name: asus)
+Running 16 x86_64 processors (32 logical cores)
+Exception was "SIGSEGV: invalid attempt to write memory at address 0x0000000000000003"
+
+<SOURCE START>
+<SOURCE END>
+
+<CALLSTACK START>
+libUnrealEditor-Core.so!FDebug::CheckVerifyFailedImpl2(char const*, char const*, int, char16_t const*, ...) [/mnt/horde/++UE5/Sync/Engine/Source/./Runtime/Core/Private/Misc/AssertionMacros.cpp:741]
+libUnrealEditor-Core.so!FRunnableThread::FreeTls() [/mnt/horde/++UE5/Sync/Engine/Source/./Runtime/Core/Private/HAL/ThreadingBase.cpp:932]
+libUnrealEditor-Core.so!FRunnableThreadPThread::Run() [/mnt/horde/++UE5/Sync/Engine/Source/./Runtime/Core/Private/HAL/PThreadRunnableThread.cpp:32]
+libUnrealEditor-Core.so!FRunnableThreadPThread::_ThreadProc(void*) [/mnt/horde/++UE5/Sync/Engine/Source/Runtime/Core/Private/HAL/PThreadRunnableThread.h:187]
+libc.so.6!UnknownFunction(0x9698a)
+libc.so.6!UnknownFunction(0x11a9cb)
+
+<CALLSTACK END>
+
+0 loaded modules
+
+Report end!

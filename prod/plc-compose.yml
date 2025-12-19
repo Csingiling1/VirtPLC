@@ -1,0 +1,145 @@
+# PLC Server (Server 1) - Simulator + HMI + Node-RED
+# This server hosts the PLC simulator, Ignition HMI, and Node-RED for MQTT bridging
+# Run with: docker-compose -f prod/plc-compose.yml up
+
+version: '3.8'
+
+services:
+  # Enhanced PLC Simulator (Python) - PLC Replacement Server
+  simulator:
+    build:
+      context: ../../simulator
+      dockerfile: Dockerfile
+    container_name: virtplc-simulator
+    ports:
+      - "${SIMULATOR_PORT:-5000}:8080"    # REST API & WebSocket
+    environment:
+      - PYTHONUNBUFFERED=1
+      - SIMULATOR_MODE=plc-server
+      - SIMULATOR_HOST=0.0.0.0
+      - SIMULATOR_PORT=8080
+      - MQTT_BROKER=mqtt
+      - MQTT_PORT=1883
+      - MQTT_USERNAME=${MQTT_USERNAME:-virtplc}
+      - MQTT_PASSWORD=${MQTT_PASSWORD:-virtplc123}
+      - UPDATE_INTERVAL=1.0
+    volumes:
+      - simulator-data:/app/data
+    networks:
+      virtplc-network:
+        ipv4_address: ${PLC_IP:-192.168.1.10}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/simulation/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.simulator.rule=Host(`simulator.localhost`)"
+      - "traefik.http.services.simulator.loadbalancer.server.port=8080"
+
+  # Simulator Monitoring Dashboard
+  simulator-monitor:
+    image: nginx:alpine
+    container_name: virtplc-simulator-monitor
+    ports:
+      - "${SIMULATOR_MONITOR_PORT:-5002}:80"
+    volumes:
+      - ../../simulator/monitor.html:/usr/share/nginx/html/index.html
+    depends_on:
+      - simulator
+    networks:
+      virtplc-network:
+        ipv4_address: ${SIMULATOR_MONITOR_IP:-192.168.1.11}
+    restart: unless-stopped
+
+  # Ignition Edge HMI
+  ignition:
+    build:
+      context: ../../HMI
+      dockerfile: Dockerfile
+    container_name: virtplc-ignition
+    ports:
+      - "${IGNITION_PORT:-8088}:8088"   # Gateway web interface
+      - "${IGNITION_HTTPS_PORT:-8043}:8043"   # HTTPS
+      - "${IGNITION_MODBUS_PORT:-8060}:8060"   # Modbus TCP
+    environment:
+      - GATEWAY_ADMIN_USERNAME=${IGNITION_USERNAME:-admin}
+      - GATEWAY_ADMIN_PASSWORD=${IGNITION_PASSWORD:-password}
+      - ACCEPT_IGNITION_EULA=Y
+    volumes:
+      - ignition-data:/usr/local/bin/ignition/data
+      - ../../HMI/IgnitionEdge/config:/usr/local/bin/ignition/data/gateway.xml:ro
+      - ../../HMI/IgnitionEdge/tags:/usr/local/bin/ignition/data/tags
+      - ../../HMI/IgnitionEdge/projects:/usr/local/bin/ignition/data/projects
+    networks:
+      virtplc-network:
+        ipv4_address: ${IGNITION_IP:-192.168.1.12}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8088/StatusPing"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+
+  # MQTT Broker
+  mqtt:
+    image: eclipse-mosquitto:2.0
+    container_name: virtplc-mqtt
+    ports:
+      - "${MQTT_PORT:-1883}:1883"  # MQTT port
+    volumes:
+      - ../../mqtt/config:/mosquitto/config
+    networks:
+      virtplc-network:
+        ipv4_address: ${MQTT_IP:-192.168.1.13}
+    restart: unless-stopped
+
+  # Node-RED MQTT Bridge
+  nodered:
+    image: nodered/node-red:latest
+    container_name: virtplc-nodered
+    ports:
+      - "${NODERED_PORT:-1880}:1880"   # Node-RED UI
+    volumes:
+      - nodered-data:/data
+      - ../../nodered/flows:/data/flows
+      - ../../nodered/settings.js:/data/settings.js:ro
+    environment:
+      - NODE_RED_CREDENTIAL_SECRET=${NODE_RED_CREDENTIAL_SECRET:-your-secret-key}
+      - MQTT_BROKER=mqtt
+      - MQTT_PORT=1883
+      - MQTT_USERNAME=${MQTT_USERNAME:-virtplc}
+      - MQTT_PASSWORD=${MQTT_PASSWORD:-virtplc123}
+    depends_on:
+      - mqtt
+      - simulator
+    networks:
+      virtplc-network:
+        ipv4_address: ${NODERED_IP:-192.168.1.14}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:1880"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+networks:
+  virtplc-network:
+    driver: bridge
+    name: virtplc-network
+    ipam:
+      config:
+        - subnet: 192.168.1.0/24
+          gateway: 192.168.1.1
+
+volumes:
+  simulator-data:
+    name: virtplc-simulator-data
+  ignition-data:
+    name: virtplc-ignition-data
+  nodered-data:
+    name: virtplc-nodered-data

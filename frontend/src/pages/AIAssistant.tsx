@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Bot, User, Send, BarChart3, TrendingUp, Plus, Trash2, MessageSquare, Edit3, X, Clock, Terminal } from 'lucide-react';
 import { AIChatResponse, ChartSuggestion } from '../types';
 import AIChart from '../components/AIChart';
@@ -35,6 +36,8 @@ interface Conversation {
     updatedAt: string; // ISO
 }
 
+type Model = 'ollama' | 'claude';
+
 function AIAssistant() {
     const [conversations, setConversations] = useState<Conversation[]>([]);
     const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
@@ -46,6 +49,7 @@ function AIAssistant() {
     const [editingContent, setEditingContent] = useState('');
     const [isTemporaryMode, setIsTemporaryMode] = useState(false);
     const [activeArtifact, setActiveArtifact] = useState<Artifact | null>(null);
+    const [selectedModel, setSelectedModel] = useState<Model>('ollama');
     const scrollAreaRef = useRef<HTMLDivElement>(null);
 
     // Clear localStorage when entering temporary mode
@@ -207,8 +211,10 @@ function AIAssistant() {
 
             setMessages(prev => [...prev, placeholderMessage]);
 
+            const endpoint = 'http://localhost:3001/api/chat/message';
+
             // Call AI service (non-streaming)
-            const response = await fetch('http://localhost:3001/api/chat/message', {
+            const response = await fetch(endpoint, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -216,7 +222,8 @@ function AIAssistant() {
                 body: JSON.stringify({
                     message: content,
                     session_id: currentConversationId ? parseInt(currentConversationId.split('-')[1] || '1') : 1,
-                    context: { messages: contextMessages.map(m => ({ role: m.role, content: m.content })) }
+                    context: { messages: contextMessages.map(m => ({ role: m.role, content: m.content })) },
+                    model: selectedModel
                 }),
             });
 
@@ -726,7 +733,7 @@ function AIAssistant() {
                             {/* Input Area */}
                             <div className="border-t border-gray-200 bg-white px-6 py-4">
                                 <div className="max-w-4xl mx-auto">
-                                    <div className="flex gap-3">
+                                    <div className="flex items-center gap-3">
                                         <Textarea
                                             value={input}
                                             onChange={(e) => setInput(e.target.value)}
@@ -735,14 +742,25 @@ function AIAssistant() {
                                             className="min-h-[52px] resize-none border-gray-300 focus:border-blue-500 focus:ring-blue-500"
                                             disabled={isLoading}
                                         />
-                                        <Button
-                                            onClick={sendMessage}
-                                            disabled={isLoading || !input.trim()}
-                                            size="lg"
-                                            className="px-6"
-                                        >
-                                            <Send className="h-4 w-4" />
-                                        </Button>
+                                        <div className="flex flex-col gap-2">
+                                            <Button
+                                                onClick={sendMessage}
+                                                disabled={isLoading || !input.trim()}
+                                                size="lg"
+                                                className="px-6 h-full"
+                                            >
+                                                <Send className="h-4 w-4" />
+                                            </Button>
+                                            <Select value={selectedModel} onValueChange={(value) => setSelectedModel(value as Model)}>
+                                                <SelectTrigger className="w-[120px]">
+                                                    <SelectValue placeholder="Model" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="ollama">Ollama</SelectItem>
+                                                    <SelectItem value="claude">Claude</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
                                     </div>
                                 </div>
                             </div>

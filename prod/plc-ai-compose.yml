@@ -1,0 +1,261 @@
+# PLC-AI Server (Server 2) - Backend Services + AI + Frontend
+# This server hosts the application backend, AI services, and frontend
+# Run with: docker-compose -f prod/plc-ai-compose.yml up
+
+version: '3.8'
+
+services:
+  # Spring Boot Backend
+  backend:
+    build:
+      context: ../../backend
+      dockerfile: Dockerfile
+    container_name: virtplc-backend
+    ports:
+      - "${BACKEND_PORT:-18080}:8080"   # REST API
+      - "${MCP_BACKEND_PORT:-8000}:8000"   # MCP Server
+      - "${GRPC_PORT:-9091}:9090"   # gRPC Server
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - SERVER_PORT=8080
+      - SIMULATOR_API_URL=http://${PLC_IP:-192.168.1.10}:8080
+      - SIMULATOR_WS_URL=ws://${PLC_IP:-192.168.1.10}:8080/ws/data
+      - SIMULATOR_BASE_URL=http://${PLC_IP:-192.168.1.10}:8080
+      - DATA_SOURCE=simulator
+      - SIMULATOR_NAME=VirtPLC Simulator
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://${HISTORIAN_IP:-192.168.1.30}:5432/virtplc_ts
+      - SPRING_DATASOURCE_USERNAME=virtplc
+      - SPRING_DATASOURCE_PASSWORD=${TIMESCALE_PASSWORD:-changeme}
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - MCP_ENABLED=true
+      - MCP_PORT=8000
+      - JWT_SECRET=${JWT_SECRET:-your-secret-key-change-in-production}
+      - POSTGRES_URL=jdbc:postgresql://postgres:5432/virtplc
+      - POSTGRES_USER=virtplc
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-changeme}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      virtplc-network:
+        ipv4_address: ${PLC_AI_IP:-192.168.1.20}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+  # React Frontend
+  frontend:
+    build:
+      context: ../../frontend
+      dockerfile: Dockerfile
+      args:
+        - VITE_WS_URL=ws://${PLC_AI_IP:-192.168.1.20}:3002
+        - VITE_AI_API_URL=http://${PLC_AI_IP:-192.168.1.20}:3001
+        - VITE_API_BASE_URL=http://${PLC_AI_IP:-192.168.1.20}:18080
+    container_name: virtplc-frontend
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    volumes:
+      - ../../frontend:/app
+      - /app/node_modules
+    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "3000"]
+    depends_on:
+      - backend
+      - ai-service
+    networks:
+      virtplc-network:
+        ipv4_address: ${FRONTEND_IP:-192.168.1.21}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # Ollama LLM Service
+  ollama:
+    image: ollama/ollama:latest
+    container_name: virtplc-ollama
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    networks:
+      virtplc-network:
+        ipv4_address: ${OLLAMA_IP:-192.168.1.22}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "echo", "ok"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+
+  # Ollama Model Initializer
+  ollama-init:
+    image: curlimages/curl:latest
+    container_name: virtplc-ollama-init
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+    volumes:
+      - ../../ai-service/init-ollama.sh:/init-ollama.sh
+    entrypoint: ["/bin/sh", "/init-ollama.sh"]
+    depends_on:
+      ollama:
+        condition: service_healthy
+    networks:
+      virtplc-network:
+        ipv4_address: ${OLLAMA_INIT_IP:-192.168.1.23}
+    restart: no
+
+  # AI Analysis Service (Python + FastAPI)
+  ai-service:
+    build:
+      context: ../../ai-service
+      dockerfile: Dockerfile
+    container_name: virtplc-ai
+    ports:
+      - "${AI_PORT:-3001}:3001"   # REST API
+      - "${AI_WS_PORT:-3002}:3002"   # WebSocket
+      - "${AI_METRICS_PORT:-9090}:9090"   # Prometheus metrics
+    environment:
+      - ENVIRONMENT=production
+      - LOG_LEVEL=DEBUG
+      - PORT=3001
+      - WS_PORT=3002
+      - BACKEND_API_URL=http://backend:8080
+      - MCP_ENABLED=true
+      - MCP_SERVER_URL=http://${MCP_IP:-192.168.1.31}:9092/sse
+      - OLLAMA_HOST=http://ollama:11434
+      - OLLAMA_MODEL=qwen2.5-coder:7b
+      - TIMESCALE_HOST=${HISTORIAN_IP:-192.168.1.30}
+      - TIMESCALE_PORT=5432
+      - TIMESCALE_DB=virtplc_ts
+      - TIMESCALE_USER=virtplc
+      - TIMESCALE_PASSWORD=${TIMESCALE_PASSWORD:-changeme}
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=virtplc
+      - POSTGRES_USER=virtplc
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-changeme}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - CLAUDE_API_KEY=${CLAUDE_API_KEY}
+      - ANALYSIS_INTERVAL=5000
+    volumes:
+      - ../../ai-service:/app
+    depends_on:
+      ollama:
+        condition: service_started
+      backend:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      virtplc-network:
+        ipv4_address: ${AI_IP:-192.168.1.24}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # PostgreSQL (Relational Data)
+  postgres:
+    image: postgres:16-alpine
+    container_name: virtplc-postgres
+    ports:
+      - "${POSTGRES_PORT:-15432}:5432"
+    environment:
+      - POSTGRES_DB=virtplc
+      - POSTGRES_USER=virtplc
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-changeme}
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ../../ai-service/init-db.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      virtplc-network:
+        ipv4_address: ${POSTGRES_IP:-192.168.1.25}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U virtplc -d virtplc"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Redis (Caching & Sessions)
+  redis:
+    image: redis:7-alpine
+    container_name: virtplc-redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    networks:
+      virtplc-network:
+        ipv4_address: ${REDIS_IP:-192.168.1.26}
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Collector Service
+  collector:
+    build: ../../collector
+    container_name: virtplc-collector
+    environment:
+      - MQTT_BROKER=${PLC_IP:-192.168.1.10}
+      - MQTT_PORT=1883
+      - MQTT_USERNAME=${MQTT_USERNAME:-virtplc}
+      - MQTT_PASSWORD=${MQTT_PASSWORD:-virtplc123}
+      - TIMESCALE_HOST=${HISTORIAN_IP:-192.168.1.30}
+      - TIMESCALE_PORT=5432
+      - TIMESCALE_USER=virtplc
+      - TIMESCALE_PASSWORD=${TIMESCALE_PASSWORD:-changeme}
+      - TIMESCALE_DB=virtplc_ts
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    ports:
+      - "${COLLECTOR_METRICS_PORT:-9100}:9100"  # prometheus metrics
+    networks:
+      virtplc-network:
+        ipv4_address: ${COLLECTOR_IP:-192.168.1.27}
+    restart: on-failure
+
+networks:
+  virtplc-network:
+    driver: bridge
+    name: virtplc-network
+    ipam:
+      config:
+        - subnet: 192.168.1.0/24
+          gateway: 192.168.1.1
+
+volumes:
+  ollama-data:
+    name: virtplc-ollama-data
+  postgres-data:
+    name: virtplc-postgres-data
+  redis-data:
+    name: virtplc-redis-data

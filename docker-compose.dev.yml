@@ -48,6 +48,7 @@ services:
     environment:
       - PROFILE=dev
       - OLLAMA_MODEL=qwen2.5:7b
+      - CLAUDE_API_KEY=${CLAUDE_API_KEY}
     profiles:
       - dev
 

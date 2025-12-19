@@ -1,0 +1,94 @@
+# Historian Server (Server 3) - TimescaleDB + MCP Server
+# This server hosts the time-series database and MCP server for AI data access
+# Run with: docker-compose -f prod/historian-compose.yml up
+
+version: '3.8'
+
+services:
+  # TimescaleDB (Time Series Database)
+  timescale:
+    image: timescale/timescaledb:latest-pg16
+    container_name: virtplc-timescale
+    ports:
+      - "${TIMESCALE_PORT:-15433}:5432"
+    environment:
+      - POSTGRES_DB=virtplc_ts
+      - POSTGRES_USER=virtplc
+      - POSTGRES_PASSWORD=${TIMESCALE_PASSWORD:-changeme}
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8
+    volumes:
+      - timescale-data:/var/lib/postgresql/data
+      - ../../backend/init-timescale.sql:/docker-entrypoint-initdb.d/01-timescale-init.sql
+    networks:
+      virtplc-network:
+        ipv4_address: ${HISTORIAN_IP:-192.168.1.30}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U virtplc -d virtplc_ts"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Database MCP Server for AI access to TimescaleDB
+  db-mcp-server:
+    image: freepeak/db-mcp-server:latest
+    container_name: virtplc-db-mcp-server
+    ports:
+      - "${MCP_PORT:-9092}:9092"
+    volumes:
+      - ../../db-mcp-config.json:/app/config.json:ro
+    environment:
+      - MCP_SERVER_PORT=9092
+      - MCP_SERVER_CONFIG=/app/config.json
+      - TIMESCALE_HOST=timescale
+      - TIMESCALE_PORT=5432
+      - TIMESCALE_DB=virtplc_ts
+      - TIMESCALE_USER=virtplc
+      - TIMESCALE_PASSWORD=${TIMESCALE_PASSWORD:-changeme}
+    depends_on:
+      timescale:
+        condition: service_healthy
+    networks:
+      virtplc-network:
+        ipv4_address: ${MCP_IP:-192.168.1.31}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9092/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # TimescaleDB Cleanup Cronjob - runs every 2 months
+  timescale-cleanup:
+    build:
+      context: ../..
+      dockerfile: scripts/Dockerfile.cleanup
+    container_name: virtplc-timescale-cleanup
+    environment:
+      - TIMESCALE_HOST=timescale
+      - TIMESCALE_PORT=5432
+      - TIMESCALE_DB=virtplc_ts
+      - TIMESCALE_USER=virtplc
+      - TIMESCALE_PASSWORD=${TIMESCALE_PASSWORD:-changeme}
+    depends_on:
+      timescale:
+        condition: service_healthy
+    networks:
+      virtplc-network:
+        ipv4_address: ${CLEANUP_IP:-192.168.1.32}
+    restart: unless-stopped
+    labels:
+      description: "Cronjob to clean up 25% of oldest data every 2 months"
+
+networks:
+  virtplc-network:
+    driver: bridge
+    name: virtplc-network
+    ipam:
+      config:
+        - subnet: 192.168.1.0/24
+          gateway: 192.168.1.1
+
+volumes:
+  timescale-data:
+    name: virtplc-timescale-data

@@ -77,6 +77,7 @@ services:
       - POSTGRES_HOST=postgres
       - POSTGRES_PORT=5432
       - OLLAMA_MODEL=mistral-nemo
+      - CLAUDE_API_KEY=${CLAUDE_API_KEY}
     extra_hosts:
       - "db-server:${SERVER3_HOST:-192.168.1.30}"
     depends_on:

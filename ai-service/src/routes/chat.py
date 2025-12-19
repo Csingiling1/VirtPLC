@@ -12,6 +12,7 @@ import os
 from datetime import datetime
 
 from ..services.mcp_client import mcp_client
+from ..services.claude_client import claude_client
 from ..database import get_db
 from ..database.models import ChatSession, ChatMessage
 from ..config import settings
@@ -21,7 +22,7 @@ import httpx
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-# System prompt optimized for time-series data extraction and visualization
+# System prompt optimized for time-series data extraction and visualization (Ollama)
 SYSTEM_PROMPT = """You are an expert Time-Series Database Assistant and Data Visualization Engineer.
 You have access to a TimescaleDB (PostgreSQL) database via the query_timescale tool.
 
@@ -190,11 +191,79 @@ export default function ChartComponent() {
 IMPORTANT: Always wrap map() return in braces and return statement with key prop!
 """
 
+# System prompt optimized for Claude
+SYSTEM_PROMPT_CLAUDE = """You are an expert Time-Series Database Assistant and Data Visualization Engineer.
+You have access to a TimescaleDB (PostgreSQL) database via the query_timescale tool. Your goal is to answer user questions by fetching data and generating React-based visualizations.
+
+**Execution Plan:**
+1.  **Analyze User Request**: Understand the user's query to determine the required data.
+2.  **Generate Tool Call**: Create a `[TOOL: query_timescale]` call with the appropriate SQL query.
+3.  **Receive Tool Output**: You will be given the data returned from the tool.
+4.  **Generate Visualization**: Create a React component as an `<artifact>` that visualizes the data.
+
+**Critical Rules for SQL Generation:**
+*   **Time-Series Queries**: For queries over a time range (e.g., "last 24 hours"), you **MUST** use `time_bucket()` to downsample the data. Do **NOT** use `LIMIT` for time-range queries. Aim for about 100-150 data points.
+*   **Current State Queries**: For queries about the current state (e.g., "what is the motor speed now?"), use `ORDER BY timestamp DESC LIMIT 1`.
+*   **Bucket Intervals**:
+    *   Last 1 Hour: `time_bucket('30 seconds', timestamp)`
+    *   Last 24 Hours: `time_bucket('15 minutes', timestamp)`
+    *   Last 7 Days: `time_bucket('2 hours', timestamp)`
+
+**Database Schema:**
+*   Table: `plc_data`
+*   Columns:
+    *   `timestamp` (TIMESTAMPTZ)
+    *   `device_id` (TEXT)
+    *   `type` (TEXT: 'sensor' or 'plc')
+    *   `data` (JSONB): Contains `signal_config.name` and `signal_config.value`.
+*   Common Sensor Names: `motor_speed`, `motor_temp`, `vibration`, `pressure`, `flow_rate`.
+
+**Output Format:**
+*   When you need to query data, respond ONLY with the tool call: `[TOOL: query_timescale {"query": "SELECT ..."}]`
+*   After you receive the data, respond ONLY with the final React visualization inside an `<artifact>` tag. Do not include any other text or explanation.
+
+**Artifact Format:**
+*   Use the provided `recharts` library.
+*   Embed the data directly into the component.
+*   Ensure components in `map()` have a `key` prop.
+*   Format timestamps for readability on the X-axis.
+
+Example Artifact:
+<artifact type="react" title="Motor Speed Over Time">
+```tsx
+import React from 'react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+
+export default function ChartComponent() {
+  const data = [
+    {"period": "2025-12-18T10:00:00Z", "avg_speed": 1500},
+    {"period": "2025-12-18T10:01:00Z", "avg_speed": 1502},
+  ];
+
+  return (
+    <ResponsiveContainer width="100%" height={400}>
+      <LineChart data={data}>
+        <CartesianGrid strokeDasharray="3 3" />
+        <XAxis dataKey="period" tickFormatter={(ts) => new Date(ts).toLocaleTimeString()} />
+        <YAxis />
+        <Tooltip />
+        <Legend />
+        <Line type="monotone" dataKey="avg_speed" stroke="#8884d8" />
+      </LineChart>
+    </ResponsiveContainer>
+  );
+}
+```
+</artifact>
+"""
+
+
 class ChatRequest(BaseModel):
     message: str
     session_id: int = None
     context: Dict[str, Any] = None
     stream: bool = False
+    model: str = "ollama"  # "ollama" or "claude"
 
 class ChatResponse(BaseModel):
     response: str
@@ -535,6 +604,76 @@ Generate ONLY the artifact (no explanations):
         error_msg = f"An error occurred: {str(e)}"
         yield f"data: {json.dumps({'done': True, 'final_response': error_msg})}\n\n"
 
+async def stream_claude_response(prompt: str, context_data: str = "", conversation_history: str = ""):
+    """
+    Stream chat response for Claude with tool calling and artifact generation.
+    """
+    logger.info(f"Processing query with Claude: {prompt[:100]}...")
+    yield f"data: {json.dumps({'status': '🤔 Analyzing query with Claude...'})}\n\n"
+
+    initial_prompt = f"User Query: {prompt}\n\nAnalyze this query and generate the appropriate `[TOOL: query_timescale]` call to fetch the necessary data. Do not generate the visualization yet."
+
+    try:
+        # Phase 1: Get tool call from Claude
+        first_response = await claude_client.generate_text(prompt=initial_prompt, system_prompt=SYSTEM_PROMPT_CLAUDE)
+        logger.debug(f"Claude initial response: {first_response[:300]}")
+
+        # Phase 2: Extract and execute tool call
+        tool_data = extract_tool_call(first_response)
+        if not tool_data:
+            yield f"data: {json.dumps({'done': True, 'final_response': first_response.strip()})}\n\n"
+            return
+
+        tool_name = tool_data["name"]
+        tool_args = tool_data["args"]
+        yield f"data: {json.dumps({'status': f'📊 Fetching {tool_name} data...'})}\n\n"
+        
+        tool_result = await execute_tool(tool_name, tool_args)
+        if "error" in tool_result:
+            error_msg = f"Error fetching data: {tool_result['error']}"
+            yield f"data: {json.dumps({'done': True, 'final_response': error_msg})}\n\n"
+            return
+
+        data_rows = tool_result.get("data", [])
+        if not data_rows:
+            yield f"data: {json.dumps({'done': True, 'final_response': 'No data found for your query.'})}\n\n"
+            return
+        
+        logger.info(f"Retrieved {len(data_rows)} data rows for Claude")
+
+        # Phase 3: Generate artifact with the real data
+        yield f"data: {json.dumps({'status': '🎨 Generating visualization with Claude...'})}\n\n"
+        
+        data_summary = f"Retrieved {len(data_rows)} rows."
+        data_json = json.dumps(data_rows[:100], indent=2)
+        
+        artifact_prompt = f"""You have received the following data from the `query_timescale` tool.
+
+Database Query Result ({len(data_rows)} rows retrieved):
+{data_summary}
+
+Sample Data (showing first 100 of {len(data_rows)} rows):
+{data_json[:2000]}
+
+Now, generate the final React component artifact based on the user's original query: "{prompt}"
+"""
+        
+        final_response = ""
+        async for chunk in claude_client.stream_text(prompt=artifact_prompt, system_prompt=SYSTEM_PROMPT_CLAUDE):
+            final_response += chunk
+            yield f"data: {json.dumps({'chunk': chunk})}\n\n"
+
+        if '<artifact' not in final_response:
+             final_response = f'<artifact type="react" title="Data Visualization">\n```tsx\n{final_response}\n```\n</artifact>'
+
+        yield f"data: {json.dumps({'done': True, 'final_response': final_response.strip()})}\n\n"
+
+    except Exception as e:
+        logger.error(f"Error in stream_claude_response: {e}", exc_info=True)
+        error_msg = f"An error occurred with Claude: {str(e)}"
+        yield f"data: {json.dumps({'done': True, 'final_response': error_msg})}\n\n"
+
+
 @router.post("/message", response_model=ChatResponse)
 async def chat_message(request: ChatRequest):
     """
@@ -542,9 +681,15 @@ async def chat_message(request: ChatRequest):
     """
     response_text = ""
     final_text = ""
-    logger.info(f"Processing chat message: {request.message[:100]}...")
+    logger.info(f"Processing chat message with {request.model}: {request.message[:100]}...")
     
-    async for chunk_str in stream_chat_response(request.message):
+    # Choose the appropriate streaming function based on model
+    if request.model.lower() == "claude":
+        stream_func = stream_claude_response
+    else:
+        stream_func = stream_chat_response
+    
+    async for chunk_str in stream_func(request.message):
         if chunk_str.startswith("data: "):
             data = json.loads(chunk_str[6:])
             if "chunk" in data:
@@ -552,23 +697,23 @@ async def chat_message(request: ChatRequest):
             if "final_response" in data:
                 final_text = data["final_response"]
     
-    # Use final_response if available, otherwise use accumulated response
     result = final_text if final_text else response_text
     
-    logger.info(f"Chat response generated: {len(result)} chars")
-    logger.debug(f"Response preview: {result[:200]}")
-    
-    return ChatResponse(
-        response=result,
-        session_id=1
-    )
+    logger.info(f"Chat response generated with {request.model}: {len(result)} chars")
+    return ChatResponse(response=result, session_id=1)
 
 @router.post("/stream")
 async def chat_stream(request: ChatRequest):
     """
-    Streaming endpoint
+    Streaming endpoint with model selection
     """
+    # Choose the appropriate streaming function based on model
+    if request.model.lower() == "claude":
+        stream_func = stream_claude_response
+    else:
+        stream_func = stream_chat_response
+    
     return StreamingResponse(
-        stream_chat_response(request.message),
+        stream_func(request.message),
         media_type="text/event-stream"
     )
