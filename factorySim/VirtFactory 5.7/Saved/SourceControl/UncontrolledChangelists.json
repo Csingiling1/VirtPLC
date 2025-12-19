@@ -5,6 +5,14 @@
 			"guid": "00000000000000000000000000000000",
 			"description": "Default Uncontrolled Changelist",
 			"files": [
+<<<<<<< Updated upstream
+=======
+				"D:/Erik/Projects/Uni/csoportosProjekt/VirtPLC/factorySim/VirtFactory 5.7/Content/Messager_Cube.uasset",
+				"D:/Erik/Projects/Uni/csoportosProjekt/VirtPLC/factorySim/VirtFactory 5.7/Content/Conveyors/Conveyor_Covered_BP.uasset",
+				"D:/Erik/Projects/Uni/csoportosProjekt/VirtPLC/factorySim/VirtFactory 5.7/Content/Conveyors/ST_UserData.uasset",
+				"D:/Erik/Projects/Uni/csoportosProjekt/VirtPLC/factorySim/VirtFactory 5.7/Content/MqttCon.uasset",
+				"D:/Erik/Projects/Uni/csoportosProjekt/VirtPLC/factorySim/VirtFactory 5.7/Content/MqttConLibrary.uasset",
+>>>>>>> Stashed changes
 				"/home/deginandor/Documents/Programming/VirtPLC/factorySim/VirtFactory 5.7/Content/__ExternalActors__/Factory/8/S7/0Y6C8LWAA6S8DMZW708T3I.uasset",
 				"/home/deginandor/Documents/Programming/VirtPLC/factorySim/VirtFactory 5.7/Content/__ExternalActors__/Factory/5/1L/QY198K95XPCW50K6EFR0UR.uasset",
 				"/home/deginandor/Documents/Programming/VirtPLC/factorySim/VirtFactory 5.7/Content/Factory.umap",
