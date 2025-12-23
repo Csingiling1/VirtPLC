@@ -62,5 +62,4 @@ networks:
     driver: bridge
     ipam:
       config:
-        - subnet: 172.21.0.0/16</content>
-<parameter name="filePath">/home/deginandor/Documents/Programming/VirtPLC/essen-demo/docker-compose.data.yml
+        - subnet: 172.21.0.0/16

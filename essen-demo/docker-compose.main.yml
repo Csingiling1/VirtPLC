@@ -308,5 +308,4 @@ networks:
     name: virtplc_data_network
   plc_network:
     external: true
-    name: virtplc_plc_network</content>
-<parameter name="filePath">/home/deginandor/Documents/Programming/VirtPLC/essen-demo/docker-compose.main.yml
+    name: virtplc_plc_network
