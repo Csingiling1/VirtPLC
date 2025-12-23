@@ -181,7 +181,7 @@ public class AdminController {
 
                     // Get the factory
                     Factory factory = factoryRepository.findById(Long.parseLong(factoryId))
-                        .orElseThrow(() -> new RuntimeException("Factory not found: " + factoryId));
+                            .orElseThrow(() -> new RuntimeException("Factory not found: " + factoryId));
                     plc.setFactory(factory);
 
                     // Save PLC first
@@ -259,8 +259,10 @@ public class AdminController {
     }
 
     /**
-     * Discover devices from plc_data table that are not already represented as PLC entities.
-     * Groups device_ids by logical device names (e.g., Conveyor1_rpm and Conveyor1_status -> Conveyor1).
+     * Discover devices from plc_data table that are not already represented as PLC
+     * entities.
+     * Groups device_ids by logical device names (e.g., Conveyor1_rpm and
+     * Conveyor1_status -> Conveyor1).
      */
     private List<Map<String, Object>> discoverDevicesFromPlcData(Set<String> existingPlcIds) {
         try {
@@ -342,8 +344,8 @@ public class AdminController {
     private String extractLogicalDeviceName(String deviceId) {
         // Remove common suffixes to group related signals
         if (deviceId.endsWith("_rpm") || deviceId.endsWith("_status") ||
-            deviceId.endsWith("_position") || deviceId.endsWith("_temp") ||
-            deviceId.endsWith("_speed")) {
+                deviceId.endsWith("_position") || deviceId.endsWith("_temp") ||
+                deviceId.endsWith("_speed")) {
             return deviceId.substring(0, deviceId.lastIndexOf("_"));
         }
         return deviceId;
@@ -360,11 +362,13 @@ public class AdminController {
         // Capitalize first letter
         if (formatted.length() > 0) {
             formatted = formatted.substring(0, 1).toUpperCase() +
-                       (formatted.length() > 1 ? formatted.substring(1) : "");
+                    (formatted.length() > 1 ? formatted.substring(1) : "");
         }
 
-        // Handle camelCase by inserting spaces before uppercase letters (but not for abbreviations)
-        // This is a simple approach - just insert space before capital letters that follow lowercase
+        // Handle camelCase by inserting spaces before uppercase letters (but not for
+        // abbreviations)
+        // This is a simple approach - just insert space before capital letters that
+        // follow lowercase
         formatted = formatted.replaceAll("([a-z])([A-Z])", "$1 $2");
 
         return formatted;
@@ -372,36 +376,53 @@ public class AdminController {
 
     private String formatSignalName(String signalId) {
         // Extract the signal type from the suffix
-        if (signalId.endsWith("_rpm")) return "RPM";
-        if (signalId.endsWith("_status")) return "Status";
-        if (signalId.endsWith("_position")) return "Position";
-        if (signalId.endsWith("_temp")) return "Temperature";
-        if (signalId.endsWith("_speed")) return "Speed";
+        if (signalId.endsWith("_rpm"))
+            return "RPM";
+        if (signalId.endsWith("_status"))
+            return "Status";
+        if (signalId.endsWith("_position"))
+            return "Position";
+        if (signalId.endsWith("_temp"))
+            return "Temperature";
+        if (signalId.endsWith("_speed"))
+            return "Speed";
         return signalId;
     }
 
     private String inferSignalType(String signalId) {
-        if (signalId.endsWith("_rpm") || signalId.endsWith("_speed")) return "speed";
-        if (signalId.endsWith("_status")) return "boolean";
-        if (signalId.endsWith("_position")) return "position";
-        if (signalId.endsWith("_temp")) return "temperature";
+        if (signalId.endsWith("_rpm") || signalId.endsWith("_speed"))
+            return "speed";
+        if (signalId.endsWith("_status"))
+            return "boolean";
+        if (signalId.endsWith("_position"))
+            return "position";
+        if (signalId.endsWith("_temp"))
+            return "temperature";
         return "numeric";
     }
 
     private String inferSignalUnit(String signalId) {
-        if (signalId.endsWith("_rpm")) return "RPM";
-        if (signalId.endsWith("_temp")) return "°C";
-        if (signalId.endsWith("_position")) return "mm";
-        if (signalId.endsWith("_speed")) return "m/s";
+        if (signalId.endsWith("_rpm"))
+            return "RPM";
+        if (signalId.endsWith("_temp"))
+            return "°C";
+        if (signalId.endsWith("_position"))
+            return "mm";
+        if (signalId.endsWith("_speed"))
+            return "m/s";
         return "";
     }
 
     private String inferDeviceType(String logicalName) {
         String lowerName = logicalName.toLowerCase();
-        if (lowerName.contains("conveyor")) return "Conveyor";
-        if (lowerName.contains("placer")) return "Component Placer";
-        if (lowerName.contains("motor")) return "Motor";
-        if (lowerName.contains("sensor")) return "Sensor";
+        if (lowerName.contains("conveyor"))
+            return "Conveyor";
+        if (lowerName.contains("placer"))
+            return "Component Placer";
+        if (lowerName.contains("motor"))
+            return "Motor";
+        if (lowerName.contains("sensor"))
+            return "Sensor";
         return "Device";
     }
 
@@ -414,7 +435,7 @@ public class AdminController {
 
             if (name == null || name.trim().isEmpty()) {
                 return ResponseEntity.badRequest()
-                    .body(Map.of("error", "Factory name is required"));
+                        .body(Map.of("error", "Factory name is required"));
             }
 
             // Generate factoryId if not provided
@@ -424,7 +445,7 @@ public class AdminController {
 
             // Get the first manufacturer (for now, we can make this configurable later)
             Manufacturer manufacturer = manufacturerRepository.findAll().stream().findFirst()
-                .orElseThrow(() -> new RuntimeException("No manufacturer found"));
+                    .orElseThrow(() -> new RuntimeException("No manufacturer found"));
 
             Factory factory = new Factory();
             factory.setFactoryId(factoryId);
@@ -448,15 +469,16 @@ public class AdminController {
         } catch (Exception e) {
             log.error("Error creating factory", e);
             return ResponseEntity.internalServerError()
-                .body(Map.of("error", "Failed to create factory"));
+                    .body(Map.of("error", "Failed to create factory"));
         }
     }
 
     @PutMapping("/factories/{id}")
-    public ResponseEntity<Map<String, Object>> updateFactory(@PathVariable Long id, @RequestBody Map<String, Object> request) {
+    public ResponseEntity<Map<String, Object>> updateFactory(@PathVariable Long id,
+            @RequestBody Map<String, Object> request) {
         try {
             Factory factory = factoryRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Factory not found"));
+                    .orElseThrow(() -> new RuntimeException("Factory not found"));
 
             String name = (String) request.get("name");
             String description = (String) request.get("description");
@@ -481,7 +503,7 @@ public class AdminController {
         } catch (Exception e) {
             log.error("Error updating factory", e);
             return ResponseEntity.internalServerError()
-                .body(Map.of("error", "Failed to update factory"));
+                    .body(Map.of("error", "Failed to update factory"));
         }
     }
 
@@ -489,12 +511,13 @@ public class AdminController {
     public ResponseEntity<Map<String, Object>> deleteFactory(@PathVariable Long id) {
         try {
             Factory factory = factoryRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Factory not found"));
+                    .orElseThrow(() -> new RuntimeException("Factory not found"));
 
             // Check if factory has devices assigned
             if (factory.getPlcs() != null && !factory.getPlcs().isEmpty()) {
                 return ResponseEntity.badRequest()
-                    .body(Map.of("error", "Cannot delete factory with assigned devices. Please unassign all devices first."));
+                        .body(Map.of("error",
+                                "Cannot delete factory with assigned devices. Please unassign all devices first."));
             }
 
             factoryRepository.delete(factory);
@@ -503,7 +526,7 @@ public class AdminController {
         } catch (Exception e) {
             log.error("Error deleting factory", e);
             return ResponseEntity.internalServerError()
-                .body(Map.of("error", "Failed to delete factory"));
+                    .body(Map.of("error", "Failed to delete factory"));
         }
     }
 }

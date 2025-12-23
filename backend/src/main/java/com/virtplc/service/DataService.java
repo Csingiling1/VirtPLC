@@ -134,7 +134,8 @@ public class DataService {
      * Get data for a specific device within a time range.
      */
     public List<SensorData> getDeviceData(Company company, String deviceId, Long startTime, Long endTime) {
-        log.debug("Querying device data from plc_data table for device {} in range {} to {}", deviceId, startTime, endTime);
+        log.debug("Querying device data from plc_data table for device {} in range {} to {}", deviceId, startTime,
+                endTime);
 
         LocalDateTime start = LocalDateTime.ofEpochSecond(startTime / 1000, 0, ZoneOffset.UTC);
         LocalDateTime end = LocalDateTime.ofEpochSecond(endTime / 1000, 0, ZoneOffset.UTC);
@@ -149,7 +150,8 @@ public class DataService {
     }
 
     /**
-     * Convert a list of PlcData entries at the same timestamp to a SensorData object.
+     * Convert a list of PlcData entries at the same timestamp to a SensorData
+     * object.
      */
     private SensorData convertPlcDataListToSensorData(List<PlcData> plcDataList, LocalDateTime timestamp) {
         SensorData.SensorDataBuilder builder = SensorData.builder()

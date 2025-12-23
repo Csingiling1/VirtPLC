@@ -33,11 +33,11 @@ public class PlcDataRepository {
      */
     public List<PlcData> findByTimestampBetween(LocalDateTime startTime, LocalDateTime endTime) {
         String sql = """
-            SELECT timestamp, device_id, type, data, metadata, rpm, position_x, position_y, is_on, in_operation
-            FROM plc_data
-            WHERE timestamp BETWEEN ? AND ?
-            ORDER BY timestamp DESC
-            """;
+                SELECT timestamp, device_id, type, data, metadata, rpm, position_x, position_y, is_on, in_operation
+                FROM plc_data
+                WHERE timestamp BETWEEN ? AND ?
+                ORDER BY timestamp DESC
+                """;
 
         return jdbcTemplate.query(sql, new PlcDataRowMapper(), startTime, endTime);
     }
@@ -47,12 +47,12 @@ public class PlcDataRepository {
      */
     public PlcData findLatestByDeviceId(String deviceId) {
         String sql = """
-            SELECT timestamp, device_id, type, data, metadata, rpm, position_x, position_y, is_on, in_operation
-            FROM plc_data
-            WHERE device_id = ?
-            ORDER BY timestamp DESC
-            LIMIT 1
-            """;
+                SELECT timestamp, device_id, type, data, metadata, rpm, position_x, position_y, is_on, in_operation
+                FROM plc_data
+                WHERE device_id = ?
+                ORDER BY timestamp DESC
+                LIMIT 1
+                """;
 
         List<PlcData> results = jdbcTemplate.query(sql, new PlcDataRowMapper(), deviceId);
         return results.isEmpty() ? null : results.get(0);
@@ -63,10 +63,10 @@ public class PlcDataRepository {
      */
     public List<PlcData> findLatestForAllDevices() {
         String sql = """
-            SELECT DISTINCT ON (device_id) timestamp, device_id, type, data, metadata, rpm, position_x, position_y, is_on, in_operation
-            FROM plc_data
-            ORDER BY device_id, timestamp DESC
-            """;
+                SELECT DISTINCT ON (device_id) timestamp, device_id, type, data, metadata, rpm, position_x, position_y, is_on, in_operation
+                FROM plc_data
+                ORDER BY device_id, timestamp DESC
+                """;
 
         return jdbcTemplate.query(sql, new PlcDataRowMapper());
     }
@@ -83,23 +83,23 @@ public class PlcDataRepository {
         @Override
         public PlcData mapRow(ResultSet rs, int rowNum) throws SQLException {
             try {
-                JsonNode dataNode = rs.getString("data") != null ?
-                    objectMapper.readTree(rs.getString("data")) : null;
-                JsonNode metadataNode = rs.getString("metadata") != null ?
-                    objectMapper.readTree(rs.getString("metadata")) : null;
+                JsonNode dataNode = rs.getString("data") != null ? objectMapper.readTree(rs.getString("data")) : null;
+                JsonNode metadataNode = rs.getString("metadata") != null
+                        ? objectMapper.readTree(rs.getString("metadata"))
+                        : null;
 
                 return PlcData.builder()
-                    .timestamp(rs.getTimestamp("timestamp").toLocalDateTime())
-                    .deviceId(rs.getString("device_id"))
-                    .type(rs.getString("type"))
-                    .data(dataNode)
-                    .metadata(metadataNode)
-                    .rpm(rs.getDouble("rpm"))
-                    .positionX(rs.getDouble("position_x"))
-                    .positionY(rs.getDouble("position_y"))
-                    .isOn(rs.getBoolean("is_on"))
-                    .inOperation(rs.getBoolean("in_operation"))
-                    .build();
+                        .timestamp(rs.getTimestamp("timestamp").toLocalDateTime())
+                        .deviceId(rs.getString("device_id"))
+                        .type(rs.getString("type"))
+                        .data(dataNode)
+                        .metadata(metadataNode)
+                        .rpm(rs.getDouble("rpm"))
+                        .positionX(rs.getDouble("position_x"))
+                        .positionY(rs.getDouble("position_y"))
+                        .isOn(rs.getBoolean("is_on"))
+                        .inOperation(rs.getBoolean("in_operation"))
+                        .build();
             } catch (Exception e) {
                 throw new SQLException("Failed to map PlcData row", e);
             }

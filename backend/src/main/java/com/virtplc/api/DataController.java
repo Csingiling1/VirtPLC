@@ -124,8 +124,7 @@ public class DataController {
             // Get all factories for the user's manufacturers
             List<Factory> factories = factoryRepository.findAll().stream()
                     .filter(factory -> manufacturers == null ||
-                            manufacturers.stream().anyMatch(m ->
-                                m.getId().equals(factory.getManufacturer().getId())))
+                            manufacturers.stream().anyMatch(m -> m.getId().equals(factory.getManufacturer().getId())))
                     .collect(Collectors.toList());
             log.info("Found {} factories", factories.size());
 
@@ -183,13 +182,15 @@ public class DataController {
                             Map<String, Object> sensorMap = new HashMap<>();
                             sensorMap.put("id", sensor.getSensorId());
                             sensorMap.put("name", sensor.getName());
-                            sensorMap.put("unit", sensor.getSignalConfig() != null ? sensor.getSignalConfig().getUnit() : "");
+                            sensorMap.put("unit",
+                                    sensor.getSignalConfig() != null ? sensor.getSignalConfig().getUnit() : "");
 
                             if (latestData != null) {
                                 // Extract value from PlcData based on sensor type
                                 Double value = extractValueFromPlcData(latestData, sensor);
                                 sensorMap.put("value", value != null ? value : 0.0);
-                                sensorMap.put("timestamp", latestData.getTimestamp().toInstant(ZoneOffset.UTC).toEpochMilli());
+                                sensorMap.put("timestamp",
+                                        latestData.getTimestamp().toInstant(ZoneOffset.UTC).toEpochMilli());
                             } else {
                                 sensorMap.put("value", 0.0);
                                 sensorMap.put("timestamp", System.currentTimeMillis());
@@ -228,7 +229,8 @@ public class DataController {
      * Extract sensor value from PlcData based on sensor configuration.
      */
     private Double extractValueFromPlcData(PlcData plcData, Sensor sensor) {
-        if (plcData == null) return null;
+        if (plcData == null)
+            return null;
 
         // Try different fields based on sensor type or name
         String sensorName = sensor.getName().toLowerCase();

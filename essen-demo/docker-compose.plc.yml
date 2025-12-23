@@ -5,45 +5,39 @@ version: '3.8'
 # Purpose: PLC simulation and data collection from Unreal Engine
 
 services:
-  # RabbitMQ for MQTT messaging between components
+  # RabbitMQ MQTT Broker (replaces Mosquitto)
   rabbitmq:
-    image: rabbitmq:3-management-alpine
+    image: rabbitmq:3-management
     container_name: virtplc-rabbitmq
-    restart: unless-stopped
-    environment:
-      RABBITMQ_DEFAULT_USER: virtplc
-      RABBITMQ_DEFAULT_PASS: virtplc123
     ports:
-      - "5672:5672"    # AMQP port
+      - "1883:1883"  # MQTT port
       - "15672:15672"  # Management UI
-      - "1883:1883"    # MQTT port
+    environment:
+      - RABBITMQ_DEFAULT_USER=${MQTT_USERNAME:-virtplc}
+      - RABBITMQ_DEFAULT_PASS=${MQTT_PASSWORD:-virtplc123}
+      - RABBITMQ_PLUGINS=rabbitmq_management,rabbitmq_mqtt
     volumes:
-      - rabbitmq_data:/var/lib/rabbitmq
+      - rabbitmq-data:/var/lib/rabbitmq
     networks:
       - plc_network
-    healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
+    restart: unless-stopped
 
-  # Node-RED for data processing and routing
+  # Node-RED MQTT Bridge
   nodered:
     image: nodered/node-red:latest
     container_name: virtplc-nodered
-    restart: unless-stopped
-    user: root
-    environment:
-      - TZ=Europe/Berlin
     ports:
-      - "1880:1880"
+      - "1880:1880"   # Node-RED UI
     volumes:
+      - nodered-data:/data
       - ./nodered/flows:/data/flows
-      - ./nodered/settings.js:/data/settings.js
-      - nodered_data:/data
+      - ./nodered/settings.js:/data/settings.js:ro
+    environment:
+      - NODE_RED_CREDENTIAL_SECRET=${NODE_RED_CREDENTIAL_SECRET:-your-secret-key}
+      - MQTT_BROKER=rabbitmq
+      - MQTT_PORT=1883
     depends_on:
-      rabbitmq:
-        condition: service_healthy
+      - rabbitmq
     networks:
       - plc_network
     healthcheck:
@@ -51,6 +45,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+    restart: unless-stopped
 
   # Ignition Edge for PLC simulation
   ignition:
@@ -79,8 +74,10 @@ services:
       retries: 5
 
 volumes:
-  rabbitmq_data:
-  nodered_data:
+  rabbitmq-data:
+    name: virtplc-rabbitmq-data
+  nodered-data:
+    name: virtplc-nodered-data
   ignition_data:
 
 networks:
