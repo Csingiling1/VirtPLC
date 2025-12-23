@@ -1,0 +1,63 @@
+version: '3.8'
+
+# Data Collection Server Setup (Windows machine with PLC)
+# Components: TimescaleDB, PostgreSQL
+# Purpose: Time-series data storage and relational database
+
+services:
+  # PostgreSQL database for relational data
+  postgres:
+    image: postgres:15-alpine
+    container_name: virtplc-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: virtplc
+      POSTGRES_PASSWORD: virtplc123
+      POSTGRES_DB: virtplc
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/src/main/resources/init-postgres.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - data_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U virtplc -d virtplc"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # TimescaleDB for time-series sensor data
+  timescale:
+    image: timescale/timescaledb:latest-pg15
+    container_name: virtplc-timescale
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: virtplc
+      POSTGRES_PASSWORD: virtplc123
+      POSTGRES_DB: virtplc_ts
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5433:5432"  # Different port to avoid conflict with postgres
+    volumes:
+      - timescale_data:/var/lib/postgresql/data
+      - ./backend/src/main/resources/init-timescale.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - data_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U virtplc -d virtplc_ts"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+volumes:
+  postgres_data:
+  timescale_data:
+
+networks:
+  data_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.21.0.0/16</content>
+<parameter name="filePath">/home/deginandor/Documents/Programming/VirtPLC/essen-demo/docker-compose.data.yml

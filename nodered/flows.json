@@ -2,17 +2,17 @@
     {
         "id": "main_flow",
         "type": "tab",
-        "label": "Complete Data Pipeline",
+        "label": "Hybrid: Sim + Unreal + Real",
         "disabled": false,
-        "info": "Multi-source pipeline:\n- Simulator (plc/+) → Collector → TimescaleDB\n- Unreal Engine (unreal/factory/#) → Ignition Tags + Collector → TimescaleDB\n- Ignition Commands → Unreal Engine"
+        "info": "Merged Pipeline:\n1. LEGACY SIMULATOR (plc/+) -> Validation -> Collector\n2. UNREAL ENGINE (factory/data/#) -> Fan-Out -> Ignition/Collector\n3. VIRTUAL PLC (Modbus Server) for Ignition Sync"
     },
     {
         "id": "mqtt_broker_cfg",
         "type": "mqtt-broker",
-        "name": "VirtPLC MQTT Broker",
-        "broker": "mqtt",
+        "name": "Factory RabbitMQ (Docker)",
+        "broker": "rabbitmq",
         "port": "1883",
-        "clientid": "nodered-bridge",
+        "clientid": "nodered-hybrid-bridge",
         "autoConnect": true,
         "usetls": false,
         "protocolVersion": "4",
@@ -30,237 +30,40 @@
         }
     },
     {
-        "id": "unreal_data_in",
-        "type": "mqtt in",
+        "id": "modbus_server_standard",
+        "type": "modbus-server",
         "z": "main_flow",
-        "name": "Unreal Engine Data",
-        "topic": "unreal/factory/#",
-        "qos": "1",
-        "datatype": "json",
-        "broker": "mqtt_broker_cfg",
-        "x": 150,
-        "y": 100,
+        "name": "Virtual PLC Server",
+        "logEnabled": false,
+        "hostname": "0.0.0.0",
+        "serverPort": "5020",
+        "responseDelay": "100",
+        "delayUnit": "ms",
+        "coilsBufferSize": "100",
+        "holdingBufferSize": "100",
+        "inputBufferSize": "100",
+        "discreteBufferSize": "100",
+        "showErrors": false,
+        "x": 890,
+        "y": 920,
         "wires": [
-            [
-                "parse_unreal_data"
-            ]
+            [],
+            [],
+            [],
+            []
         ]
-    },
-    {
-        "id": "parse_unreal_data",
-        "type": "function",
-        "z": "main_flow",
-        "name": "Parse Unreal Data",
-        "func": "// Expected MQTT topics from Unreal:\n// unreal/factory/conveyor1/rpm\n// unreal/factory/conveyor2/rpm\n// unreal/factory/machine1/position\n// unreal/factory/machine1/status\n\nconst topicParts = msg.topic.split('/');\nconst component = topicParts[2]; // conveyor1, conveyor2, machine1\nconst dataType = topicParts[3];  // rpm, position, status\n\nmsg.component = component;\nmsg.dataType = dataType;\nmsg.timestamp = Date.now();\n\n// Parse payload if string\nif (typeof msg.payload === 'string') {\n    try {\n        msg.payload = JSON.parse(msg.payload);\n    } catch(e) {\n        msg.payload = { value: parseFloat(msg.payload) || msg.payload };\n    }\n}\n\nreturn msg;",
-        "outputs": 1,
-        "x": 360,
-        "y": 100,
-        "wires": [
-            [
-                "route_to_ignition",
-                "route_to_collector",
-                "log_unreal"
-            ]
-        ]
-    },
-    {
-        "id": "log_unreal",
-        "type": "debug",
-        "z": "main_flow",
-        "name": "Log Unreal Data",
-        "active": true,
-        "tosidebar": true,
-        "console": false,
-        "x": 590,
-        "y": 60,
-        "wires": []
-    },
-    {
-        "id": "route_to_ignition",
-        "type": "function",
-        "z": "main_flow",
-        "name": "Map to Ignition Tags",
-        "func": "// Map Unreal data to Ignition tag structure\nlet tagPath = '';\nlet tagValue = null;\n\nswitch(msg.component) {\n    case 'conveyor1':\n        if (msg.dataType === 'rpm') {\n            tagPath = '[default]Conveyor1/RPM';\n            tagValue = msg.payload.value || msg.payload;\n        }\n        break;\n    \n    case 'conveyor2':\n        if (msg.dataType === 'rpm') {\n            tagPath = '[default]Conveyor2/RPM';\n            tagValue = msg.payload.value || msg.payload;\n        }\n        break;\n    \n    case 'machine1':\n        if (msg.dataType === 'position') {\n            // Handle X,Y coordinates\n            return [\n                { topic: 'ignition/tag/write', payload: { tagPath: '[default]Machine1/X', value: msg.payload.x || 0, quality: 'GOOD', timestamp: msg.timestamp }},\n                { topic: 'ignition/tag/write', payload: { tagPath: '[default]Machine1/Y', value: msg.payload.y || 0, quality: 'GOOD', timestamp: msg.timestamp }}\n            ];\n        } else if (msg.dataType === 'status') {\n            return [\n                { topic: 'ignition/tag/write', payload: { tagPath: '[default]Machine1/IsReady', value: msg.payload.isReady || false, quality: 'GOOD', timestamp: msg.timestamp }},\n                { topic: 'ignition/tag/write', payload: { tagPath: '[default]Machine1/IsDone', value: msg.payload.isDone || false, quality: 'GOOD', timestamp: msg.timestamp }}\n            ];\n        }\n        break;\n}\n\nif (tagPath && tagValue !== null) {\n    msg.topic = 'ignition/tag/write';\n    msg.payload = {\n        tagPath: tagPath,\n        value: tagValue,\n        quality: 'GOOD',\n        timestamp: msg.timestamp\n    };\n    return msg;\n}\n\nreturn null;",
-        "outputs": 1,
-        "x": 600,
-        "y": 100,
-        "wires": [
-            [
-                "write_to_ignition"
-            ]
-        ]
-    },
-    {
-        "id": "write_to_ignition",
-        "type": "mqtt out",
-        "z": "main_flow",
-        "name": "Write Ignition Tags",
-        "topic": "",
-        "qos": "1",
-        "retain": "false",
-        "respTopic": "",
-        "contentType": "",
-        "broker": "mqtt_broker_cfg",
-        "x": 840,
-        "y": 100,
-        "wires": []
-    },
-    {
-        "id": "route_to_collector",
-        "type": "function",
-        "z": "main_flow",
-        "name": "Format for Collector",
-        "func": "// Format data for Collector (receives from Unreal Engine)\n// Match the simulator format for consistent TimescaleDB storage\nconst startTime = Date.now();\nconst deviceId = `${msg.component}_${msg.dataType}`;\n\n// Handle different payload structures\nlet fields = {};\nif (typeof msg.payload === 'object' && msg.payload !== null) {\n    fields = msg.payload;\n} else {\n    fields = { value: msg.payload };\n}\n\nmsg.payload = {\n    device_id: deviceId,\n    timestamp: msg.timestamp / 1000, // Convert ms to seconds as float\n    type: 'sensor', // Use 'sensor' type like simulator for consistency\n    data: {\n        id: deviceId,\n        name: `${msg.component} ${msg.dataType}`,\n        signal_config: fields\n    },\n    metadata: {\n        source: 'unreal_engine',\n        component: msg.component,\n        data_type: msg.dataType\n    },\n    processed_at: new Date().toISOString(),\n    node_red_version: '1.0',\n    topic_original: msg.topic,\n    data_quality: {\n        valid: true,\n        latency_ms: Date.now() - startTime\n    },\n    category: 'Unreal',\n    priority: 'high'\n};\n\nmsg.topic = 'collector/ingest';\nreturn msg;",
-        "outputs": 1,
-        "x": 600,
-        "y": 140,
-        "wires": [
-            [
-                "send_to_collector"
-            ]
-        ]
-    },
-    {
-        "id": "send_to_collector",
-        "type": "mqtt out",
-        "z": "main_flow",
-        "name": "Unreal → Collector",
-        "topic": "",
-        "qos": "1",
-        "retain": "false",
-        "respTopic": "",
-        "contentType": "",
-        "broker": "mqtt_broker_cfg",
-        "x": 840,
-        "y": 140,
-        "wires": []
-    },
-    {
-        "id": "ignition_commands_in",
-        "type": "mqtt in",
-        "z": "main_flow",
-        "name": "Ignition Tag Changes",
-        "topic": "ignition/tag/#",
-        "qos": "1",
-        "datatype": "json",
-        "broker": "mqtt_broker_cfg",
-        "x": 150,
-        "y": 300,
-        "wires": [
-            [
-                "parse_ignition_tag"
-            ]
-        ]
-    },
-    {
-        "id": "parse_ignition_tag",
-        "type": "function",
-        "z": "main_flow",
-        "name": "Parse Ignition Tag",
-        "func": "// Expected topics from Ignition Edge:\n// ignition/tag/Conveyor1/Running\n// ignition/tag/Conveyor2/Running\n// ignition/tag/Machine1/Running\n\nconst topicParts = msg.topic.split('/');\nconst component = topicParts[2];  // Conveyor1, Conveyor2, Machine1\nconst tagName = topicParts[3];    // Running\n\nmsg.component = component;\nmsg.tagName = tagName;\n\n// Extract value from Ignition tag format\nif (typeof msg.payload === 'object' && msg.payload.value !== undefined) {\n    msg.tagValue = msg.payload.value;\n} else {\n    msg.tagValue = msg.payload;\n}\n\nnode.status({\n    fill: 'blue',\n    shape: 'dot',\n    text: `${component}.${tagName} = ${msg.tagValue}`\n});\n\nreturn msg;",
-        "outputs": 1,
-        "x": 380,
-        "y": 300,
-        "wires": [
-            [
-                "route_to_unreal",
-                "log_command"
-            ]
-        ]
-    },
-    {
-        "id": "log_command",
-        "type": "debug",
-        "z": "main_flow",
-        "name": "Log Commands",
-        "active": true,
-        "tosidebar": true,
-        "console": false,
-        "x": 590,
-        "y": 260,
-        "wires": []
-    },
-    {
-        "id": "route_to_unreal",
-        "type": "function",
-        "z": "main_flow",
-        "name": "Format for Unreal",
-        "func": "// Send Ignition tag changes to Unreal Engine\n// Map Ignition tag names to Unreal command topics\n\nlet unrealTopic = '';\nlet unrealCommand = {};\n\nswitch(msg.component.toLowerCase()) {\n    case 'conveyor1':\n        if (msg.tagName === 'Running') {\n            unrealTopic = 'unreal/command/conveyor1/running';\n            unrealCommand = {\n                running: msg.tagValue,\n                rpm: msg.tagValue ? 1500 : 0,\n                timestamp: Date.now(),\n                source: 'ignition'\n            };\n        }\n        break;\n    \n    case 'conveyor2':\n        if (msg.tagName === 'Running') {\n            unrealTopic = 'unreal/command/conveyor2/running';\n            unrealCommand = {\n                running: msg.tagValue,\n                rpm: msg.tagValue ? 1200 : 0,\n                timestamp: Date.now(),\n                source: 'ignition'\n            };\n        }\n        break;\n    \n    case 'machine1':\n        if (msg.tagName === 'Running') {\n            unrealTopic = 'unreal/command/machine1/running';\n            unrealCommand = {\n                running: msg.tagValue,\n                timestamp: Date.now(),\n                source: 'ignition'\n            };\n        }\n        break;\n}\n\nif (unrealTopic) {\n    msg.topic = unrealTopic;\n    msg.payload = unrealCommand;\n    return msg;\n}\n\nreturn null;",
-        "outputs": 1,
-        "x": 600,
-        "y": 300,
-        "wires": [
-            [
-                "send_to_unreal"
-            ]
-        ]
-    },
-    {
-        "id": "send_to_unreal",
-        "type": "mqtt out",
-        "z": "main_flow",
-        "name": "Send to Unreal",
-        "topic": "",
-        "qos": "1",
-        "retain": "false",
-        "respTopic": "",
-        "contentType": "",
-        "broker": "mqtt_broker_cfg",
-        "x": 820,
-        "y": 300,
-        "wires": []
-    },
-    {
-        "id": "heartbeat",
-        "type": "inject",
-        "z": "main_flow",
-        "name": "Heartbeat 10s",
-        "props": [
-            {
-                "p": "payload"
-            }
-        ],
-        "repeat": "10",
-        "crontab": "",
-        "once": true,
-        "onceDelay": "2",
-        "topic": "",
-        "payload": "{\"status\":\"running\",\"timestamp\":\"$now()\"}",
-        "payloadType": "jsonata",
-        "x": 160,
-        "y": 500,
-        "wires": [
-            [
-                "publish_heartbeat"
-            ]
-        ]
-    },
-    {
-        "id": "publish_heartbeat",
-        "type": "mqtt out",
-        "z": "main_flow",
-        "name": "Publish Heartbeat",
-        "topic": "nodered/heartbeat",
-        "qos": "0",
-        "retain": "false",
-        "respTopic": "",
-        "contentType": "",
-        "broker": "mqtt_broker_cfg",
-        "x": 390,
-        "y": 500,
-        "wires": []
     },
     {
         "id": "simulator_input",
         "type": "mqtt in",
         "z": "main_flow",
-        "name": "Simulator Data",
+        "name": "Simulator: plc/+",
         "topic": "plc/+",
         "qos": "1",
         "datatype": "json",
         "broker": "mqtt_broker_cfg",
-        "x": 150,
-        "y": 600,
+        "x": 140,
+        "y": 100,
         "wires": [
             [
                 "validate_simulator_data",
@@ -269,30 +72,17 @@
         ]
     },
     {
-        "id": "log_simulator",
-        "type": "debug",
-        "z": "main_flow",
-        "name": "Log Simulator Data",
-        "active": true,
-        "tosidebar": true,
-        "console": false,
-        "x": 380,
-        "y": 560,
-        "wires": []
-    },
-    {
         "id": "validate_simulator_data",
         "type": "function",
         "z": "main_flow",
-        "name": "Validate & Enrich Simulator",
-        "func": "// Validate required fields\nif (!msg.payload.device_id || !msg.payload.timestamp) {\n    node.warn('Missing required fields');\n    return null;\n}\n\n// Increment message counter\nlet count = context.get('messageCount') || 0;\ncount++;\ncontext.set('messageCount', count);\n\n// Enrich with metadata\nmsg.enriched = {\n    ...msg.payload,\n    processed_at: new Date().toISOString(),\n    node_red_version: '1.0',\n    topic_original: msg.topic,\n    data_quality: {\n        valid: true,\n        latency_ms: Date.now() - (msg.payload.timestamp * 1000)\n    }\n};\n\nnode.status({\n    fill: 'green',\n    shape: 'dot',\n    text: `${msg.payload.device_id} (${count})`\n});\n\nreturn msg;",
+        "name": "Validate & Enrich (Legacy)",
+        "func": "// YOUR ORIGINAL LOGIC PRESERVED\nif (!msg.payload.device_id || !msg.payload.timestamp) {\n    node.warn('Missing required fields');\n    return null;\n}\n\nlet count = context.get('messageCount') || 0;\ncount++;\ncontext.set('messageCount', count);\n\nmsg.enriched = {\n    ...msg.payload,\n    processed_at: new Date().toISOString(),\n    node_red_version: '1.0',\n    topic_original: msg.topic,\n    data_quality: {\n        valid: true,\n        latency_ms: Date.now() - (msg.payload.timestamp * 1000)\n    }\n};\n\nnode.status({\n    fill: 'green',\n    shape: 'dot',\n    text: `${msg.payload.device_id} (${count})`\n});\n\nreturn msg;",
         "outputs": 1,
-        "x": 400,
-        "y": 600,
+        "x": 380,
+        "y": 100,
         "wires": [
             [
-                "route_simulator_data",
-                "write_to_plc_modbus"
+                "route_simulator_data"
             ]
         ]
     },
@@ -321,8 +111,8 @@
         "checkall": true,
         "repair": false,
         "outputs": 3,
-        "x": 640,
-        "y": 600,
+        "x": 620,
+        "y": 100,
         "wires": [
             [
                 "format_plc"
@@ -342,11 +132,11 @@
         "name": "Format PLC Data",
         "func": "msg.payload = {\n    ...msg.enriched,\n    category: 'PLC',\n    priority: 'high'\n};\nmsg.topic = 'collector/ingest';\nreturn msg;",
         "outputs": 1,
-        "x": 840,
-        "y": 580,
+        "x": 830,
+        "y": 60,
         "wires": [
             [
-                "send_simulator_to_collector"
+                "send_to_collector"
             ]
         ]
     },
@@ -357,206 +147,229 @@
         "name": "Format Sensor Data",
         "func": "msg.payload = {\n    ...msg.enriched,\n    category: 'Sensor',\n    priority: 'medium'\n};\nmsg.topic = 'collector/ingest';\nreturn msg;",
         "outputs": 1,
-        "x": 850,
-        "y": 620,
+        "x": 840,
+        "y": 100,
         "wires": [
             [
-                "send_simulator_to_collector"
+                "send_to_collector"
             ]
         ]
+    },
+    {
+        "id": "send_to_collector",
+        "type": "mqtt out",
+        "z": "main_flow",
+        "name": "To Collector",
+        "topic": "",
+        "qos": "1",
+        "retain": "false",
+        "respTopic": "",
+        "contentType": "",
+        "broker": "mqtt_broker_cfg",
+        "x": 1070,
+        "y": 100,
+        "wires": []
+    },
+    {
+        "id": "log_simulator",
+        "type": "debug",
+        "z": "main_flow",
+        "name": "Log Sim",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "x": 320,
+        "y": 60,
+        "wires": []
     },
     {
         "id": "log_unknown_type",
         "type": "debug",
         "z": "main_flow",
-        "name": "Log Unknown Type",
+        "name": "Log Unknown",
         "active": true,
         "tosidebar": true,
         "console": false,
-        "x": 850,
-        "y": 660,
+        "x": 810,
+        "y": 140,
         "wires": []
     },
     {
-        "id": "modbus_writer",
-        "type": "modbus-write",
+        "id": "debug_unreal_raw",
+        "type": "debug",
         "z": "main_flow",
-        "name": "Write to PLC Modbus",
-        "showStatusActivities": true,
-        "showErrors": true,
-        "server": "modbus_plc_server",
-        "x": 650,
-        "y": 640,
+        "name": "Debug Unreal Raw",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 160,
+        "y": 340,
+        "wires": []
+    },
+    {
+        "id": "unreal_data_in_new",
+        "type": "mqtt in",
+        "z": "main_flow",
+        "name": "Unreal: factory/data/#",
+        "topic": "factory/data/#",
+        "qos": "1",
+        "datatype": "buffer",
+        "broker": "mqtt_broker_cfg",
+        "x": 160,
+        "y": 380,
         "wires": [
             [
-                "log_modbus_write"
+                "debug_unreal_raw",
+                "fan_out_parser"
             ]
         ]
     },
     {
-        "id": "log_modbus_write",
-        "type": "debug",
+        "id": "fan_out_parser",
+        "type": "function",
         "z": "main_flow",
-        "name": "Log Modbus Writes",
-        "active": true,
-        "tosidebar": true,
-        "console": false,
-        "x": 870,
+        "name": "Fan-Out Parser (New)",
+        "func": "// Topic: factory/data/{DeviceID}\n// Payload: { is_on, Rpm, PosX, PosY, in_operation }\n\nconst topicParts = msg.topic.split('/');\nconst deviceId = topicParts[2];\n\n// Handle raw buffer data from MQTT\nlet payload;\nif (Buffer.isBuffer(msg.payload)) {\n    try {\n        let rawString = msg.payload.toString('utf8');\n        node.warn('Raw Unreal data received: ' + rawString);\n        // Fix malformed JSON: remove commas from numbers, fix decimal points, add missing commas, normalize keys\n        rawString = rawString.replace(/(\\d+),(\\d+)/g, '$1$2'); // Remove commas in numbers\n        rawString = rawString.replace(/(\\d+(?:\\.\\d+)?)\\./g, '$1.0'); // Fix trailing decimal points\n        rawString = rawString.replace(/(\\d+(?:\\.\\d+)?)\\s+\"/g, '$1,\"'); // Add missing comma after number\n        rawString = rawString.replace(/true\\s+\"/g, 'true,\"'); // Add missing comma after true\n        rawString = rawString.replace(/\"In_operation\"/g, '\"in_operation\"'); // Normalize key case\n        rawString = rawString.replace(/\"PosX\"/g, '\"posX\"'); // Normalize key case\n        rawString = rawString.replace(/\"PosY\"/g, '\"posY\"'); // Normalize key case\n        rawString = rawString.replace(/\"Rpm\"/g, '\"rpm\"'); // Normalize key case\n        node.warn('Fixed Unreal data: ' + rawString);\n        payload = JSON.parse(rawString);\n        node.warn('Parsed Unreal JSON: ' + JSON.stringify(payload));\n    } catch (e) {\n        node.error('Failed to parse Unreal JSON: ' + e.message);\n        node.error('Raw data was: ' + msg.payload.toString('utf8'));\n        return null;\n    }\n} else if (typeof msg.payload === 'string') {\n    try {\n        let rawString = msg.payload;\n        // Fix malformed JSON: remove commas from numbers, fix decimal points, add missing commas, normalize keys\n        rawString = rawString.replace(/(\\d+),(\\d+)/g, '$1$2');\n        rawString = rawString.replace(/(\\d+(?:\\.\\d+)?)\\./g, '$1.0');\n        rawString = rawString.replace(/(\\d+(?:\\.\\d+)?)\\s+\"/g, '$1,\"');\n        rawString = rawString.replace(/true\\s+\"/g, 'true,\"');\n        rawString = rawString.replace(/\"In_operation\"/g, '\"in_operation\"');\n        rawString = rawString.replace(/\"PosX\"/g, '\"posX\"');\n        rawString = rawString.replace(/\"PosY\"/g, '\"posY\"');\n        rawString = rawString.replace(/\"Rpm\"/g, '\"rpm\"');\n        payload = JSON.parse(rawString);\n    } catch (e) {\n        node.error('Failed to parse Unreal string JSON: ' + e.message);\n        return null;\n    }\n} else {\n    payload = msg.payload;\n}\n\nconst timestamp = Date.now();\n\nlet msgs = [];\n\n// Helper to create msg\nfunction addMsg(type, val, raw) {\n    msgs.push({\n        component: deviceId,\n        dataType: type,\n        payload: val,\n        timestamp: timestamp,\n        raw_payload: raw\n    });\n}\n\n// 1. RPM Data\nif (payload.Rpm !== undefined) addMsg('rpm', payload.Rpm, payload);\nif (payload.rpm !== undefined) addMsg('rpm', payload.rpm, payload);\n\n// 2. Position Data - Send as separate X and Y coordinates\nif (payload.PosX !== undefined || payload.posX !== undefined) {\n    addMsg('position_x', payload.PosX || payload.posX, payload);\n}\nif (payload.PosY !== undefined || payload.posY !== undefined) {\n    addMsg('position_y', payload.PosY || payload.posY, payload);\n}\n\n// 3. Status Data\nif (payload.is_on !== undefined) {\n    addMsg('status', { \n        isReady: payload.is_on, \n        isDone: payload.in_operation || payload.In_operation || false \n    }, payload);\n}\n\n// Send each message to all outputs\nmsgs.forEach(m => {\n    node.send([m, m, m]);\n});\n\nreturn null;",
+        "outputs": 3,
+        "x": 400,
+        "y": 380,
+        "wires": [
+            [
+                "route_to_ignition",
+                "format_collector_unreal",
+                "write_virtual_plc"
+            ]
+        ]
+    },
+    {
+        "id": "route_to_ignition",
+        "type": "function",
+        "z": "main_flow",
+        "name": "Map to Ignition Tags",
+        "func": "// Maps parsed data to Ignition MQTT topics\nlet msgs = [];\nconst ts = msg.timestamp;\n\nfunction tag(path, val) {\n    return {\n        topic: 'ignition/tag/write',\n        payload: { tagPath: path, value: val, quality: 'GOOD', timestamp: ts }\n    };\n}\n\nconst comp = msg.component;\n\n// CONVEYORS\nif (comp.includes('Conveyor') || comp.includes('Belt')) {\n    if (msg.dataType === 'rpm') {\n        let id = comp.includes('1') ? 'Conveyor1' : 'Conveyor2';\n        msgs.push(tag(`[default]${id}/RPM`, msg.payload));\n    }\n}\n\n// PLACER\nif (comp.includes('Placer') || comp.includes('Machine')) {\n    if (msg.dataType === 'position_x') {\n        msgs.push(tag('[default]Placer1/X', msg.payload));\n    }\n    else if (msg.dataType === 'position_y') {\n        msgs.push(tag('[default]Placer1/Y', msg.payload));\n    }\n    else if (msg.dataType === 'status') {\n        msgs.push(tag('[default]Placer1/IsReady', msg.payload.isReady));\n    }\n}\n\nreturn [msgs];",
+        "outputs": 1,
+        "x": 660,
+        "y": 340,
+        "wires": [
+            [
+                "write_to_ignition"
+            ]
+        ]
+    },
+    {
+        "id": "write_to_ignition",
+        "type": "mqtt out",
+        "z": "main_flow",
+        "name": "Write Ignition",
+        "topic": "",
+        "qos": "1",
+        "retain": "false",
+        "broker": "mqtt_broker_cfg",
+        "x": 880,
+        "y": 340,
+        "wires": []
+    },
+    {
+        "id": "format_collector_unreal",
+        "type": "function",
+        "z": "main_flow",
+        "name": "Format Unreal -> Collector",
+        "func": "// Use same logic as simulator for consistency\nconst deviceId = `${msg.component}_${msg.dataType}`;\n\nlet fields = {};\nif (typeof msg.payload === 'object' && msg.payload !== null) fields = msg.payload;\nelse fields = { value: msg.payload };\n\nmsg.payload = {\n    device_id: deviceId,\n    timestamp: msg.timestamp / 1000,\n    type: 'unreal_sensor',\n    data: {\n        id: deviceId,\n        name: `${msg.component} ${msg.dataType}`,\n        signal_config: fields\n    },\n    metadata: {\n        source: 'unreal_engine',\n        component: msg.component\n    }\n};\n\nmsg.topic = 'collector/ingest';\nreturn msg;",
+        "outputs": 1,
+        "x": 680,
+        "y": 380,
+        "wires": [
+            [
+                "send_to_collector"
+            ]
+        ]
+    },
+    {
+        "id": "write_virtual_plc",
+        "type": "function",
+        "z": "main_flow",
+        "name": "Map to Modbus Regs",
+        "func": "// Writes Unreal Data to Virtual PLC (Modbus Server)\n// 0: Conv1 RPM, 2: Conv2 RPM, 4: Placer X, 6: Placer Y\n\nlet addr = -1;\nconst comp = msg.component;\n\nif (comp.includes('1') && (comp.includes('Belt') || comp.includes('Conveyor'))) addr = 0;\nelse if (comp.includes('2')) addr = 2;\nelse if (comp.includes('Placer')) {\n    if (msg.dataType === 'position_x') addr = 4;\n    else if (msg.dataType === 'position_y') addr = 6;\n}\n\nif (addr >= 0 && typeof msg.payload === 'number') {\n    msg.payload = {\n        value: msg.payload,\n        register: 'holding',\n        address: addr,\n        disableMsgOutput: true\n    };\n    return msg;\n}\nreturn null;",
+        "outputs": 1,
+        "x": 660,
+        "y": 440,
+        "wires": [
+            [
+                "modbus_server_standard"
+            ]
+        ]
+    },
+    {
+        "id": "ignition_cmd_in",
+        "type": "mqtt in",
+        "z": "main_flow",
+        "name": "Ignition Cmds",
+        "topic": "ignition/tag/#",
+        "qos": "1",
+        "datatype": "json",
+        "broker": "mqtt_broker_cfg",
+        "x": 150,
+        "y": 640,
+        "wires": [
+            [
+                "cmd_parser"
+            ]
+        ]
+    },
+    {
+        "id": "cmd_parser",
+        "type": "function",
+        "z": "main_flow",
+        "name": "Parse & Route Cmd",
+        "func": "// Ignition Tag writes -> Unreal Commands\n// Topic: factory/cmd/{DeviceID}\n\nconst parts = msg.topic.split('/');\nconst comp = parts[2];\nconst tag = parts[3];\nlet val = msg.payload;\nif(val.value !== undefined) val = val.value;\n\n// Map Ignition Name -> Unreal ID\nlet devId = comp;\nif(comp === 'Conveyor1') devId = 'Belt_01';\nif(comp === 'Conveyor2') devId = 'Belt_02';\nif(comp === 'Machine1') devId = 'Placer_01';\n\nif(tag === 'Running' || tag === 'Start') {\n    msg.topic = `factory/cmd/${devId}`;\n    msg.payload = { \"is_on\": !!val };\n    return msg;\n}\nreturn null;",
+        "outputs": 1,
+        "x": 410,
+        "y": 640,
+        "wires": [
+            [
+                "mqtt_out_unreal_cmd"
+            ]
+        ]
+    },
+    {
+        "id": "mqtt_out_unreal_cmd",
+        "type": "mqtt out",
+        "z": "main_flow",
+        "name": "To Unreal",
+        "topic": "",
+        "qos": "1",
+        "retain": "false",
+        "broker": "mqtt_broker_cfg",
+        "x": 620,
         "y": 640,
         "wires": []
     },
     {
-        "id": "modbus_plc_server",
+        "id": "modbus_plc_client_local",
         "type": "modbus-client",
-        "name": "PLC Modbus TCP",
+        "name": "Local PLC Client (Legacy)",
         "clienttype": "tcp",
         "bufferCommands": true,
         "stateLogEnabled": false,
         "tcpHost": "127.0.0.1",
-        "tcpPort": "502",
+        "tcpPort": "5020",
         "tcpType": "DEFAULT",
+        "serialPort": "/dev/ttyUSB",
+        "serialType": "RTU-BUFFERD",
+        "serialBaudrate": "9600",
+        "serialDatabits": "8",
+        "serialStopbits": "1",
+        "serialParity": "none",
         "unit_id": "1",
         "commandDelay": "1",
         "clientTimeout": "1000",
         "reconnectOnTimeout": true,
         "reconnectTimeout": "2000",
         "parallelUnitIdsAllowed": true
-    },
-    {
-        "id": "plc_status_reader",
-        "type": "modbus-read",
-        "z": "main_flow",
-        "name": "Read PLC Running Status",
-        "topic": "plc/status/running",
-        "showStatusActivities": true,
-        "logIOActivities": false,
-        "showErrors": true,
-        "unitid": "1",
-        "dataType": "Coil",
-        "adr": "1",
-        "quantity": "5",
-        "rate": "100",
-        "rateUnit": "ms",
-        "server": "modbus_plc_server",
-        "x": 180,
-        "y": 800,
-        "wires": [
-            [
-                "parse_plc_status"
-            ],
-            []
-        ]
-    },
-    {
-        "id": "parse_plc_status",
-        "type": "function",
-        "z": "main_flow",
-        "name": "Parse PLC Status to Unreal",
-        "func": "// PLC sends back running status after processing command\n// msg.payload is array of coil values [Conv1, Conv2, Machine1, ...]\n\nconst coils = msg.payload;\n\n// Coil 1 = Conveyor1 Running\nif (coils[0] !== undefined) {\n    const conv1Running = coils[0];\n    const conv1Msg = {\n        topic: 'unreal/command/conveyor1/running',\n        payload: {\n            running: conv1Running,\n            timestamp: Date.now(),\n            source: 'plc'\n        }\n    };\n    node.send([conv1Msg, null, null]);\n}\n\n// Coil 2 = Conveyor2 Running\nif (coils[1] !== undefined) {\n    const conv2Running = coils[1];\n    const conv2Msg = {\n        topic: 'unreal/command/conveyor2/running',\n        payload: {\n            running: conv2Running,\n            timestamp: Date.now(),\n            source: 'plc'\n        }\n    };\n    node.send([null, conv2Msg, null]);\n}\n\n// Coil 3 = Machine1 Running\nif (coils[2] !== undefined) {\n    const machine1Running = coils[2];\n    const machine1Msg = {\n        topic: 'unreal/command/machine1/running',\n        payload: {\n            running: machine1Running,\n            timestamp: Date.now(),\n            source: 'plc'\n        }\n    };\n    node.send([null, null, machine1Msg]);\n}\n\nreturn null;",
-        "outputs": 3,
-        "x": 450,
-        "y": 800,
-        "wires": [
-            [
-                "send_conv1_to_unreal"
-            ],
-            [
-                "send_conv2_to_unreal"
-            ],
-            [
-                "send_machine1_to_unreal"
-            ]
-        ]
-    },
-    {
-        "id": "send_conv1_to_unreal",
-        "type": "mqtt out",
-        "z": "main_flow",
-        "name": "Conv1 → Unreal",
-        "topic": "",
-        "qos": "1",
-        "retain": "false",
-        "broker": "mqtt_broker_cfg",
-        "x": 710,
-        "y": 780,
-        "wires": []
-    },
-    {
-        "id": "send_conv2_to_unreal",
-        "type": "mqtt out",
-        "z": "main_flow",
-        "name": "Conv2 → Unreal",
-        "topic": "",
-        "qos": "1",
-        "retain": "false",
-        "broker": "mqtt_broker_cfg",
-        "x": 710,
-        "y": 820,
-        "wires": []
-    },
-    {
-        "id": "send_machine1_to_unreal",
-        "type": "mqtt out",
-        "z": "main_flow",
-        "name": "Machine1 → Unreal",
-        "topic": "",
-        "qos": "1",
-        "retain": "false",
-        "broker": "mqtt_broker_cfg",
-        "x": 720,
-        "y": 860,
-        "wires": []
-    },
-    {
-        "id": "stats_inject",
-        "type": "inject",
-        "z": "main_flow",
-        "name": "Stats Every 30s",
-        "props": [
-            {
-                "p": "payload"
-            }
-        ],
-        "repeat": "30",
-        "crontab": "",
-        "once": true,
-        "onceDelay": "5",
-        "topic": "",
-        "payload": "",
-        "payloadType": "date",
-        "x": 170,
-        "y": 750,
-        "wires": [
-            [
-                "calculate_stats"
-            ]
-        ]
-    },
-    {
-        "id": "calculate_stats",
-        "type": "function",
-        "z": "main_flow",
-        "name": "Message Statistics",
-        "func": "let count = context.get('messageCount') || 0;\nlet lastReset = context.get('lastReset') || Date.now();\n\n// Reset every hour\nif (Date.now() - lastReset > 3600000) {\n    count = 0;\n    lastReset = Date.now();\n    context.set('lastReset', lastReset);\n}\n\ncontext.set('messageCount', count);\n\nmsg.payload = {\n    total_messages: count,\n    uptime_seconds: Math.floor((Date.now() - lastReset) / 1000),\n    messages_per_second: (count / ((Date.now() - lastReset) / 1000)).toFixed(2)\n};\n\nnode.status({\n    fill: 'blue',\n    shape: 'ring',\n    text: `Total: ${count} msgs`\n});\n\nreturn msg;",
-        "outputs": 1,
-        "x": 390,
-        "y": 750,
-        "wires": [
-            [
-                "log_stats"
-            ]
-        ]
-    },
-    {
-        "id": "log_stats",
-        "type": "debug",
-        "z": "main_flow",
-        "name": "Log Statistics",
-        "active": true,
-        "tosidebar": true,
-        "console": false,
-        "x": 600,
-        "y": 750,
-        "wires": []
     }
 ]

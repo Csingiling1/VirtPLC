@@ -2,6 +2,7 @@
 /home/deginandor/Documents/Programming/VirtPLC/backend/src/main/java/com/virtplc/alerting/AlertingController.java
 /home/deginandor/Documents/Programming/VirtPLC/backend/src/main/java/com/virtplc/alerting/AlertingService.java
 /home/deginandor/Documents/Programming/VirtPLC/backend/src/main/java/com/virtplc/api/AIController.java
+/home/deginandor/Documents/Programming/VirtPLC/backend/src/main/java/com/virtplc/api/AdminController.java
 /home/deginandor/Documents/Programming/VirtPLC/backend/src/main/java/com/virtplc/api/AuthController.java
 /home/deginandor/Documents/Programming/VirtPLC/backend/src/main/java/com/virtplc/api/DashboardController.java
 /home/deginandor/Documents/Programming/VirtPLC/backend/src/main/java/com/virtplc/api/DataController.java

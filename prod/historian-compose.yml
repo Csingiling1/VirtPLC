@@ -2,7 +2,7 @@
 # This server hosts the time-series database and MCP server for AI data access
 # Run with: docker-compose -f prod/historian-compose.yml up
 
-version: '3.8'
+version: "3.8"
 
 services:
   # TimescaleDB (Time Series Database)

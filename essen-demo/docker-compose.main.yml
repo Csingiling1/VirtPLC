@@ -1,0 +1,204 @@
+version: '3.8'
+
+# Main Application Server Setup
+# Components: Collector, Backend, Frontend, MCP, AI Service
+# Purpose: Main application logic, APIs, and user interfaces
+
+services:
+  # Redis for caching and session management
+  redis:
+    image: redis:7-alpine
+    container_name: virtplc-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - main_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # AI Service for machine learning and AI features
+  ai-service:
+    build:
+      context: ../ai-service
+      dockerfile: Dockerfile
+    container_name: virtplc-ai
+    restart: unless-stopped
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - OLLAMA_BASE_URL=http://ollama:11434
+    ports:
+      - "8001:8000"
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - ../ai-service/src:/app/src
+    networks:
+      - main_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Ollama for local LLM inference
+  ollama:
+    image: ollama/ollama:latest
+    container_name: virtplc-ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - main_network
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 60s
+      timeout: 30s
+      retries: 3
+
+  # Collector service for data ingestion
+  collector:
+    build:
+      context: ../collector
+      dockerfile: Dockerfile
+    container_name: virtplc-collector
+    restart: unless-stopped
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - POSTGRES_URL=jdbc:postgresql://data-server:5432/virtplc
+      - POSTGRES_USER=virtplc
+      - POSTGRES_PASSWORD=virtplc123
+      - TIMESCALE_URL=jdbc:postgresql://data-server:5433/virtplc_ts
+      - TIMESCALE_USER=virtplc
+      - TIMESCALE_PASSWORD=virtplc123
+      - RABBITMQ_HOST=plc-server
+      - RABBITMQ_USER=virtplc
+      - RABBITMQ_PASSWORD=virtplc123
+    ports:
+      - "8082:8080"
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - ../collector:/app
+    networks:
+      - main_network
+      - data_network
+      - plc_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Backend API service
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: virtplc-backend
+    restart: unless-stopped
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://data-server:5432/virtplc
+      - SPRING_DATASOURCE_USERNAME=virtplc
+      - SPRING_DATASOURCE_PASSWORD=virtplc123
+      - TIMESCALE_DATASOURCE_URL=jdbc:postgresql://data-server:5433/virtplc_ts
+      - TIMESCALE_DATASOURCE_USERNAME=virtplc
+      - TIMESCALE_DATASOURCE_PASSWORD=virtplc123
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - RABBITMQ_HOST=plc-server
+      - RABBITMQ_USERNAME=virtplc
+      - RABBITMQ_PASSWORD=virtplc123
+      - AI_SERVICE_URL=http://ai-service:8000
+    ports:
+      - "8080:8080"
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - ../backend/target:/app/target
+    networks:
+      - main_network
+      - data_network
+      - plc_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Frontend web application
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    container_name: virtplc-frontend
+    restart: unless-stopped
+    environment:
+      - VITE_API_BASE_URL=http://localhost:8080/api
+    ports:
+      - "3000:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - main_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # MCP (Model Context Protocol) service
+  mcp:
+    build:
+      context: ../mcp
+      dockerfile: Dockerfile
+    container_name: virtplc-mcp
+    restart: unless-stopped
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - AI_SERVICE_URL=http://ai-service:8000
+      - BACKEND_URL=http://backend:8080
+    ports:
+      - "3001:3000"
+    depends_on:
+      redis:
+        condition: service_healthy
+      ai-service:
+        condition: service_healthy
+    networks:
+      - main_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  redis_data:
+  ollama_data:
+
+networks:
+  main_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.22.0.0/16
+  data_network:
+    external: true
+    name: virtplc_data_network
+  plc_network:
+    external: true
+    name: virtplc_plc_network</content>
+<parameter name="filePath">/home/deginandor/Documents/Programming/VirtPLC/essen-demo/docker-compose.main.yml

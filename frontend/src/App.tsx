@@ -19,6 +19,7 @@ const Status = lazy(() => import("./pages/Status"));
 const AIAssistant = lazy(() => import("./pages/AIAssistant"));
 const DashboardBuilder = lazy(() => import("./pages/DashboardBuilder"));
 const Dashboards = lazy(() => import("./pages/Dashboards"));
+const DeviceManager = lazy(() => import("./pages/DeviceManager"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -80,6 +81,11 @@ const App = () => (
               <Route path="/dashboards" element={
                 <ProtectedRoute>
                   <Dashboards />
+                </ProtectedRoute>
+              } />
+              <Route path="/device-manager" element={
+                <ProtectedRoute>
+                  <DeviceManager />
                 </ProtectedRoute>
               } />
               <Route path="*" element={<NotFound />} />

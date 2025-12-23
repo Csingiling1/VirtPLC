@@ -2,7 +2,7 @@
 # This server hosts the PLC simulator, Ignition HMI, and Node-RED for MQTT bridging
 # Run with: docker-compose -f prod/plc-compose.yml up
 
-version: '3.8'
+version: "3.8"
 
 services:
   # Enhanced PLC Simulator (Python) - PLC Replacement Server
@@ -12,7 +12,7 @@ services:
       dockerfile: Dockerfile
     container_name: virtplc-simulator
     ports:
-      - "${SIMULATOR_PORT:-5000}:8080"    # REST API & WebSocket
+      - "${SIMULATOR_PORT:-5000}:8080" # REST API & WebSocket
     environment:
       - PYTHONUNBUFFERED=1
       - SIMULATOR_MODE=plc-server
@@ -62,9 +62,9 @@ services:
       dockerfile: Dockerfile
     container_name: virtplc-ignition
     ports:
-      - "${IGNITION_PORT:-8088}:8088"   # Gateway web interface
-      - "${IGNITION_HTTPS_PORT:-8043}:8043"   # HTTPS
-      - "${IGNITION_MODBUS_PORT:-8060}:8060"   # Modbus TCP
+      - "${IGNITION_PORT:-8088}:8088" # Gateway web interface
+      - "${IGNITION_HTTPS_PORT:-8043}:8043" # HTTPS
+      - "${IGNITION_MODBUS_PORT:-8060}:8060" # Modbus TCP
     environment:
       - GATEWAY_ADMIN_USERNAME=${IGNITION_USERNAME:-admin}
       - GATEWAY_ADMIN_PASSWORD=${IGNITION_PASSWORD:-password}
@@ -90,7 +90,7 @@ services:
     image: eclipse-mosquitto:2.0
     container_name: virtplc-mqtt
     ports:
-      - "${MQTT_PORT:-1883}:1883"  # MQTT port
+      - "${MQTT_PORT:-1883}:1883" # MQTT port
     volumes:
       - ../../mqtt/config:/mosquitto/config
     networks:
@@ -103,7 +103,7 @@ services:
     image: nodered/node-red:latest
     container_name: virtplc-nodered
     ports:
-      - "${NODERED_PORT:-1880}:1880"   # Node-RED UI
+      - "${NODERED_PORT:-1880}:1880" # Node-RED UI
     volumes:
       - nodered-data:/data
       - ../../nodered/flows:/data/flows

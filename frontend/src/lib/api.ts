@@ -50,6 +50,10 @@ export const dataApi = {
     const response = await api.get('/api/data/latest');
     return response.data;
   },
+  getHierarchical: async () => {
+    const response = await api.get('/api/data/hierarchical');
+    return response.data;
+  },
   getRange: async (startTime: number, endTime: number, page: number = 0, size: number = 1000, query?: string) => {
     // Use AI service historical data endpoint
     const params: any = { 

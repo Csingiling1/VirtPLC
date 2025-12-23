@@ -1,0 +1,92 @@
+version: '3.8'
+
+# PLC Computer Setup (Gaming PC with Unreal Engine)
+# Components: Ignition Edge, Node-RED, RabbitMQ
+# Purpose: PLC simulation and data collection from Unreal Engine
+
+services:
+  # RabbitMQ for MQTT messaging between components
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: virtplc-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: virtplc
+      RABBITMQ_DEFAULT_PASS: virtplc123
+    ports:
+      - "5672:5672"    # AMQP port
+      - "15672:15672"  # Management UI
+      - "1883:1883"    # MQTT port
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - plc_network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Node-RED for data processing and routing
+  nodered:
+    image: nodered/node-red:latest
+    container_name: virtplc-nodered
+    restart: unless-stopped
+    user: root
+    environment:
+      - TZ=Europe/Berlin
+    ports:
+      - "1880:1880"
+    volumes:
+      - ./nodered/flows:/data/flows
+      - ./nodered/settings.js:/data/settings.js
+      - nodered_data:/data
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - plc_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:1880"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Ignition Edge for PLC simulation
+  ignition:
+    image: inductiveautomation/ignition:8.1.33
+    container_name: virtplc-ignition
+    restart: unless-stopped
+    environment:
+      GATEWAY_ADMIN_PASSWORD: admin
+      IGNITION_EDITION: edge
+    ports:
+      - "8088:8088"    # Gateway web interface
+      - "8043:8043"    # HTTPS
+      - "8089:8089"    # Gateway network
+    volumes:
+      - ignition_data:/var/lib/ignition/data
+      - ./HMI/IgnitionEdge:/var/lib/ignition/data/projects
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - plc_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8088"]
+      interval: 60s
+      timeout: 30s
+      retries: 5
+
+volumes:
+  rabbitmq_data:
+  nodered_data:
+  ignition_data:
+
+networks:
+  plc_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16</content>
+<parameter name="filePath">/home/deginandor/Documents/Programming/VirtPLC/essen-demo/docker-compose.plc.yml

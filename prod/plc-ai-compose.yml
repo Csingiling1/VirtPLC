@@ -2,7 +2,7 @@
 # This server hosts the application backend, AI services, and frontend
 # Run with: docker-compose -f prod/plc-ai-compose.yml up
 
-version: '3.8'
+version: "3.8"
 
 services:
   # Spring Boot Backend
@@ -12,9 +12,9 @@ services:
       dockerfile: Dockerfile
     container_name: virtplc-backend
     ports:
-      - "${BACKEND_PORT:-18080}:8080"   # REST API
-      - "${MCP_BACKEND_PORT:-8000}:8000"   # MCP Server
-      - "${GRPC_PORT:-9091}:9090"   # gRPC Server
+      - "${BACKEND_PORT:-18080}:8080" # REST API
+      - "${MCP_BACKEND_PORT:-8000}:8000" # MCP Server
+      - "${GRPC_PORT:-9091}:9090" # gRPC Server
     environment:
       - SPRING_PROFILES_ACTIVE=docker
       - SERVER_PORT=8080
@@ -126,9 +126,9 @@ services:
       dockerfile: Dockerfile
     container_name: virtplc-ai
     ports:
-      - "${AI_PORT:-3001}:3001"   # REST API
-      - "${AI_WS_PORT:-3002}:3002"   # WebSocket
-      - "${AI_METRICS_PORT:-9090}:9090"   # Prometheus metrics
+      - "${AI_PORT:-3001}:3001" # REST API
+      - "${AI_WS_PORT:-3002}:3002" # WebSocket
+      - "${AI_METRICS_PORT:-9090}:9090" # Prometheus metrics
     environment:
       - ENVIRONMENT=production
       - LOG_LEVEL=DEBUG
@@ -237,7 +237,7 @@ services:
       redis:
         condition: service_started
     ports:
-      - "${COLLECTOR_METRICS_PORT:-9100}:9100"  # prometheus metrics
+      - "${COLLECTOR_METRICS_PORT:-9100}:9100" # prometheus metrics
     networks:
       virtplc-network:
         ipv4_address: ${COLLECTOR_IP:-192.168.1.27}

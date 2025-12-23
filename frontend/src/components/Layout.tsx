@@ -11,6 +11,7 @@ import {
   BarChart3,
   LogOut,
   User,
+  Database,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -43,16 +44,26 @@ const Layout = ({ children }: LayoutProps) => {
     return `${user.firstName[0]}${user.lastName[0]}`.toUpperCase();
   };
 
-  const navItems = [
-    { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-    { path: '/dashboards', icon: BarChart3, label: 'My Dashboards' },
-    { path: '/dashboard-builder', icon: BarChart3, label: 'Dashboard Builder' },
-    { path: '/factory-view', icon: Factory, label: 'Factory View' },
-    { path: '/monitoring', icon: Activity, label: 'Monitoring' },
-    { path: '/history', icon: History, label: 'History' },
-    { path: '/status', icon: Settings, label: 'Status' },
-    { path: '/ai-assistant', icon: Bot, label: 'AI Assistant' },
-  ];
+  const getNavItems = () => {
+    const baseItems = [
+      { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+      { path: '/dashboards', icon: BarChart3, label: 'My Dashboards' },
+      { path: '/dashboard-builder', icon: BarChart3, label: 'Dashboard Builder' },
+      { path: '/factory-view', icon: Factory, label: 'Factory View' },
+      { path: '/monitoring', icon: Activity, label: 'Monitoring' },
+      { path: '/history', icon: History, label: 'History' },
+      { path: '/status', icon: Settings, label: 'Status' },
+      { path: '/ai-assistant', icon: Bot, label: 'AI Assistant' },
+    ];
+
+    if (user?.role === 'ADMIN') {
+      baseItems.push({ path: '/device-manager', icon: Database, label: 'Device Manager' });
+    }
+
+    return baseItems;
+  };
+
+  const navItems = getNavItems();
 
   return (
     <div className="flex h-screen bg-background">

@@ -61,7 +61,7 @@ services:
       - SIMULATOR_MODE=plc-server
       - SIMULATOR_HOST=0.0.0.0
       - SIMULATOR_PORT=8080
-      - MQTT_BROKER=mqtt
+      - MQTT_BROKER=rabbitmq
       - MQTT_PORT=1883
       - MQTT_USERNAME=${MQTT_USERNAME}
       - MQTT_PASSWORD=${MQTT_PASSWORD}
@@ -285,14 +285,19 @@ services:
       retries: 5
     restart: unless-stopped
 
-  # MQTT Broker
-  mqtt:
-    image: eclipse-mosquitto:2.0
-    container_name: virtplc-mqtt
+  # RabbitMQ MQTT Broker (replaces Mosquitto)
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: virtplc-rabbitmq
     ports:
       - "1883:1883"  # MQTT port
+      - "15672:15672"  # Management UI
+    environment:
+      - RABBITMQ_DEFAULT_USER=${MQTT_USERNAME:-virtplc}
+      - RABBITMQ_DEFAULT_PASS=${MQTT_PASSWORD:-virtplc123}
+      - RABBITMQ_PLUGINS=rabbitmq_management,rabbitmq_mqtt
     volumes:
-      - ./mqtt/config:/mosquitto/config
+      - rabbitmq-data:/var/lib/rabbitmq
     networks:
       - virtplc-network
     restart: unless-stopped
@@ -309,10 +314,10 @@ services:
       - ./nodered/settings.js:/data/settings.js:ro
     environment:
       - NODE_RED_CREDENTIAL_SECRET=${NODE_RED_CREDENTIAL_SECRET:-your-secret-key}
-      - MQTT_BROKER=mqtt
+      - MQTT_BROKER=rabbitmq
       - MQTT_PORT=1883
     depends_on:
-      - mqtt
+      - rabbitmq
     networks:
       - virtplc-network
     healthcheck:
@@ -326,7 +331,7 @@ services:
     build: ./collector
     container_name: virtplc-collector
     environment:
-      - MQTT_BROKER=mqtt
+      - MQTT_BROKER=rabbitmq
       - MQTT_PORT=1883
       - MQTT_USERNAME=${MQTT_USERNAME:-virtplc}
       - MQTT_PASSWORD=${MQTT_PASSWORD:-virtplc123}
@@ -336,7 +341,7 @@ services:
       - TIMESCALE_PASSWORD=${TIMESCALE_PASSWORD:-changeme}
       - TIMESCALE_DB=${TIMESCALE_DB:-virtplc_ts}
     depends_on:
-      mqtt:
+      rabbitmq:
         condition: service_started
       timescale:
         condition: service_healthy
@@ -408,3 +413,5 @@ volumes:
     name: virtplc-simulator-data
   nodered-data:
     name: virtplc-nodered-data
+  rabbitmq-data:
+    name: virtplc-rabbitmq-data
