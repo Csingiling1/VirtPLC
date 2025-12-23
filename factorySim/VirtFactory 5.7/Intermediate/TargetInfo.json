@@ -1,0 +1,14 @@
+{
+	"Targets": [
+		{
+			"Name": "VirtFactory",
+			"Path": "..\\Source\\VirtFactory.Target.cs",
+			"Type": "Game"
+		},
+		{
+			"Name": "VirtFactoryEditor",
+			"Path": "..\\Source\\VirtFactoryEditor.Target.cs",
+			"Type": "Editor"
+		}
+	]
+}
