@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strings"
 	"time"
 
 	MQTT "github.com/eclipse/paho.mqtt.golang"
@@ -140,39 +139,10 @@ func processAndStore(db *sql.DB, data DeviceData) error {
 		enrichedMetadata["priority"] = data.Priority
 	}
 
-	// Extract values for new columns
-	var rpm, positionX, positionY *float64
-	var isOn, inOperation *bool
-
-	if data.Data != nil {
-		if signalConfig, ok := data.Data["signal_config"].(map[string]interface{}); ok {
-			if val, ok := signalConfig["value"].(float64); ok {
-				if strings.HasSuffix(data.DeviceID, "_rpm") {
-					rpm = &val
-				}
-			}
-			if isReady, ok := signalConfig["isReady"].(bool); ok {
-				isOn = &isReady
-			}
-			if isDone, ok := signalConfig["isDone"].(bool); ok {
-				inOperation = &isDone
-			}
-		}
-		// For position
-		if pos, ok := data.Data["signal_config"].(map[string]interface{}); ok {
-			if x, ok := pos["x"].(float64); ok {
-				positionX = &x
-			}
-			if y, ok := pos["y"].(float64); ok {
-				positionY = &y
-			}
-		}
-	}
-
 	// Insert into database
 	query := `
-		INSERT INTO plc_data (timestamp, device_id, type, data, metadata, rpm, position_x, position_y, is_on, in_operation)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		INSERT INTO plc_data (timestamp, device_id, type, data, metadata)
+		VALUES ($1, $2, $3, $4, $5)
 	`
 
 	jsonData, err := json.Marshal(data.Data)
@@ -185,7 +155,7 @@ func processAndStore(db *sql.DB, data DeviceData) error {
 		return err
 	}
 
-	_, err = db.Exec(query, timestamp, data.DeviceID, data.Type, jsonData, jsonMetadata, rpm, positionX, positionY, isOn, inOperation)
+	_, err = db.Exec(query, timestamp, data.DeviceID, data.Type, jsonData, jsonMetadata)
 	return err
 }
 

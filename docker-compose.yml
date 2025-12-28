@@ -39,7 +39,8 @@ services:
       timescale:
         condition: service_healthy
     networks:
-      - virtplc-network
+      - main_network
+      - data_network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
       interval: 30s
@@ -69,7 +70,8 @@ services:
     volumes:
       - simulator-data:/app/data
     networks:
-      - virtplc-network
+      - main_network
+      - plc_network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/simulation/status"]
       interval: 30s
@@ -93,7 +95,7 @@ services:
     depends_on:
       - simulator
     networks:
-      - virtplc-network
+      - main_network
     restart: unless-stopped
 
   # React Frontend
@@ -116,7 +118,7 @@ services:
       - backend
       - ai-service
     networks:
-      - virtplc-network
+      - main_network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000"]
       interval: 30s
@@ -133,14 +135,7 @@ services:
     volumes:
       - ollama-data:/root/.ollama
     networks:
-      - virtplc-network
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
+      - main_network
     healthcheck:
       test: ["CMD", "echo", "ok"]
       interval: 30s
@@ -162,7 +157,7 @@ services:
       ollama:
         condition: service_healthy
     networks:
-      - virtplc-network
+      - main_network
     restart: no
 
   # AI Analysis Service (Python + FastAPI)
@@ -213,7 +208,8 @@ services:
       timescale:
         condition: service_healthy
     networks:
-      - virtplc-network
+      - main_network
+      - data_network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
       interval: 30s
@@ -236,7 +232,7 @@ services:
       - postgres-data:/var/lib/postgresql/data
       - ./ai-service/init-db.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
-      - virtplc-network
+      - data_network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U virtplc -d virtplc"]
       interval: 10s
@@ -254,7 +250,7 @@ services:
     volumes:
       - redis-data:/data
     networks:
-      - virtplc-network
+      - main_network
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -277,7 +273,7 @@ services:
       - timescale-data:/var/lib/postgresql/data
       - ./backend/init-timescale.sql:/docker-entrypoint-initdb.d/01-timescale-init.sql
     networks:
-      - virtplc-network
+      - data_network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U virtplc -d virtplc_ts"]
       interval: 10s
@@ -299,7 +295,7 @@ services:
     volumes:
       - rabbitmq-data:/var/lib/rabbitmq
     networks:
-      - virtplc-network
+      - plc_network
     restart: unless-stopped
 
   # Node-RED MQTT Bridge
@@ -319,13 +315,46 @@ services:
     depends_on:
       - rabbitmq
     networks:
-      - virtplc-network
+      - plc_network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:1880"]
       interval: 30s
       timeout: 10s
       retries: 3
     restart: unless-stopped
+
+  # Ignition Edge with Perspective HMI
+  ignition-edge:
+    image: inductiveautomation/ignition:8.1.33
+    container_name: virtplc-ignition-edge
+    ports:
+      - "8088:8088"   # Ignition Edge web interface
+      - "8043:8043"   # HTTPS
+      - "8060:8060"   # Gateway Network
+    environment:
+      - GATEWAY_ADMIN_USERNAME=admin
+      - GATEWAY_ADMIN_PASSWORD=password
+      - GATEWAY_HTTP_PORT=8088
+      - GATEWAY_HTTPS_PORT=8043
+      - IGNITION_EDITION=edge
+      - ACCEPT_IGNITION_EULA=Y
+    volumes:
+      - ignition_data:/var/lib/ignition/data
+      - ./HMI/IgnitionEdge:/var/lib/ignition/data/projects
+    depends_on:
+      - rabbitmq
+    networks:
+      - plc_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8088/web/status/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+
+  # PAC Control runs on the actual PLC computer (not containerized)
+  # Connects via network to RabbitMQ and other services
 
   collector:
     build: ./collector
@@ -348,7 +377,9 @@ services:
     ports:
       - "9100:9100"  # prometheus metrics
     networks:
-      - virtplc-network
+      - main_network
+      - plc_network
+      - data_network
     restart: on-failure
 
   # Database MCP Server for AI access to TimescaleDB
@@ -366,7 +397,8 @@ services:
       timescale:
         condition: service_healthy
     networks:
-      - virtplc-network
+      - main_network
+      - data_network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9092/health"]
       interval: 30s
@@ -390,15 +422,36 @@ services:
       timescale:
         condition: service_healthy
     networks:
-      - virtplc-network
+      - main_network
+      - data_network
     restart: unless-stopped
     labels:
       description: "Cronjob to clean up 25% of oldest data every 2 months"
 
 networks:
-  virtplc-network:
+  # Main Application Server Network (simulates main server)
+  main_network:
     driver: bridge
-    name: virtplc-network
+    name: virtplc-main-network
+    ipam:
+      config:
+        - subnet: 172.22.0.0/16
+
+  # Data Server Network (simulates data server)
+  data_network:
+    driver: bridge
+    name: virtplc-data-network
+    ipam:
+      config:
+        - subnet: 172.21.0.0/16
+
+  # PLC Computer Network (simulates PLC computer)
+  plc_network:
+    driver: bridge
+    name: virtplc-plc-network
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
 
 volumes:
   ollama-data:
@@ -415,3 +468,5 @@ volumes:
     name: virtplc-nodered-data
   rabbitmq-data:
     name: virtplc-rabbitmq-data
+  ignition_data:
+    name: virtplc-ignition-data

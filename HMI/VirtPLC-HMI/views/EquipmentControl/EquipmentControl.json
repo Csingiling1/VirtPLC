@@ -1,0 +1,107 @@
+{
+  "custom": {},
+  "params": {},
+  "props": {
+    "defaultSize": { "height": 900, "width": 1200 }
+  },
+  "root": {
+    "children": [
+      {
+        "meta": { "name": "Header" },
+        "position": { "basis": "auto" },
+        "props": {
+          "text": "Equipment Control",
+          "style": { "fontSize": "24px", "fontWeight": "bold", "color": "#2c3e50", "marginBottom": "20px" }
+        },
+        "type": "ia.display.label"
+      },
+      {
+        "meta": { "name": "ControlGrid" },
+        "position": { "grow": 1 },
+        "props": {
+          "direction": "row",
+          "wrap": "wrap",
+          "alignItems": "flex-start",
+          "style": { "gap": "20px" }
+        },
+        "type": "ia.container.flex",
+        "children": [
+          {
+            "meta": { "name": "ConveyorCard" },
+            "position": { "basis": "450px", "grow": 1 },
+            "props": {
+              "direction": "column",
+              "style": { "backgroundColor": "#ffffff", "borderRadius": "8px", "boxShadow": "0 2px 4px rgba(0,0,0,0.1)", "padding": "24px" }
+            },
+            "type": "ia.container.flex",
+            "children": [
+              { "type": "ia.display.label", "props": { "text": "Conveyor Lines", "style": { "fontSize": "18px", "fontWeight": "bold", "color": "#2c3e50", "marginBottom": "20px", "borderBottom": "1px solid #eee", "paddingBottom": "10px" } } },
+              {
+                "meta": { "name": "Conv1_Row" },
+                "position": { "basis": "auto" },
+                "props": { "direction": "row", "justify": "space-between", "alignItems": "center", "style": { "marginBottom": "20px", "backgroundColor": "#f8f9fa", "padding": "15px", "borderRadius": "6px" } },
+                "type": "ia.container.flex",
+                "children": [
+                   { "type": "ia.display.label", "props": { "text": "Conveyor 1", "style": { "fontWeight": "bold" } } },
+                   { "type": "ia.input.toggle-switch", "props": { "selected": "{[VirtPLC/FactoryTags/Conveyor1/Running]}", "textPosition": "left", "style": { "marginRight": "10px" } } }
+                ]
+              },
+              {
+                "meta": { "name": "Conv2_Row" },
+                "position": { "basis": "auto" },
+                "props": { "direction": "row", "justify": "space-between", "alignItems": "center", "style": { "backgroundColor": "#f8f9fa", "padding": "15px", "borderRadius": "6px" } },
+                "type": "ia.container.flex",
+                "children": [
+                   { "type": "ia.display.label", "props": { "text": "Conveyor 2", "style": { "fontWeight": "bold" } } },
+                   { "type": "ia.input.toggle-switch", "props": { "selected": "{[VirtPLC/FactoryTags/Conveyor2/Running]}", "textPosition": "left", "style": { "marginRight": "10px" } } }
+                ]
+              }
+            ]
+          },
+          {
+            "meta": { "name": "MachineCard" },
+            "position": { "basis": "450px", "grow": 1 },
+            "props": {
+              "direction": "column",
+              "style": { "backgroundColor": "#ffffff", "borderRadius": "8px", "boxShadow": "0 2px 4px rgba(0,0,0,0.1)", "padding": "24px" }
+            },
+            "type": "ia.container.flex",
+            "children": [
+              { "type": "ia.display.label", "props": { "text": "Machine Stations", "style": { "fontSize": "18px", "fontWeight": "bold", "color": "#2c3e50", "marginBottom": "20px", "borderBottom": "1px solid #eee", "paddingBottom": "10px" } } },
+              {
+                "meta": { "name": "Mach1_Control" },
+                "position": { "grow": 1 },
+                "props": { "direction": "column", "style": { "gap": "15px" } },
+                "type": "ia.container.flex",
+                "children": [
+                   {
+                     "meta": { "name": "Mach1_Switch" },
+                     "props": { "direction": "row", "justify": "space-between", "alignItems": "center", "style": { "backgroundColor": "#f8f9fa", "padding": "15px", "borderRadius": "6px" } },
+                     "type": "ia.container.flex",
+                     "children": [
+                        { "type": "ia.display.label", "props": { "text": "Machine 1 Power", "style": { "fontWeight": "bold" } } },
+                        { "type": "ia.input.toggle-switch", "props": { "selected": "{[VirtPLC/FactoryTags/Machine1/Running]}" } }
+                     ]
+                   },
+                   {
+                     "meta": { "name": "Mach1_Readouts" },
+                     "props": { "direction": "column", "style": { "padding": "10px", "color": "#7f8c8d", "fontSize": "14px" } },
+                     "type": "ia.container.flex",
+                     "children": [
+                       { "type": "ia.display.label", "props": { "text": "Ready State: {[VirtPLC/FactoryTags/Machine1/IsReady]?'READY':'NOT READY'}", "style": { "color": "{[VirtPLC/FactoryTags/Machine1/IsReady]?'#27ae60':'#e74c3c'}", "fontWeight": "bold", "marginBottom": "5px" } } },
+                       { "type": "ia.display.label", "props": { "text": "Current Position: ({[VirtPLC/FactoryTags/Machine1/X]},{[VirtPLC/FactoryTags/Machine1/Y]})" } }
+                     ]
+                   }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "meta": { "name": "root" },
+    "props": { "direction": "column", "style": { "padding": "20px" } },
+    "type": "ia.container.flex"
+  },
+  "type": "view"
+}

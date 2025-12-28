@@ -1,0 +1,203 @@
+{
+  "custom": {},
+  "params": {},
+  "props": {
+    "defaultSize": {
+      "height": 900,
+      "width": 1200
+    }
+  },
+  "root": {
+    "children": [
+      {
+        "meta": {
+          "name": "Header"
+        },
+        "position": {
+          "basis": "auto"
+        },
+        "props": {
+          "text": "Historical Analysis",
+          "style": {
+            "fontSize": "24px",
+            "fontWeight": "bold",
+            "color": "#2c3e50",
+            "marginBottom": "20px"
+          }
+        },
+        "type": "ia.display.label"
+      },
+      {
+        "meta": {
+          "name": "Controls"
+        },
+        "position": {
+          "basis": "60px"
+        },
+        "props": {
+          "direction": "row",
+          "alignItems": "center",
+          "style": {
+            "marginBottom": "10px",
+            "backgroundColor": "#ffffff",
+            "padding": "10px",
+            "borderRadius": "8px",
+            "boxShadow": "0 2px 4px rgba(0,0,0,0.1)"
+          }
+        },
+        "type": "ia.container.flex",
+        "children": [
+          {
+            "meta": {
+              "name": "Label"
+            },
+            "position": {
+              "basis": "auto"
+            },
+            "props": {
+              "text": "Time Range:",
+              "style": {
+                "marginRight": "10px",
+                "fontWeight": "bold",
+                "color": "#7f8c8d"
+              }
+            },
+            "type": "ia.display.label"
+          },
+          {
+            "meta": {
+              "name": "TimeRangeDropdown"
+            },
+            "position": {
+              "basis": "200px"
+            },
+            "props": {
+              "options": [
+                {
+                  "value": 1,
+                  "label": "Last 1 Hour"
+                },
+                {
+                  "value": 8,
+                  "label": "Last 8 Hours"
+                },
+                {
+                  "value": 24,
+                  "label": "Last 24 Hours"
+                }
+              ],
+              "value": 1
+            },
+            "type": "ia.input.dropdown"
+          }
+        ]
+      },
+      {
+        "meta": {
+          "name": "ChartContainer"
+        },
+        "position": {
+          "grow": 1
+        },
+        "props": {
+          "direction": "column",
+          "style": {
+            "backgroundColor": "#ffffff",
+            "borderRadius": "8px",
+            "boxShadow": "0 2px 4px rgba(0,0,0,0.1)",
+            "padding": "20px",
+            "height": "100%"
+          }
+        },
+        "type": "ia.container.flex",
+        "children": [
+          {
+            "meta": {
+              "name": "TimeSeriesChart"
+            },
+            "position": {
+              "grow": 1
+            },
+            "type": "ia.chart.timeseries",
+            "props": {
+              "series": [
+                {
+                  "name": "Conveyor 1 Temp",
+                  "tagPath": "[VirtPLC]FactoryTags/Conveyor1/Temperature",
+                  "color": "#e74c3c"
+                },
+                {
+                  "name": "Conveyor 1 Speed",
+                  "tagPath": "[VirtPLC]FactoryTags/Conveyor1/RPM",
+                  "color": "#3498db"
+                },
+                {
+                  "name": "System Efficiency",
+                  "tagPath": "[VirtPLC]System/Efficiency",
+                  "color": "#27ae60"
+                }
+              ],
+              "plots": [
+                {
+                  "trends": [
+                    {
+                      "series": "Conveyor 1 Temp",
+                      "axis": "temp"
+                    },
+                    {
+                      "series": "Conveyor 1 Speed",
+                      "axis": "speed"
+                    },
+                    {
+                      "series": "System Efficiency",
+                      "axis": "percent"
+                    }
+                  ]
+                }
+              ],
+              "axes": {
+                "temp": {
+                  "label": {
+                    "text": "Temp (C)"
+                  },
+                  "position": "left"
+                },
+                "speed": {
+                  "label": {
+                    "text": "Speed (RPM)"
+                  },
+                  "position": "right"
+                },
+                "percent": {
+                  "label": {
+                    "text": "Efficiency (%)"
+                  },
+                  "position": "right"
+                }
+              },
+              "interaction": {
+                "tooltips": {
+                  "enabled": true
+                },
+                "zoom": {
+                  "enabled": true
+                }
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "meta": {
+      "name": "root"
+    },
+    "props": {
+      "direction": "column",
+      "style": {
+        "padding": "20px"
+      }
+    },
+    "type": "ia.container.flex"
+  },
+  "type": "view"
+}

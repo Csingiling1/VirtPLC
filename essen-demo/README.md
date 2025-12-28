@@ -154,5 +154,4 @@ For production:
 - Use these multi-computer configurations
 - Implement proper security measures
 - Add monitoring and logging
-- Configure backups and disaster recovery</content>
-<parameter name="filePath">/home/deginandor/Documents/Programming/VirtPLC/essen-demo/README.md
+- Configure backups and disaster recovery

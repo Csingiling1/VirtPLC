@@ -63,5 +63,4 @@ echo "1. On PLC Computer (Gaming PC): docker-compose -f docker-compose.plc.yml u
 echo "2. On Data Server (Windows): docker-compose -f docker-compose.data.yml up -d"
 echo "3. On Main Server (Linux): docker-compose -f docker-compose.main.yml up -d"
 echo ""
-echo "Remember to update IP addresses in docker-compose.main.yml for cross-computer communication!"</content>
-<parameter name="filePath">/home/deginandor/Documents/Programming/VirtPLC/essen-demo/setup.sh
+echo "Remember to update IP addresses in docker-compose.main.yml for cross-computer communication!"

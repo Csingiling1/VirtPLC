@@ -1,0 +1,105 @@
+{
+    "custom": {},
+    "params": {},
+    "props": {},
+    "root": {
+        "children": [
+            {
+                "meta": { "name": "Header" },
+                "position": { "basis": "auto" },
+                "props": { "text": "Active Alarms", "style": { "fontSize": "24px", "fontWeight": "bold", "color": "#2c3e50", "marginBottom": "20px" } },
+                "type": "ia.display.label"
+            },
+            {
+                "meta": { "name": "AlarmList" },
+                "position": { "grow": 1 },
+                "props": { "direction": "column", "style": { "gap": "10px" } },
+                "type": "ia.container.flex",
+                "children": [
+                    {
+                        "meta": { "name": "NoAlarmsMsg" },
+                        "position": { "basis": "auto" },
+                        "props": { 
+                            "text": "✅ No Active Alarms", 
+                            "style": { 
+                                "display": "{[VirtPLC/Alarms/System_Fault] ? 'none' : 'block'}",
+                                "padding": "20px", "backgroundColor": "#d4edda", "color": "#155724", "borderRadius": "8px", "textAlign": "center" 
+                            } 
+                        },
+                        "type": "ia.display.label"
+                    },
+                    {
+                        "meta": { "name": "Alarm_Conv1" },
+                        "position": { "basis": "auto" },
+                        "props": {
+                            "direction": "row",
+                            "justify": "space-between",
+                            "alignItems": "center",
+                            "style": {
+                                "display": "{[VirtPLC/Alarms/Conveyor1_Overheat] ? 'flex' : 'none'}",
+                                "backgroundColor": "#f8d7da",
+                                "border": "1px solid #f5c6cb",
+                                "borderRadius": "8px",
+                                "padding": "15px",
+                                "color": "#721c24"
+                            }
+                        },
+                        "type": "ia.container.flex",
+                        "children": [
+                            { "type": "ia.display.label", "props": { "text": "🔥 Conveyor 1 Overheat", "style": { "fontWeight": "bold" } } },
+                            { "type": "ia.display.label", "props": { "text": "Temp: {[VirtPLC/FactoryTags/Conveyor1/Temperature]}°C" } }
+                        ]
+                    },
+                    {
+                        "meta": { "name": "Alarm_Conv2" },
+                        "position": { "basis": "auto" },
+                        "props": {
+                            "direction": "row",
+                            "justify": "space-between",
+                            "alignItems": "center",
+                            "style": {
+                                "display": "{[VirtPLC/Alarms/Conveyor2_Overheat] ? 'flex' : 'none'}",
+                                "backgroundColor": "#f8d7da",
+                                "border": "1px solid #f5c6cb",
+                                "borderRadius": "8px",
+                                "padding": "15px",
+                                "color": "#721c24"
+                            }
+                        },
+                        "type": "ia.container.flex",
+                        "children": [
+                            { "type": "ia.display.label", "props": { "text": "🔥 Conveyor 2 Overheat", "style": { "fontWeight": "bold" } } },
+                            { "type": "ia.display.label", "props": { "text": "Temp: {[VirtPLC/FactoryTags/Conveyor2/Temperature]}°C" } }
+                        ]
+                    },
+                    {
+                        "meta": { "name": "Alarm_Mach1" },
+                        "position": { "basis": "auto" },
+                        "props": {
+                            "direction": "row",
+                            "justify": "space-between",
+                            "alignItems": "center",
+                            "style": {
+                                "display": "{[VirtPLC/Alarms/Machine1_Overheat] ? 'flex' : 'none'}",
+                                "backgroundColor": "#f8d7da",
+                                "border": "1px solid #f5c6cb",
+                                "borderRadius": "8px",
+                                "padding": "15px",
+                                "color": "#721c24"
+                            }
+                        },
+                        "type": "ia.container.flex",
+                        "children": [
+                            { "type": "ia.display.label", "props": { "text": "🔥 Machine 1 Overheat", "style": { "fontWeight": "bold" } } },
+                            { "type": "ia.display.label", "props": { "text": "Temp: {[VirtPLC/FactoryTags/Machine1/Temperature]}°C" } }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "meta": { "name": "root" },
+        "props": { "direction": "column", "style": { "padding": "20px" } },
+        "type": "ia.container.flex"
+    },
+    "type": "view"
+}

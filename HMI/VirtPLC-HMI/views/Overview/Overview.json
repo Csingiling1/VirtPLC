@@ -1,0 +1,256 @@
+{
+  "custom": {},
+  "params": {},
+  "props": {
+    "defaultSize": {
+      "height": 900,
+      "width": 1200
+    }
+  },
+  "root": {
+    "children": [
+      {
+        "meta": { "name": "KPIs" },
+        "position": { "basis": "auto" },
+        "props": {
+          "direction": "row",
+          "wrap": "wrap",
+          "justify": "space-between",
+          "style": { "gap": "20px", "marginBottom": "20px" }
+        },
+        "type": "ia.container.flex",
+        "children": [
+          {
+            "meta": { "name": "KPICard_Power" },
+            "position": { "grow": 1, "basis": "250px" },
+            "props": {
+              "direction": "column",
+              "alignItems": "center",
+              "style": { "backgroundColor": "#ffffff", "borderRadius": "8px", "boxShadow": "0 2px 4px rgba(0,0,0,0.05)", "padding": "20px" }
+            },
+            "type": "ia.container.flex",
+            "children": [
+              { "type": "ia.display.label", "props": { "text": "Total Power", "style": { "color": "#7f8c8d", "fontSize": "12px", "fontWeight": "bold", "textTransform": "uppercase" } } },
+              { 
+                "type": "ia.display.label", 
+                "props": { "style": { "color": "#2c3e50", "fontSize": "32px", "fontWeight": "bold", "marginTop": "10px" } },
+                "propConfig": {
+                  "props.text": {
+                    "binding": {
+                      "type": "expr",
+                      "config": { "expression": "numberFormat({[default]VirtPLC/System/Total_Power}, '0.0') + ' kW'" }
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "meta": { "name": "KPICard_Eff" },
+            "position": { "grow": 1, "basis": "250px" },
+            "props": {
+              "direction": "column",
+              "alignItems": "center",
+              "style": { "backgroundColor": "#ffffff", "borderRadius": "8px", "boxShadow": "0 2px 4px rgba(0,0,0,0.05)", "padding": "20px" }
+            },
+            "type": "ia.container.flex",
+            "children": [
+              { "type": "ia.display.label", "props": { "text": "Efficiency", "style": { "color": "#7f8c8d", "fontSize": "12px", "fontWeight": "bold", "textTransform": "uppercase" } } },
+              { 
+                "type": "ia.display.label", 
+                "props": { "style": { "color": "#27ae60", "fontSize": "32px", "fontWeight": "bold", "marginTop": "10px" } },
+                "propConfig": {
+                  "props.text": {
+                    "binding": {
+                      "type": "expr",
+                      "config": { "expression": "numberFormat({[default]VirtPLC/System/Efficiency}, '0.0') + '%'" }
+                    }
+                  }
+                }
+              }
+            ]
+          },
+           {
+            "meta": { "name": "KPICard_Status" },
+            "position": { "grow": 1, "basis": "250px" },
+            "props": {
+              "direction": "column",
+              "alignItems": "center",
+              "style": { "backgroundColor": "#ffffff", "borderRadius": "8px", "boxShadow": "0 2px 4px rgba(0,0,0,0.05)", "padding": "20px" }
+            },
+            "type": "ia.container.flex",
+            "children": [
+              { "type": "ia.display.label", "props": { "text": "System Status", "style": { "color": "#7f8c8d", "fontSize": "12px", "fontWeight": "bold", "textTransform": "uppercase" } } },
+              { 
+                "type": "ia.display.label", 
+                "props": { "style": { "fontSize": "32px", "fontWeight": "bold", "marginTop": "10px" } },
+                "propConfig": {
+                  "props.text": {
+                    "binding": { "type": "tag", "config": { "path": "[default]VirtPLC/System/Overall_Status" } }
+                  },
+                  "props.style.color": {
+                    "binding": {
+                      "type": "expr",
+                      "config": { "expression": "if({[default]VirtPLC/System/Overall_Status}='FAULT', '#e74c3c', '#3498db')" }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "meta": { "name": "EquipmentGrid" },
+        "position": { "grow": 1 },
+        "props": {
+          "direction": "row",
+          "wrap": "wrap",
+          "style": { "gap": "20px" }
+        },
+        "type": "ia.container.flex",
+        "children": [
+          {
+            "meta": { "name": "Card_Conveyor1" },
+            "position": { "grow": 1, "basis": "300px" },
+            "props": {
+              "direction": "column",
+              "style": { "backgroundColor": "#ffffff", "borderRadius": "8px", "boxShadow": "0 2px 4px rgba(0,0,0,0.05)", "padding": "20px" }
+            },
+            "type": "ia.container.flex",
+            "children": [
+               { "type": "ia.display.label", "props": { "text": "Conveyor 1", "style": { "fontSize": "18px", "fontWeight": "bold", "marginBottom": "15px", "borderBottom": "1px solid #eee", "paddingBottom": "10px" } } },
+               { 
+                 "type": "ia.display.label", 
+                 "props": { "style": { "marginBottom": "5px" } },
+                 "propConfig": {
+                   "props.text": {
+                     "binding": { "type": "expr", "config": { "expression": "'Speed: ' + numberFormat({[default]VirtPLC/FactoryTags/Conveyor1/RPM}, '0.0') + ' RPM'" } }
+                   }
+                 }
+               },
+               { 
+                 "type": "ia.display.label", 
+                 "props": { "style": { "marginBottom": "5px" } },
+                 "propConfig": {
+                   "props.text": {
+                     "binding": { "type": "expr", "config": { "expression": "'Temp: ' + numberFormat({[default]VirtPLC/FactoryTags/Conveyor1/Temperature}, '0.1') + ' °C'" } }
+                   }
+                 }
+               },
+               { 
+                 "type": "ia.display.label", 
+                 "props": { "style": { "padding": "5px 10px", "borderRadius": "4px", "textAlign": "center", "marginTop": "10px", "fontWeight": "bold" } },
+                 "propConfig": {
+                   "props.text": {
+                     "binding": { "type": "expr", "config": { "expression": "if({[default]VirtPLC/FactoryTags/Conveyor1/Running}, 'RUNNING', 'STOPPED')" } }
+                   },
+                   "props.style.backgroundColor": {
+                     "binding": { "type": "expr", "config": { "expression": "if({[default]VirtPLC/FactoryTags/Conveyor1/Running}, '#d4edda', '#f8d7da')" } }
+                   },
+                   "props.style.color": {
+                     "binding": { "type": "expr", "config": { "expression": "if({[default]VirtPLC/FactoryTags/Conveyor1/Running}, '#155724', '#721c24')" } }
+                   }
+                 }
+               }
+            ]
+          },
+          {
+            "meta": { "name": "Card_Conveyor2" },
+            "position": { "grow": 1, "basis": "300px" },
+            "props": {
+              "direction": "column",
+              "style": { "backgroundColor": "#ffffff", "borderRadius": "8px", "boxShadow": "0 2px 4px rgba(0,0,0,0.05)", "padding": "20px" }
+            },
+            "type": "ia.container.flex",
+            "children": [
+               { "type": "ia.display.label", "props": { "text": "Conveyor 2", "style": { "fontSize": "18px", "fontWeight": "bold", "marginBottom": "15px", "borderBottom": "1px solid #eee", "paddingBottom": "10px" } } },
+               { 
+                 "type": "ia.display.label", 
+                 "props": { "style": { "marginBottom": "5px" } },
+                 "propConfig": {
+                   "props.text": {
+                     "binding": { "type": "expr", "config": { "expression": "'Speed: ' + numberFormat({[default]VirtPLC/FactoryTags/Conveyor2/RPM}, '0.0') + ' RPM'" } }
+                   }
+                 }
+               },
+               { 
+                 "type": "ia.display.label", 
+                 "props": { "style": { "marginBottom": "5px" } },
+                 "propConfig": {
+                   "props.text": {
+                     "binding": { "type": "expr", "config": { "expression": "'Temp: ' + numberFormat({[default]VirtPLC/FactoryTags/Conveyor2/Temperature}, '0.1') + ' °C'" } }
+                   }
+                 }
+               },
+               { 
+                 "type": "ia.display.label", 
+                 "props": { "style": { "padding": "5px 10px", "borderRadius": "4px", "textAlign": "center", "marginTop": "10px", "fontWeight": "bold" } },
+                 "propConfig": {
+                   "props.text": {
+                     "binding": { "type": "expr", "config": { "expression": "if({[default]VirtPLC/FactoryTags/Conveyor2/Running}, 'RUNNING', 'STOPPED')" } }
+                   },
+                   "props.style.backgroundColor": {
+                     "binding": { "type": "expr", "config": { "expression": "if({[default]VirtPLC/FactoryTags/Conveyor2/Running}, '#d4edda', '#f8d7da')" } }
+                   },
+                   "props.style.color": {
+                     "binding": { "type": "expr", "config": { "expression": "if({[default]VirtPLC/FactoryTags/Conveyor2/Running}, '#155724', '#721c24')" } }
+                   }
+                 }
+               }
+            ]
+          },
+          {
+            "meta": { "name": "Card_Machine" },
+            "position": { "grow": 1, "basis": "300px" },
+            "props": {
+              "direction": "column",
+              "style": { "backgroundColor": "#ffffff", "borderRadius": "8px", "boxShadow": "0 2px 4px rgba(0,0,0,0.05)", "padding": "20px" }
+            },
+            "type": "ia.container.flex",
+            "children": [
+               { "type": "ia.display.label", "props": { "text": "Machine 1", "style": { "fontSize": "18px", "fontWeight": "bold", "marginBottom": "15px", "borderBottom": "1px solid #eee", "paddingBottom": "10px" } } },
+               { 
+                 "type": "ia.display.label", 
+                 "props": { "style": { "marginBottom": "5px" } },
+                 "propConfig": {
+                   "props.text": {
+                     "binding": { "type": "expr", "config": { "expression": "'Position: X:' + {[default]VirtPLC/FactoryTags/Machine1/X} + ' / Y:' + {[default]VirtPLC/FactoryTags/Machine1/Y}" } }
+                   }
+                 }
+               },
+               { 
+                 "type": "ia.display.label", 
+                 "props": { "style": { "marginBottom": "5px" } },
+                 "propConfig": {
+                   "props.text": {
+                     "binding": { "type": "expr", "config": { "expression": "'Temp: ' + numberFormat({[default]VirtPLC/FactoryTags/Machine1/Temperature}, '0.1') + ' °C'" } }
+                   }
+                 }
+               },
+               { 
+                 "type": "ia.display.label", 
+                 "props": { "style": { "padding": "5px 10px", "borderRadius": "4px", "textAlign": "center", "marginTop": "10px", "fontWeight": "bold" } },
+                 "propConfig": {
+                   "props.text": {
+                     "binding": { "type": "expr", "config": { "expression": "if({[default]VirtPLC/FactoryTags/Machine1/Running}, 'RUNNING', 'STOPPED')" } }
+                   },
+                   "props.style.backgroundColor": {
+                     "binding": { "type": "expr", "config": { "expression": "if({[default]VirtPLC/FactoryTags/Machine1/Running}, '#d4edda', '#f8d7da')" } }
+                   },
+                   "props.style.color": {
+                     "binding": { "type": "expr", "config": { "expression": "if({[default]VirtPLC/FactoryTags/Machine1/Running}, '#155724', '#721c24')" } }
+                   }
+                 }
+               }
+            ]
+          }
+        ]
+      }
+    ],
+    "meta": { "name": "root" },
+    "props": { "direction": "column", "style": { "padding": "20px", "backgroundColor": "transparent" } },
+    "type": "ia.container.flex"
+  },
+  "type": "view"
+}
