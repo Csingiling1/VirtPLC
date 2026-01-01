@@ -62,7 +62,7 @@ services:
       - SIMULATOR_MODE=plc-server
       - SIMULATOR_HOST=0.0.0.0
       - SIMULATOR_PORT=8080
-      - MQTT_BROKER=rabbitmq
+      - MQTT_BROKER=virtplc-rabbitmq
       - MQTT_PORT=1883
       - MQTT_USERNAME=${MQTT_USERNAME}
       - MQTT_PASSWORD=${MQTT_PASSWORD}
@@ -105,7 +105,7 @@ services:
       dockerfile: Dockerfile
       args:
         - VITE_WS_URL=ws://localhost:3002
-                - VITE_AI_API_URL=http://localhost:3001
+        - VITE_AI_API_URL=http://localhost:3001
         - VITE_API_BASE_URL=http://localhost:18080
     container_name: virtplc-frontend
     ports:
@@ -294,8 +294,16 @@ services:
       - RABBITMQ_PLUGINS=rabbitmq_management,rabbitmq_mqtt
     volumes:
       - rabbitmq-data:/var/lib/rabbitmq
+      - ./docker/rabbitmq/enabled_plugins:/etc/rabbitmq/enabled_plugins:ro
     networks:
       - plc_network
+      - main_network
+    healthcheck:
+      test: ["CMD-SHELL", "rabbitmq-diagnostics ping || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
     restart: unless-stopped
 
   # Node-RED MQTT Bridge
@@ -303,7 +311,8 @@ services:
     image: nodered/node-red:latest
     container_name: virtplc-nodered
     ports:
-      - "1880:1880"   # Node-RED UI
+      - "1880:1880"
+      - "5020:5020"   # (Modbus TCP)
     volumes:
       - nodered-data:/data
       - ./nodered/flows:/data/flows
@@ -360,7 +369,7 @@ services:
     build: ./collector
     container_name: virtplc-collector
     environment:
-      - MQTT_BROKER=rabbitmq
+      - MQTT_BROKER=virtplc-rabbitmq
       - MQTT_PORT=1883
       - MQTT_USERNAME=${MQTT_USERNAME:-virtplc}
       - MQTT_PASSWORD=${MQTT_PASSWORD:-virtplc123}
@@ -371,7 +380,7 @@ services:
       - TIMESCALE_DB=${TIMESCALE_DB:-virtplc_ts}
     depends_on:
       rabbitmq:
-        condition: service_started
+        condition: service_healthy
       timescale:
         condition: service_healthy
     ports:
@@ -429,29 +438,15 @@ services:
       description: "Cronjob to clean up 25% of oldest data every 2 months"
 
 networks:
-  # Main Application Server Network (simulates main server)
   main_network:
     driver: bridge
     name: virtplc-main-network
-    ipam:
-      config:
-        - subnet: 172.22.0.0/16
-
-  # Data Server Network (simulates data server)
-  data_network:
-    driver: bridge
-    name: virtplc-data-network
-    ipam:
-      config:
-        - subnet: 172.21.0.0/16
-
-  # PLC Computer Network (simulates PLC computer)
   plc_network:
     driver: bridge
     name: virtplc-plc-network
-    ipam:
-      config:
-        - subnet: 172.20.0.0/16
+  data_network:
+    driver: bridge
+    name: virtplc-data-network
 
 volumes:
   ollama-data:

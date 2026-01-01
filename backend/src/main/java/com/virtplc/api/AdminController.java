@@ -5,6 +5,8 @@ import com.virtplc.model.PLC;
 import com.virtplc.model.Sensor;
 import com.virtplc.model.Manufacturer;
 import com.virtplc.model.SignalConfig;
+import com.virtplc.model.PlcData;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.virtplc.repository.FactoryRepository;
 import com.virtplc.repository.PLCRepository;
 import com.virtplc.repository.SensorRepository;
@@ -91,6 +93,9 @@ public class AdminController {
     @GetMapping("/device-assignments")
     public ResponseEntity<Map<String, Object>> getDeviceAssignments() {
         try {
+            // Ensure manufacturers and factories exist based on plc_data metadata
+            ensureHierarchy();
+
             // Get all factories
             List<Factory> factories = factoryRepository.findAll();
 
@@ -527,6 +532,60 @@ public class AdminController {
             log.error("Error deleting factory", e);
             return ResponseEntity.internalServerError()
                     .body(Map.of("error", "Failed to delete factory"));
+        }
+    }
+
+    private void ensureHierarchy() {
+        try {
+            // Get all latest plc_data to extract tenant/factory from metadata
+            List<PlcData> allData = plcDataRepository.findLatestForAllDevices();
+
+            Set<String> tenants = new HashSet<>();
+            Map<String, Set<String>> tenantFactories = new HashMap<>();
+
+            for (PlcData data : allData) {
+                if (data.getMetadata() != null) {
+                    JsonNode tenantNode = data.getMetadata().get("tenant");
+                    JsonNode factoryNode = data.getMetadata().get("factory");
+                    String tenant = tenantNode != null ? tenantNode.asText() : null;
+                    String factory = factoryNode != null ? factoryNode.asText() : null;
+                    if (tenant != null && factory != null) {
+                        tenants.add(tenant);
+                        tenantFactories.computeIfAbsent(tenant, k -> new HashSet<>()).add(factory);
+                    }
+                }
+            }
+
+            // Create manufacturers
+            for (String tenant : tenants) {
+                if (manufacturerRepository.findByManufacturerId(tenant).isEmpty()) {
+                    Manufacturer manufacturer = new Manufacturer();
+                    manufacturer.setManufacturerId(tenant);
+                    manufacturer.setName(tenant.toUpperCase().replace("-", " "));
+                    manufacturerRepository.save(manufacturer);
+                    log.info("Created manufacturer: {}", tenant);
+                }
+            }
+
+            // Create factories
+            for (Map.Entry<String, Set<String>> entry : tenantFactories.entrySet()) {
+                String tenant = entry.getKey();
+                Manufacturer manufacturer = manufacturerRepository.findByManufacturerId(tenant).orElse(null);
+                if (manufacturer != null) {
+                    for (String factoryId : entry.getValue()) {
+                        if (factoryRepository.findByFactoryId(factoryId).isEmpty()) {
+                            Factory factory = new Factory();
+                            factory.setFactoryId(factoryId);
+                            factory.setName(factoryId.replace("-", " ").toUpperCase());
+                            factory.setManufacturer(manufacturer);
+                            factoryRepository.save(factory);
+                            log.info("Created factory: {} under manufacturer: {}", factoryId, tenant);
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.error("Error ensuring hierarchy", e);
         }
     }
 }

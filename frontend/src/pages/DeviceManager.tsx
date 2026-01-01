@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
+import Layout from '@/components/Layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -147,6 +148,7 @@ export default function DeviceManager() {
     const [editFactoryDescription, setEditFactoryDescription] = useState('');
     const [creating, setCreating] = useState(false);
     const [updating, setUpdating] = useState(false);
+    const [activeTab, setActiveTab] = useState('assignments');
 
     const navigate = useNavigate();
 
@@ -382,17 +384,18 @@ export default function DeviceManager() {
     }
 
     return (
-        <div className="p-6 space-y-6">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-3xl font-bold">Device Manager</h1>
-                    <p className="text-muted-foreground">
-                        Manage factory assignments and device configurations
-                    </p>
+        <Layout>
+            <div className="p-6 space-y-6">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h1 className="text-3xl font-bold">Device Manager</h1>
+                        <p className="text-muted-foreground">
+                            Manage factory assignments and device configurations
+                        </p>
+                    </div>
                 </div>
-            </div>
 
-            <Tabs defaultValue="assignments" className="w-full">
+                <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                 <TabsList className="grid w-full grid-cols-3">
                     <TabsTrigger value="assignments">Device Assignments</TabsTrigger>
                     <TabsTrigger value="overview">Factory Overview</TabsTrigger>
@@ -678,6 +681,7 @@ export default function DeviceManager() {
                     </Dialog>
                 </TabsContent>
             </Tabs>
-        </div>
+            </div>
+        </Layout>
     );
 };

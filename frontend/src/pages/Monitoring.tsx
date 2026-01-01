@@ -2,11 +2,11 @@ import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import Layout from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { LineChart, Line, ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ZAxis } from 'recharts';
 import { dataApi } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { Server } from 'lucide-react';
+import { Server, MapPin } from 'lucide-react';
 
 interface HierarchicalSensorData {
   timestamp: number;
@@ -28,6 +28,8 @@ interface HierarchicalSensorData {
             value: number;
             unit: string;
             timestamp: number;
+            position_x?: number;
+            position_y?: number;
           }>;
         }>;
       }>;
@@ -292,6 +294,109 @@ const Monitoring = () => {
             </CardContent>
           </Card>
 
+          {/* 3D Position Scatter Plot for Position Sensors */}
+          {(() => {
+            // Collect all position sensors from the latest data
+            const positionSensors: Array<{
+              id: string;
+              name: string;
+              x: number;
+              y: number;
+              plcName: string;
+              factoryName: string;
+            }> = [];
+            
+            if (historicalData.length > 0) {
+              const latestData = historicalData[historicalData.length - 1];
+              latestData.tenants?.forEach(tenant => {
+                tenant.manufacturers?.forEach(manufacturer => {
+                  manufacturer.factories?.forEach(factory => {
+                    factory.plcs?.forEach(plc => {
+                      plc.sensors?.forEach(sensor => {
+                        if (sensor.position_x !== undefined && sensor.position_y !== undefined) {
+                          positionSensors.push({
+                            id: sensor.id,
+                            name: sensor.name,
+                            x: sensor.position_x,
+                            y: sensor.position_y,
+                            plcName: plc.name,
+                            factoryName: factory.name,
+                          });
+                        }
+                      });
+                    });
+                  });
+                });
+              });
+            }
+
+            if (positionSensors.length === 0) return null;
+
+            return (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <MapPin className="h-5 w-5" />
+                    Device Position Map
+                  </CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    2D visualization of device positions in factory layout
+                  </p>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={400}>
+                    <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                      <XAxis
+                        type="number"
+                        dataKey="x"
+                        name="X Position"
+                        stroke="hsl(var(--foreground))"
+                        label={{ value: 'X Position', position: 'insideBottom', offset: -10 }}
+                      />
+                      <YAxis
+                        type="number"
+                        dataKey="y"
+                        name="Y Position"
+                        stroke="hsl(var(--foreground))"
+                        label={{ value: 'Y Position', angle: -90, position: 'insideLeft' }}
+                      />
+                      <ZAxis range={[100, 100]} />
+                      <Tooltip
+                        cursor={{ strokeDasharray: '3 3' }}
+                        contentStyle={{
+                          backgroundColor: 'hsl(var(--card))',
+                          border: '1px solid hsl(var(--border))',
+                          borderRadius: '8px',
+                        }}
+                        content={({ payload }) => {
+                          if (payload && payload.length > 0) {
+                            const data = payload[0].payload;
+                            return (
+                              <div className="bg-card p-2 border border-border rounded-lg">
+                                <p className="font-semibold">{data.name}</p>
+                                <p className="text-sm text-muted-foreground">{data.plcName}</p>
+                                <p className="text-sm text-muted-foreground">{data.factoryName}</p>
+                                <p className="text-sm">X: {data.x.toFixed(1)}, Y: {data.y.toFixed(1)}</p>
+                              </div>
+                            );
+                          }
+                          return null;
+                        }}
+                      />
+                      <Legend />
+                      <Scatter
+                        name="Device Positions"
+                        data={positionSensors}
+                        fill="hsl(var(--chart-2))"
+                      />
+                    </ScatterChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            );
+          })()}
+
           {/* Device-specific monitoring */}
           {historicalData.length > 0 && historicalData[historicalData.length - 1].tenants?.map((tenant) =>
             tenant.manufacturers?.map((manufacturer) =>
@@ -311,15 +416,31 @@ const Monitoring = () => {
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         {plc.sensors?.map((sensor) => (
                           <div key={sensor.id} className="text-center">
-                            <div className="text-2xl font-bold text-primary">
-                              {sensor.value.toFixed(1)}
-                            </div>
-                            <div className="text-sm text-muted-foreground">
-                              {sensor.name}
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              {sensor.unit}
-                            </div>
+                            {sensor.position_x !== undefined && sensor.position_y !== undefined ? (
+                              <>
+                                <div className="text-lg font-bold text-primary">
+                                  X: {sensor.position_x.toFixed(0)} / Y: {sensor.position_y.toFixed(0)}
+                                </div>
+                                <div className="text-sm text-muted-foreground">
+                                  {sensor.name}
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  {sensor.unit}
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <div className="text-2xl font-bold text-primary">
+                                  {sensor.value.toFixed(1)}
+                                </div>
+                                <div className="text-sm text-muted-foreground">
+                                  {sensor.name}
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  {sensor.unit}
+                                </div>
+                              </>
+                            )}
                           </div>
                         ))}
                       </div>

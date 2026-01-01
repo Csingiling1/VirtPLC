@@ -139,10 +139,56 @@ func processAndStore(db *sql.DB, data DeviceData) error {
 		enrichedMetadata["priority"] = data.Priority
 	}
 
+	// Extract values for separate columns based on device type and data content
+	var rpm, positionX, positionY *float64
+	var isOn, inOperation *bool
+
+	// Handle UNREAL device data
+	if data.Type == "UNREAL" {
+		// Extract rpm for conveyor devices
+		if rpmVal, ok := data.Data["rpm"].(float64); ok {
+			rpm = &rpmVal
+		}
+		
+		// Extract position for placer devices
+		if posXVal, ok := data.Data["posX"].(float64); ok {
+			positionX = &posXVal
+		}
+		if posYVal, ok := data.Data["posY"].(float64); ok {
+			positionY = &posYVal
+		}
+		
+		// Extract boolean states
+		if isOnVal, ok := data.Data["is_on"].(bool); ok {
+			isOn = &isOnVal
+		}
+		if isReadyVal, ok := data.Data["is_ready"].(bool); ok {
+			inOperation = &isReadyVal  // Map is_ready to in_operation column
+		}
+	} else if data.Type == "sensor" {
+		// Handle sensor data - extract value from signal_config
+		if signalConfig, ok := data.Data["signal_config"].(map[string]interface{}); ok {
+			if value, ok := signalConfig["value"].(float64); ok {
+				rpm = &value
+			}
+		}
+	} else if data.Type == "plc" {
+		// Handle PLC data
+		if x, ok := data.Data["x_position"].(float64); ok {
+			positionX = &x
+		}
+		if y, ok := data.Data["y_position"].(float64); ok {
+			positionY = &y
+		}
+		if active, ok := data.Data["is_active"].(bool); ok {
+			isOn = &active
+		}
+	}
+
 	// Insert into database
 	query := `
-		INSERT INTO plc_data (timestamp, device_id, type, data, metadata)
-		VALUES ($1, $2, $3, $4, $5)
+		INSERT INTO plc_data (timestamp, device_id, type, data, metadata, rpm, position_x, position_y, is_on, in_operation)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 	`
 
 	jsonData, err := json.Marshal(data.Data)
@@ -155,7 +201,7 @@ func processAndStore(db *sql.DB, data DeviceData) error {
 		return err
 	}
 
-	_, err = db.Exec(query, timestamp, data.DeviceID, data.Type, jsonData, jsonMetadata)
+	_, err = db.Exec(query, timestamp, data.DeviceID, data.Type, jsonData, jsonMetadata, rpm, positionX, positionY, isOn, inOperation)
 	return err
 }
 
