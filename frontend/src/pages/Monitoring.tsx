@@ -305,7 +305,7 @@ const Monitoring = () => {
               plcName: string;
               factoryName: string;
             }> = [];
-            
+
             if (historicalData.length > 0) {
               const latestData = historicalData[historicalData.length - 1];
               latestData.tenants?.forEach(tenant => {

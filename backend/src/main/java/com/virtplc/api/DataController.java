@@ -245,16 +245,20 @@ public class DataController {
                                         sensorMap.put("value", value != null ? value : 0.0);
                                         sensorMap.put("timestamp",
                                                 latestData.getTimestamp().toInstant(ZoneOffset.UTC).toEpochMilli());
-                                        
+
                                         // For placer sensor, also include position_x and position_y
                                         if (sensor.getName().equalsIgnoreCase("placer")) {
-                                            sensorMap.put("position_x", latestData.getPositionX() != null ? latestData.getPositionX() : 0.0);
-                                            sensorMap.put("position_y", latestData.getPositionY() != null ? latestData.getPositionY() : 0.0);
+                                            sensorMap.put("position_x",
+                                                    latestData.getPositionX() != null ? latestData.getPositionX()
+                                                            : 0.0);
+                                            sensorMap.put("position_y",
+                                                    latestData.getPositionY() != null ? latestData.getPositionY()
+                                                            : 0.0);
                                         }
                                     } else {
                                         sensorMap.put("value", 0.0);
                                         sensorMap.put("timestamp", System.currentTimeMillis());
-                                        
+
                                         // For placer sensor, also include position_x and position_y
                                         if (sensor.getName().equalsIgnoreCase("placer")) {
                                             sensorMap.put("position_x", 0.0);
@@ -428,10 +432,12 @@ public class DataController {
         if (sensorName.equals("placer") && plcData.getPositionX() != null) {
             return plcData.getPositionX();
         }
-        if ((sensorName.equals("status") || sensorName.equals("is_on") || sensorName.endsWith("_on")) && plcData.getIsOn() != null) {
+        if ((sensorName.equals("status") || sensorName.equals("is_on") || sensorName.endsWith("_on"))
+                && plcData.getIsOn() != null) {
             return plcData.getIsOn() ? 1.0 : 0.0;
         }
-        if ((sensorName.equals("operation") || sensorName.equals("in_operation") || sensorName.endsWith("_operation")) && plcData.getInOperation() != null) {
+        if ((sensorName.equals("operation") || sensorName.equals("in_operation") || sensorName.endsWith("_operation"))
+                && plcData.getInOperation() != null) {
             return plcData.getInOperation() ? 1.0 : 0.0;
         }
 

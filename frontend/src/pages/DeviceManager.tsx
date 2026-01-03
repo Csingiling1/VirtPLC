@@ -396,291 +396,291 @@ export default function DeviceManager() {
                 </div>
 
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <TabsList className="grid w-full grid-cols-3">
-                    <TabsTrigger value="assignments">Device Assignments</TabsTrigger>
-                    <TabsTrigger value="overview">Factory Overview</TabsTrigger>
-                    <TabsTrigger value="management">Factory Management</TabsTrigger>
-                </TabsList>
+                    <TabsList className="grid w-full grid-cols-3">
+                        <TabsTrigger value="assignments">Device Assignments</TabsTrigger>
+                        <TabsTrigger value="overview">Factory Overview</TabsTrigger>
+                        <TabsTrigger value="management">Factory Management</TabsTrigger>
+                    </TabsList>
 
-                <TabsContent value="assignments" className="space-y-6">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <h2 className="text-xl font-semibold">Device Assignments</h2>
-                            <p className="text-sm text-muted-foreground">
-                                Drag and drop devices between factories to manage assignments
-                            </p>
+                    <TabsContent value="assignments" className="space-y-6">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h2 className="text-xl font-semibold">Device Assignments</h2>
+                                <p className="text-sm text-muted-foreground">
+                                    Drag and drop devices between factories to manage assignments
+                                </p>
+                            </div>
+                            <Button onClick={handleSave} disabled={saving}>
+                                <Save className="mr-2 h-4 w-4" />
+                                {saving ? 'Saving...' : 'Save Changes'}
+                            </Button>
                         </div>
-                        <Button onClick={handleSave} disabled={saving}>
-                            <Save className="mr-2 h-4 w-4" />
-                            {saving ? 'Saving...' : 'Save Changes'}
-                        </Button>
-                    </div>
 
-                    <DndContext
-                        sensors={sensors}
-                        collisionDetection={closestCenter}
-                        onDragEnd={handleDragEnd}
-                    >
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                            {factories.map((factory) => (
-                                <DroppableFactory
-                                    key={factory.id}
-                                    factory={factory}
-                                    onEdit={handleEditFactory}
-                                    onDelete={handleDeleteFactory}
-                                />
-                            ))}
+                        <DndContext
+                            sensors={sensors}
+                            collisionDetection={closestCenter}
+                            onDragEnd={handleDragEnd}
+                        >
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                {factories.map((factory) => (
+                                    <DroppableFactory
+                                        key={factory.id}
+                                        factory={factory}
+                                        onEdit={handleEditFactory}
+                                        onDelete={handleDeleteFactory}
+                                    />
+                                ))}
 
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                        <Database className="h-5 w-5" />
-                                        Unassigned Devices
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent>
-                                    <SortableContext
-                                        items={orphanDevices.map(d => d.id)}
-                                        strategy={verticalListSortingStrategy}
-                                    >
-                                        <div className="space-y-2">
-                                            {orphanDevices.map((device) => (
-                                                <SortableDevice
-                                                    key={device.id}
-                                                    id={device.id}
-                                                    device={device}
-                                                />
-                                            ))}
-                                            {orphanDevices.length === 0 && (
-                                                <div className="text-center text-muted-foreground py-8">
-                                                    <Database className="mx-auto h-8 w-8 mb-2" />
-                                                    <p>No unassigned devices</p>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </SortableContext>
-                                </CardContent>
-                            </Card>
-                        </div>
-                    </DndContext>
-                </TabsContent>
-
-                <TabsContent value="overview" className="space-y-6">
-                    <div>
-                        <h2 className="text-xl font-semibold">Factory Overview</h2>
-                        <p className="text-sm text-muted-foreground">
-                            View all factories and their assigned devices
-                        </p>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {factories.map((factory) => (
-                            <Card key={factory.id} className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => navigate(`/monitoring?factoryId=${factory.factoryId}`)}>
-                                <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                        <Factory className="h-5 w-5" />
-                                        {factory.name}
-                                    </CardTitle>
-                                    {factory.description && (
-                                        <p className="text-sm text-muted-foreground">{factory.description}</p>
-                                    )}
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="space-y-3">
-                                        <div className="flex items-center justify-between">
-                                            <span className="text-sm text-muted-foreground">Devices:</span>
-                                            <Badge variant="secondary">{factory.devices?.length || 0}</Badge>
-                                        </div>
-                                        {factory.devices && factory.devices.length > 0 && (
+                                <Card>
+                                    <CardHeader>
+                                        <CardTitle className="flex items-center gap-2">
+                                            <Database className="h-5 w-5" />
+                                            Unassigned Devices
+                                        </CardTitle>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <SortableContext
+                                            items={orphanDevices.map(d => d.id)}
+                                            strategy={verticalListSortingStrategy}
+                                        >
                                             <div className="space-y-2">
-                                                {factory.devices.slice(0, 5).map((device: any) => (
-                                                    <div key={device.id} className="flex items-center justify-between p-2 bg-muted/50 rounded">
-                                                        <div>
-                                                            <div className="font-medium text-sm">{device.name}</div>
-                                                            <div className="text-xs text-muted-foreground">{device.type}</div>
-                                                        </div>
-                                                        <Badge variant="outline" className="text-xs">
-                                                            {device.signals?.length || 0} signals
-                                                        </Badge>
-                                                    </div>
+                                                {orphanDevices.map((device) => (
+                                                    <SortableDevice
+                                                        key={device.id}
+                                                        id={device.id}
+                                                        device={device}
+                                                    />
                                                 ))}
-                                                {factory.devices.length > 5 && (
-                                                    <div className="text-xs text-muted-foreground text-center">
-                                                        +{factory.devices.length - 5} more devices
+                                                {orphanDevices.length === 0 && (
+                                                    <div className="text-center text-muted-foreground py-8">
+                                                        <Database className="mx-auto h-8 w-8 mb-2" />
+                                                        <p>No unassigned devices</p>
                                                     </div>
                                                 )}
                                             </div>
-                                        )}
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        ))}
-                        {factories.length === 0 && (
-                            <div className="col-span-full text-center py-8">
-                                <Factory className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                                <h3 className="text-lg font-medium mb-2">No Factories</h3>
-                                <p className="text-muted-foreground">Create your first factory to get started.</p>
+                                        </SortableContext>
+                                    </CardContent>
+                                </Card>
                             </div>
-                        )}
-                    </div>
-                </TabsContent>
+                        </DndContext>
+                    </TabsContent>
 
-                <TabsContent value="management" className="space-y-6">
-                    <div className="flex items-center justify-between">
+                    <TabsContent value="overview" className="space-y-6">
                         <div>
-                            <h2 className="text-xl font-semibold">Factory Management</h2>
+                            <h2 className="text-xl font-semibold">Factory Overview</h2>
                             <p className="text-sm text-muted-foreground">
-                                Create, edit, and delete factories
+                                View all factories and their assigned devices
                             </p>
                         </div>
-                        <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-                            <DialogTrigger asChild>
-                                <Button>
-                                    <Plus className="mr-2 h-4 w-4" />
-                                    Create Factory
-                                </Button>
-                            </DialogTrigger>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {factories.map((factory) => (
+                                <Card key={factory.id} className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => navigate(`/monitoring?factoryId=${factory.factoryId}`)}>
+                                    <CardHeader>
+                                        <CardTitle className="flex items-center gap-2">
+                                            <Factory className="h-5 w-5" />
+                                            {factory.name}
+                                        </CardTitle>
+                                        {factory.description && (
+                                            <p className="text-sm text-muted-foreground">{factory.description}</p>
+                                        )}
+                                    </CardHeader>
+                                    <CardContent>
+                                        <div className="space-y-3">
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-sm text-muted-foreground">Devices:</span>
+                                                <Badge variant="secondary">{factory.devices?.length || 0}</Badge>
+                                            </div>
+                                            {factory.devices && factory.devices.length > 0 && (
+                                                <div className="space-y-2">
+                                                    {factory.devices.slice(0, 5).map((device: any) => (
+                                                        <div key={device.id} className="flex items-center justify-between p-2 bg-muted/50 rounded">
+                                                            <div>
+                                                                <div className="font-medium text-sm">{device.name}</div>
+                                                                <div className="text-xs text-muted-foreground">{device.type}</div>
+                                                            </div>
+                                                            <Badge variant="outline" className="text-xs">
+                                                                {device.signals?.length || 0} signals
+                                                            </Badge>
+                                                        </div>
+                                                    ))}
+                                                    {factory.devices.length > 5 && (
+                                                        <div className="text-xs text-muted-foreground text-center">
+                                                            +{factory.devices.length - 5} more devices
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            ))}
+                            {factories.length === 0 && (
+                                <div className="col-span-full text-center py-8">
+                                    <Factory className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+                                    <h3 className="text-lg font-medium mb-2">No Factories</h3>
+                                    <p className="text-muted-foreground">Create your first factory to get started.</p>
+                                </div>
+                            )}
+                        </div>
+                    </TabsContent>
+
+                    <TabsContent value="management" className="space-y-6">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h2 className="text-xl font-semibold">Factory Management</h2>
+                                <p className="text-sm text-muted-foreground">
+                                    Create, edit, and delete factories
+                                </p>
+                            </div>
+                            <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+                                <DialogTrigger asChild>
+                                    <Button>
+                                        <Plus className="mr-2 h-4 w-4" />
+                                        Create Factory
+                                    </Button>
+                                </DialogTrigger>
+                                <DialogContent>
+                                    <DialogHeader>
+                                        <DialogTitle>Create New Factory</DialogTitle>
+                                        <DialogDescription>
+                                            Add a new factory to organize your devices.
+                                        </DialogDescription>
+                                    </DialogHeader>
+                                    <div className="space-y-4">
+                                        <div>
+                                            <Label htmlFor="factory-name">Factory Name</Label>
+                                            <Input
+                                                id="factory-name"
+                                                value={newFactoryName}
+                                                onChange={(e) => setNewFactoryName(e.target.value)}
+                                                placeholder="Enter factory name"
+                                            />
+                                        </div>
+                                        <div>
+                                            <Label htmlFor="factory-description">Description (Optional)</Label>
+                                            <Textarea
+                                                id="factory-description"
+                                                value={newFactoryDescription}
+                                                onChange={(e) => setNewFactoryDescription(e.target.value)}
+                                                placeholder="Enter factory description"
+                                                rows={3}
+                                            />
+                                        </div>
+                                    </div>
+                                    <DialogFooter>
+                                        <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>
+                                            Cancel
+                                        </Button>
+                                        <Button onClick={handleCreateFactory} disabled={!newFactoryName.trim()}>
+                                            Create Factory
+                                        </Button>
+                                    </DialogFooter>
+                                </DialogContent>
+                            </Dialog>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {factories.map((factory) => (
+                                <Card key={factory.id}>
+                                    <CardHeader>
+                                        <CardTitle className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                                <Factory className="h-5 w-5" />
+                                                {factory.name}
+                                            </div>
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button variant="ghost" size="sm">
+                                                        <MoreHorizontal className="h-4 w-4" />
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end">
+                                                    <DropdownMenuItem onClick={() => handleEditFactory(factory)}>
+                                                        <Edit className="mr-2 h-4 w-4" />
+                                                        Edit
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuSeparator />
+                                                    <DropdownMenuItem
+                                                        onClick={() => handleDeleteFactory(factory)}
+                                                        className="text-destructive"
+                                                    >
+                                                        <Trash2 className="mr-2 h-4 w-4" />
+                                                        Delete
+                                                    </DropdownMenuItem>
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+                                        </CardTitle>
+                                        {factory.description && (
+                                            <p className="text-sm text-muted-foreground">{factory.description}</p>
+                                        )}
+                                    </CardHeader>
+                                    <CardContent>
+                                        <div className="space-y-3">
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-sm text-muted-foreground">Devices:</span>
+                                                <Badge variant="secondary">{factory.devices?.length || 0}</Badge>
+                                            </div>
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-sm text-muted-foreground">Created:</span>
+                                                <span className="text-sm">
+                                                    {new Date(factory.createdAt).toLocaleDateString()}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            ))}
+                            {factories.length === 0 && (
+                                <div className="col-span-full text-center py-8">
+                                    <Factory className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+                                    <h3 className="text-lg font-medium mb-2">No Factories</h3>
+                                    <p className="text-muted-foreground">Create your first factory to get started.</p>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Edit Factory Dialog */}
+                        <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
                             <DialogContent>
                                 <DialogHeader>
-                                    <DialogTitle>Create New Factory</DialogTitle>
+                                    <DialogTitle>Edit Factory</DialogTitle>
                                     <DialogDescription>
-                                        Add a new factory to organize your devices.
+                                        Update factory information.
                                     </DialogDescription>
                                 </DialogHeader>
                                 <div className="space-y-4">
                                     <div>
-                                        <Label htmlFor="factory-name">Factory Name</Label>
+                                        <Label htmlFor="edit-factory-name">Factory Name</Label>
                                         <Input
-                                            id="factory-name"
-                                            value={newFactoryName}
-                                            onChange={(e) => setNewFactoryName(e.target.value)}
+                                            id="edit-factory-name"
+                                            value={editFactoryName}
+                                            onChange={(e) => setEditFactoryName(e.target.value)}
                                             placeholder="Enter factory name"
                                         />
                                     </div>
                                     <div>
-                                        <Label htmlFor="factory-description">Description (Optional)</Label>
+                                        <Label htmlFor="edit-factory-description">Description (Optional)</Label>
                                         <Textarea
-                                            id="factory-description"
-                                            value={newFactoryDescription}
-                                            onChange={(e) => setNewFactoryDescription(e.target.value)}
+                                            id="edit-factory-description"
+                                            value={editFactoryDescription}
+                                            onChange={(e) => setEditFactoryDescription(e.target.value)}
                                             placeholder="Enter factory description"
                                             rows={3}
                                         />
                                     </div>
                                 </div>
                                 <DialogFooter>
-                                    <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>
+                                    <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
                                         Cancel
                                     </Button>
-                                    <Button onClick={handleCreateFactory} disabled={!newFactoryName.trim()}>
-                                        Create Factory
+                                    <Button onClick={handleUpdateFactory} disabled={!editFactoryName.trim()}>
+                                        Update Factory
                                     </Button>
                                 </DialogFooter>
                             </DialogContent>
                         </Dialog>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {factories.map((factory) => (
-                            <Card key={factory.id}>
-                                <CardHeader>
-                                    <CardTitle className="flex items-center justify-between">
-                                        <div className="flex items-center gap-2">
-                                            <Factory className="h-5 w-5" />
-                                            {factory.name}
-                                        </div>
-                                        <DropdownMenu>
-                                            <DropdownMenuTrigger asChild>
-                                                <Button variant="ghost" size="sm">
-                                                    <MoreHorizontal className="h-4 w-4" />
-                                                </Button>
-                                            </DropdownMenuTrigger>
-                                            <DropdownMenuContent align="end">
-                                                <DropdownMenuItem onClick={() => handleEditFactory(factory)}>
-                                                    <Edit className="mr-2 h-4 w-4" />
-                                                    Edit
-                                                </DropdownMenuItem>
-                                                <DropdownMenuSeparator />
-                                                <DropdownMenuItem
-                                                    onClick={() => handleDeleteFactory(factory)}
-                                                    className="text-destructive"
-                                                >
-                                                    <Trash2 className="mr-2 h-4 w-4" />
-                                                    Delete
-                                                </DropdownMenuItem>
-                                            </DropdownMenuContent>
-                                        </DropdownMenu>
-                                    </CardTitle>
-                                    {factory.description && (
-                                        <p className="text-sm text-muted-foreground">{factory.description}</p>
-                                    )}
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="space-y-3">
-                                        <div className="flex items-center justify-between">
-                                            <span className="text-sm text-muted-foreground">Devices:</span>
-                                            <Badge variant="secondary">{factory.devices?.length || 0}</Badge>
-                                        </div>
-                                        <div className="flex items-center justify-between">
-                                            <span className="text-sm text-muted-foreground">Created:</span>
-                                            <span className="text-sm">
-                                                {new Date(factory.createdAt).toLocaleDateString()}
-                                            </span>
-                                        </div>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        ))}
-                        {factories.length === 0 && (
-                            <div className="col-span-full text-center py-8">
-                                <Factory className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                                <h3 className="text-lg font-medium mb-2">No Factories</h3>
-                                <p className="text-muted-foreground">Create your first factory to get started.</p>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Edit Factory Dialog */}
-                    <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-                        <DialogContent>
-                            <DialogHeader>
-                                <DialogTitle>Edit Factory</DialogTitle>
-                                <DialogDescription>
-                                    Update factory information.
-                                </DialogDescription>
-                            </DialogHeader>
-                            <div className="space-y-4">
-                                <div>
-                                    <Label htmlFor="edit-factory-name">Factory Name</Label>
-                                    <Input
-                                        id="edit-factory-name"
-                                        value={editFactoryName}
-                                        onChange={(e) => setEditFactoryName(e.target.value)}
-                                        placeholder="Enter factory name"
-                                    />
-                                </div>
-                                <div>
-                                    <Label htmlFor="edit-factory-description">Description (Optional)</Label>
-                                    <Textarea
-                                        id="edit-factory-description"
-                                        value={editFactoryDescription}
-                                        onChange={(e) => setEditFactoryDescription(e.target.value)}
-                                        placeholder="Enter factory description"
-                                        rows={3}
-                                    />
-                                </div>
-                            </div>
-                            <DialogFooter>
-                                <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
-                                    Cancel
-                                </Button>
-                                <Button onClick={handleUpdateFactory} disabled={!editFactoryName.trim()}>
-                                    Update Factory
-                                </Button>
-                            </DialogFooter>
-                        </DialogContent>
-                    </Dialog>
-                </TabsContent>
-            </Tabs>
+                    </TabsContent>
+                </Tabs>
             </div>
         </Layout>
     );

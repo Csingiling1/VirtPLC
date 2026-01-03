@@ -98,19 +98,24 @@ public class DataInitializationService implements CommandLineRunner {
 
                 PLC nyPlc1 = createPLC("PLC-NY-001", "Siemens S7-1500 #1", "Assembly line controller",
                                 nyFactory, 120.0, 720.0);
-                createSensor(nyPlc1, "temp-ny-001", "Assembly Temperature", "temperature", "°C", 75.0, 5.0);
-                createSensor(nyPlc1, "pressure-ny-001", "Hydraulic Pressure", "pressure", "bar", 150.0, 10.0);
-                createSensor(nyPlc1, "vibration-ny-001", "Motor Vibration", "vibration", "mm/s", 2.5, 0.5);
+                createSensor(nyPlc1, "motor_speed_PLC-NY-001", "Motor Speed", "speed", "RPM", 1750.0, 25.0);
+                createSensor(nyPlc1, "motor_temp_PLC-NY-001", "Motor Temperature", "temperature", "°C", 65.0, 5.0);
+                createSensor(nyPlc1, "vibration_PLC-NY-001", "Motor Vibration", "vibration", "mm/s", 1.2, 0.1);
+                createSensor(nyPlc1, "power_consumption_PLC-NY-001", "Power Consumption", "power", "kW", 50.0, 5.0);
 
                 PLC nyPlc2 = createPLC("PLC-NY-002", "Allen-Bradley ControlLogix #1", "Quality control station",
                                 nyFactory, 120.0, 90.0);
-                createSensor(nyPlc2, "temp-ny-002", "QC Temperature", "temperature", "°C", 22.0, 1.0);
-                createSensor(nyPlc2, "humidity-ny-002", "QC Humidity", "humidity", "%", 45.0, 5.0);
+                createSensor(nyPlc2, "pressure_main_PLC-NY-002", "Main Pressure", "pressure", "bar", 150.0, 10.0);
+                createSensor(nyPlc2, "flow_rate_PLC-NY-002", "Flow Rate", "flow", "L/min", 100.0, 10.0);
+                createSensor(nyPlc2, "level_tank_PLC-NY-002", "Tank Level", "level", "m", 3.0, 0.5);
+                createSensor(nyPlc2, "ph_level_PLC-NY-002", "pH Level", "ph", "pH", 7.0, 0.5);
 
                 PLC laPlc1 = createPLC("PLC-LA-001", "Schneider M580 #1", "Conveyor system controller",
                                 laFactory, 50.0, 40.0);
-                createSensor(laPlc1, "speed-la-001", "Conveyor Speed", "speed", "m/min", 15.0, 2.0);
-                createSensor(laPlc1, "temp-la-001", "Motor Temperature", "temperature", "°C", 65.0, 8.0);
+                createSensor(laPlc1, "conveyor_speed_PLC-LA-001", "Conveyor Speed", "speed", "m/min", 15.0, 2.0);
+                createSensor(laPlc1, "load_weight_PLC-LA-001", "Load Weight", "weight", "kg", 500.0, 50.0);
+                createSensor(laPlc1, "belt_tension_PLC-LA-001", "Belt Tension", "force", "N", 1500.0, 100.0);
+                createSensor(laPlc1, "motor_current_PLC-LA-001", "Motor Current", "current", "A", 25.0, 3.0);
         }
 
         private void createTechSolutions() {
@@ -143,9 +148,18 @@ public class DataInitializationService implements CommandLineRunner {
 
                 PLC austinPlc1 = createPLC("PLC-AUS-001", "Beckhoff CX9020 #1", "SMT line controller",
                                 austinFactory, 40.0, 60.0);
-                createSensor(austinPlc1, "temp-aus-001", "SMT Oven Temperature", "temperature", "°C", 240.0, 10.0);
-                createSensor(austinPlc1, "pressure-aus-001", "Pick-Place Pressure", "pressure", "psi", 60.0, 5.0);
-                createSensor(austinPlc1, "position-aus-001", "Component Position", "position", "mm", 0.05, 0.01);
+                createSensor(austinPlc1, "humidity_PLC-AUS-001", "Humidity", "humidity", "%", 45.0, 5.0);
+                createSensor(austinPlc1, "temperature_oven_PLC-AUS-001", "Oven Temperature", "temperature", "°C", 180.0,
+                                10.0);
+                createSensor(austinPlc1, "air_quality_PLC-AUS-001", "Air Quality", "quality", "ppm", 2.0, 0.2);
+                createSensor(austinPlc1, "static_charge_PLC-AUS-001", "Static Charge", "charge", "kV", 0.5, 0.1);
+
+                PLC austinPlc2 = createPLC("PLC-AUS-002", "Beckhoff CX9020 #2", "Testing station",
+                                austinFactory, 40.0, 108.0);
+                createSensor(austinPlc2, "resistance_PLC-AUS-002", "Resistance", "resistance", "Ω", 1000.0, 50.0);
+                createSensor(austinPlc2, "voltage_PLC-AUS-002", "Voltage", "voltage", "V", 5.0, 0.5);
+                createSensor(austinPlc2, "current_test_PLC-AUS-002", "Test Current", "current", "mA", 50.0, 5.0);
+                createSensor(austinPlc2, "frequency_PLC-AUS-002", "Frequency", "frequency", "Hz", 100.0, 5.0);
         }
 
         private void createGlobalIndustries() {
@@ -178,16 +192,19 @@ public class DataInitializationService implements CommandLineRunner {
 
                 PLC chiPlc1 = createPLC("PLC-CHI-001", "Mitsubishi Q Series #1", "Press machine controller",
                                 chicagoFactory, 75.0, 50.0);
-                createSensor(chiPlc1, "force-chi-001", "Press Force", "force", "kN", 500.0, 100.0);
-                createSensor(chiPlc1, "temp-chi-001", "Die Temperature", "temperature", "°C", 180.0, 30.0);
-                createSensor(chiPlc1, "hydraulic-chi-001", "Hydraulic Pressure (Unreliable)", "pressure", "bar", 200.0,
-                                50.0);
+                createSensor(chiPlc1, "press_force_PLC-CHI-001", "Press Force", "force", "kN", 500.0, 50.0);
+                createSensor(chiPlc1, "hydraulic_pressure_PLC-CHI-001", "Hydraulic Pressure", "pressure", "bar", 200.0,
+                                20.0);
+                createSensor(chiPlc1, "material_thickness_PLC-CHI-001", "Material Thickness", "thickness", "mm", 5.0,
+                                0.5);
+                createSensor(chiPlc1, "cycle_time_PLC-CHI-001", "Cycle Time", "time", "s", 30.0, 3.0);
 
                 PLC chiPlc2 = createPLC("PLC-CHI-002", "Siemens S7-400 #1", "Welding station controller",
                                 chicagoFactory, 75.0, 50.0);
-                createSensor(chiPlc2, "current-chi-002", "Welding Current", "current", "A", 250.0, 25.0);
-                createSensor(chiPlc2, "voltage-chi-002", "Welding Voltage", "voltage", "V", 28.0, 3.0);
-                createSensor(chiPlc2, "temp-chi-002", "Weld Temp (Unstable)", "temperature", "°C", 1400.0, 200.0);
+                createSensor(chiPlc2, "weld_current_PLC-CHI-002", "Weld Current", "current", "A", 250.0, 25.0);
+                createSensor(chiPlc2, "weld_voltage_PLC-CHI-002", "Weld Voltage", "voltage", "V", 28.0, 3.0);
+                createSensor(chiPlc2, "wire_feed_PLC-CHI-002", "Wire Feed Speed", "speed", "m/min", 5.0, 0.5);
+                createSensor(chiPlc2, "gas_flow_PLC-CHI-002", "Shield Gas Flow", "flow", "L/min", 18.0, 1.0);
         }
 
         private User createUser(String email, String password, String firstName, String lastName,
