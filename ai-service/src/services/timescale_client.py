@@ -63,10 +63,12 @@ class TimescaleClient:
             with self.conn.cursor(cursor_factory=RealDictCursor) as cursor:
                 cursor.execute(query, params)
                 results = cursor.fetchall()
+                self.conn.commit()  # Commit the transaction
                 # Convert RealDictRow to regular dict
                 return [dict(row) for row in results]
         except Exception as e:
             logger.error(f"Query failed: {e}\nQuery: {query}")
+            self.conn.rollback()  # Rollback on error to reset transaction state
             raise
     
     def get_latest_readings(self, device_id: Optional[str] = None, limit: int = 100) -> List[Dict[str, Any]]:
@@ -207,3 +209,60 @@ class TimescaleClient:
 
 # Global instance
 timescale_client = TimescaleClient()
+
+
+class TimescaleService:
+    """High-level service interface for TimescaleDB operations"""
+    
+    def __init__(self):
+        self.client = timescale_client
+        
+    async def get_latest_data(self, limit: int = 100) -> List[Dict[str, Any]]:
+        """Get latest data points"""
+        return self.client.get_latest_readings(limit=limit)
+    
+    async def get_device_data(
+        self,
+        device_id: str,
+        start_time: datetime,
+        end_time: datetime
+    ) -> List[Dict[str, Any]]:
+        """Get device data for a time range"""
+        query = """
+            SELECT 
+                timestamp,
+                device_id,
+                type,
+                data,
+                metadata
+            FROM plc_data
+            WHERE device_id = %s
+              AND timestamp BETWEEN %s AND %s
+            ORDER BY timestamp ASC
+        """
+        return self.client.execute_query(query, (device_id, start_time, end_time))
+    
+    async def get_historical_data_for_range(
+        self,
+        start_time: datetime,
+        end_time: datetime,
+        limit: int = 1000
+    ) -> List[Dict[str, Any]]:
+        """Get historical data for a time range"""
+        query = """
+            SELECT 
+                timestamp,
+                device_id,
+                type,
+                data,
+                metadata
+            FROM plc_data
+            WHERE timestamp BETWEEN %s AND %s
+            ORDER BY timestamp DESC
+            LIMIT %s
+        """
+        return self.client.execute_query(query, (start_time, end_time, limit))
+
+
+# Global service instance
+timescale_service = TimescaleService()

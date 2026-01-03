@@ -89,11 +89,16 @@ async def test_endpoint():
         # Test MCP connection
         mcp_tools = await mcp_client.list_tools() if mcp_client.enabled else []
         
-        # Test TimeBase query
-        sample_data = await timebase_service.get_latest_readings(
-            symbols=["Motor1", "Motor2"],
-            limit=5
-        )
+        # Test database query via MCP
+        sample_data = []
+        if mcp_client.enabled:
+            try:
+                result = await mcp_client.call_tool("query_timescale", {
+                    "query": "SELECT timestamp, device_id, type FROM plc_data ORDER BY timestamp DESC LIMIT 5"
+                })
+                sample_data = result
+            except Exception as e:
+                logger.warning(f"Failed to get sample data: {e}")
         
         return {
             "status": "ok",
@@ -103,15 +108,15 @@ async def test_endpoint():
                 "tools_available": len(mcp_tools),
                 "tools": [t.get("name") for t in mcp_tools]
             },
-            "timebase": {
-                "connected": timebase_service.client is not None,
-                "sample_data_points": len(sample_data) if not sample_data.empty else 0
+            "database": {
+                "connected": mcp_client.enabled,
+                "sample_data_available": bool(sample_data)
             },
             "ollama": {
                 "host": settings.ollama_host,
                 "model": settings.ollama_model
             },
-            "sample_data": sample_data.to_dict(orient="records") if not sample_data.empty else []
+            "sample_data": sample_data
         }
     except Exception as e:
         logger.error(f"Test endpoint error: {e}")

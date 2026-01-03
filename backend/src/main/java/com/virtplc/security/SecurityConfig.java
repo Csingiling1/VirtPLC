@@ -9,11 +9,13 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.http.HttpMethod;
 
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity
 @RequiredArgsConstructor
 public class SecurityConfig {
 
@@ -34,9 +36,18 @@ public class SecurityConfig {
                         .requestMatchers("/api/data/health").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/api/data/latest").permitAll()
                         .requestMatchers("/api/data/latest").permitAll()
+                        .requestMatchers("/api/data/range").permitAll()
+                        .requestMatchers("/api/data/hierarchical").permitAll()
+                        .requestMatchers("/api/admin/device-assignments").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/admin/factories").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/admin/devices").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/admin/factories").permitAll()
+                        .requestMatchers(HttpMethod.PUT, "/api/admin/factories/**").permitAll()
+                        .requestMatchers(HttpMethod.DELETE, "/api/admin/factories/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/data/ingest").permitAll()
                         .requestMatchers("/api/simulator/**").permitAll() // Simulator endpoints for dashboard
                         .requestMatchers("/api/mcp/**").permitAll() // MCP endpoints for AI service
+                        .requestMatchers("/error").permitAll()
                         // .requestMatchers("/api/dashboards/**").permitAll() // Dashboard endpoints -
                         // now require authentication
 

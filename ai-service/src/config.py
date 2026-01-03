@@ -24,6 +24,11 @@ class Settings(BaseSettings):
     ollama_model: str = Field(default="qwen2:0.5b", env="OLLAMA_MODEL")
     ollama_temperature: float = Field(default=0.7, env="OLLAMA_TEMPERATURE")
     ollama_max_tokens: int = Field(default=2048, env="OLLAMA_MAX_TOKENS")
+
+    # Claude
+    claude_api_key: Optional[str] = Field(default=None, env="CLAUDE_API_KEY")
+    claude_model: str = Field(default="claude-3-opus-20240229", env="CLAUDE_MODEL")
+    claude_max_tokens: int = Field(default=4096, env="CLAUDE_MAX_TOKENS")
     
     # MCP
     mcp_enabled: bool = Field(default=True, env="MCP_ENABLED")

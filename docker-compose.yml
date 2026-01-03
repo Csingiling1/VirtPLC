@@ -39,7 +39,8 @@ services:
       timescale:
         condition: service_healthy
     networks:
-      - virtplc-network
+      - main_network
+      - data_network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
       interval: 30s
@@ -61,7 +62,7 @@ services:
       - SIMULATOR_MODE=plc-server
       - SIMULATOR_HOST=0.0.0.0
       - SIMULATOR_PORT=8080
-      - MQTT_BROKER=mqtt
+      - MQTT_BROKER=virtplc-rabbitmq
       - MQTT_PORT=1883
       - MQTT_USERNAME=${MQTT_USERNAME}
       - MQTT_PASSWORD=${MQTT_PASSWORD}
@@ -69,7 +70,8 @@ services:
     volumes:
       - simulator-data:/app/data
     networks:
-      - virtplc-network
+      - main_network
+      - plc_network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/simulation/status"]
       interval: 30s
@@ -93,7 +95,7 @@ services:
     depends_on:
       - simulator
     networks:
-      - virtplc-network
+      - main_network
     restart: unless-stopped
 
   # React Frontend
@@ -103,7 +105,7 @@ services:
       dockerfile: Dockerfile
       args:
         - VITE_WS_URL=ws://localhost:3002
-                - VITE_AI_API_URL=http://localhost:3001
+        - VITE_AI_API_URL=http://localhost:3001
         - VITE_API_BASE_URL=http://localhost:18080
     container_name: virtplc-frontend
     ports:
@@ -116,7 +118,7 @@ services:
       - backend
       - ai-service
     networks:
-      - virtplc-network
+      - main_network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000"]
       interval: 30s
@@ -133,7 +135,7 @@ services:
     volumes:
       - ollama-data:/root/.ollama
     networks:
-      - virtplc-network
+      - main_network
     healthcheck:
       test: ["CMD", "echo", "ok"]
       interval: 30s
@@ -141,14 +143,6 @@ services:
       retries: 3
       start_period: 30s
     restart: unless-stopped
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: all
-    #           capabilities: [gpu]
-    # Remove GPU section above if you don't have NVIDIA GPU
 
   # Ollama Model Initializer
   ollama-init:
@@ -163,7 +157,7 @@ services:
       ollama:
         condition: service_healthy
     networks:
-      - virtplc-network
+      - main_network
     restart: no
 
   # AI Analysis Service (Python + FastAPI)
@@ -186,7 +180,7 @@ services:
       - MCP_SERVER_URL=http://db-mcp-server:9092/sse
       - OLLAMA_HOST=http://ollama:11434
       # - OLLAMA_MODEL=llama3:8b
-      - OLLAMA_MODEL=qwen2:0.5b
+      - OLLAMA_MODEL=qwen2.5-coder:7b
       - TIMESCALE_HOST=timescale
       - TIMESCALE_PORT=5432
       - TIMESCALE_DB=virtplc_ts
@@ -214,7 +208,8 @@ services:
       timescale:
         condition: service_healthy
     networks:
-      - virtplc-network
+      - main_network
+      - data_network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
       interval: 30s
@@ -237,7 +232,7 @@ services:
       - postgres-data:/var/lib/postgresql/data
       - ./ai-service/init-db.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
-      - virtplc-network
+      - data_network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U virtplc -d virtplc"]
       interval: 10s
@@ -255,7 +250,7 @@ services:
     volumes:
       - redis-data:/data
     networks:
-      - virtplc-network
+      - main_network
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -278,7 +273,7 @@ services:
       - timescale-data:/var/lib/postgresql/data
       - ./backend/init-timescale.sql:/docker-entrypoint-initdb.d/01-timescale-init.sql
     networks:
-      - virtplc-network
+      - data_network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U virtplc -d virtplc_ts"]
       interval: 10s
@@ -286,52 +281,29 @@ services:
       retries: 5
     restart: unless-stopped
 
-  # Ignition Gateway (HMI) - Integrated
-  ignition-edge:
-    build:
-      context: ./HMI
-      dockerfile: Dockerfile
-    image: virtplc/ignition-edge:latest
-    container_name: virtplc-ignition-edge
-    hostname: ignition-edge
-    ports:
-      - "8088:8088"   # HTTP
-      - "8043:8043"   # HTTPS
-      - "8060:8060"   # Gateway Network
-    volumes:
-      - ignition-data:/usr/local/bin/ignition/data
-      - ./HMI/IgnitionEdge/projects:/usr/local/bin/ignition/data/projects:ro
-      - ./HMI/IgnitionEdge/config/gateway.xml:/usr/local/bin/ignition/data/gateway.xml:ro
-      - ./HMI/IgnitionEdge/tags:/usr/local/bin/ignition/data/tags:ro
-    environment:
-      - GATEWAY_ADMIN_USERNAME=${GATEWAY_ADMIN_USERNAME:-admin}
-      - GATEWAY_ADMIN_PASSWORD=${GATEWAY_ADMIN_PASSWORD:-password}
-      - IGNITION_EDITION=edge
-      - JAVA_OPTS=-Xmx1g -Xms512m
-      - REDIS_HOST=redis
-    depends_on:
-      - redis
-      - simulator
-    networks:
-      - virtplc-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8088/StatusPing"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 120s
-    restart: unless-stopped
-
-  # MQTT Broker
-  mqtt:
-    image: eclipse-mosquitto:2.0
-    container_name: virtplc-mqtt
+  # RabbitMQ MQTT Broker (replaces Mosquitto)
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: virtplc-rabbitmq
     ports:
       - "1883:1883"  # MQTT port
+      - "15672:15672"  # Management UI
+    environment:
+      - RABBITMQ_DEFAULT_USER=${MQTT_USERNAME:-virtplc}
+      - RABBITMQ_DEFAULT_PASS=${MQTT_PASSWORD:-virtplc123}
+      - RABBITMQ_PLUGINS=rabbitmq_management,rabbitmq_mqtt
     volumes:
-      - ./mqtt/config:/mosquitto/config
+      - rabbitmq-data:/var/lib/rabbitmq
+      - ./docker/rabbitmq/enabled_plugins:/etc/rabbitmq/enabled_plugins:ro
     networks:
-      - virtplc-network
+      - plc_network
+      - main_network
+    healthcheck:
+      test: ["CMD-SHELL", "rabbitmq-diagnostics ping || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
     restart: unless-stopped
 
   # Node-RED MQTT Bridge
@@ -339,14 +311,20 @@ services:
     image: nodered/node-red:latest
     container_name: virtplc-nodered
     ports:
-      - "1880:1880"   # Node-RED UI
+      - "1880:1880"
+      - "5020:5020"   # (Modbus TCP)
     volumes:
       - nodered-data:/data
-      - ./nodered:/data/flows:ro
+      - ./nodered/flows:/data/flows
+      - ./nodered/settings.js:/data/settings.js:ro
     environment:
       - NODE_RED_CREDENTIAL_SECRET=${NODE_RED_CREDENTIAL_SECRET:-your-secret-key}
+      - MQTT_BROKER=rabbitmq
+      - MQTT_PORT=1883
+    depends_on:
+      - rabbitmq
     networks:
-      - virtplc-network
+      - plc_network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:1880"]
       interval: 30s
@@ -354,26 +332,63 @@ services:
       retries: 3
     restart: unless-stopped
 
+  # Ignition Edge with Perspective HMI
+  ignition-edge:
+    image: inductiveautomation/ignition:8.1.33
+    container_name: virtplc-ignition-edge
+    ports:
+      - "8088:8088"   # Ignition Edge web interface
+      - "8043:8043"   # HTTPS
+      - "8060:8060"   # Gateway Network
+    environment:
+      - GATEWAY_ADMIN_USERNAME=admin
+      - GATEWAY_ADMIN_PASSWORD=password
+      - GATEWAY_HTTP_PORT=8088
+      - GATEWAY_HTTPS_PORT=8043
+      - IGNITION_EDITION=edge
+      - ACCEPT_IGNITION_EULA=Y
+    volumes:
+      - ignition_data:/var/lib/ignition/data
+      - ./HMI/IgnitionEdge:/var/lib/ignition/data/projects
+    depends_on:
+      - rabbitmq
+    networks:
+      - plc_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8088/web/status/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+
+  # PAC Control runs on the actual PLC computer (not containerized)
+  # Connects via network to RabbitMQ and other services
+
   collector:
     build: ./collector
-    container_name: collector
+    container_name: virtplc-collector
     environment:
-      - MQTT_BROKER=mqtt
+      - MQTT_BROKER=virtplc-rabbitmq
       - MQTT_PORT=1883
-      - MQTT_USERNAME=${MQTT_USERNAME}
-      - MQTT_PASSWORD=${MQTT_PASSWORD}
+      - MQTT_USERNAME=${MQTT_USERNAME:-virtplc}
+      - MQTT_PASSWORD=${MQTT_PASSWORD:-virtplc123}
       - TIMESCALE_HOST=timescale
       - TIMESCALE_PORT=5432
-      - TIMESCALE_USER=${TIMESCALE_USER}
-      - TIMESCALE_PASSWORD=${TIMESCALE_PASSWORD}
-      - TIMESCALE_DB=${TIMESCALE_DB}
+      - TIMESCALE_USER=${TIMESCALE_USER:-virtplc}
+      - TIMESCALE_PASSWORD=${TIMESCALE_PASSWORD:-changeme}
+      - TIMESCALE_DB=${TIMESCALE_DB:-virtplc_ts}
     depends_on:
-      - mqtt
-      - timescale
+      rabbitmq:
+        condition: service_healthy
+      timescale:
+        condition: service_healthy
     ports:
       - "9100:9100"  # prometheus metrics
     networks:
-      - virtplc-network
+      - main_network
+      - plc_network
+      - data_network
     restart: on-failure
 
   # Database MCP Server for AI access to TimescaleDB
@@ -391,7 +406,8 @@ services:
       timescale:
         condition: service_healthy
     networks:
-      - virtplc-network
+      - main_network
+      - data_network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9092/health"]
       interval: 30s
@@ -415,15 +431,22 @@ services:
       timescale:
         condition: service_healthy
     networks:
-      - virtplc-network
+      - main_network
+      - data_network
     restart: unless-stopped
     labels:
       description: "Cronjob to clean up 25% of oldest data every 2 months"
 
 networks:
-  virtplc-network:
+  main_network:
     driver: bridge
-    name: virtplc-network
+    name: virtplc-main-network
+  plc_network:
+    driver: bridge
+    name: virtplc-plc-network
+  data_network:
+    driver: bridge
+    name: virtplc-data-network
 
 volumes:
   ollama-data:
@@ -436,7 +459,9 @@ volumes:
     name: virtplc-timescale-data
   simulator-data:
     name: virtplc-simulator-data
-  ignition-data:
-    name: virtplc-ignition-data
   nodered-data:
     name: virtplc-nodered-data
+  rabbitmq-data:
+    name: virtplc-rabbitmq-data
+  ignition_data:
+    name: virtplc-ignition-data

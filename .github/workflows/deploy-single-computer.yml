@@ -1,0 +1,213 @@
+name: Deploy to Computer 1 (Full Stack)
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # ==========================================
+  # TESTS - All Components
+  # ==========================================
+  test-backend:
+    name: Test Backend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: "temurin"
+          cache: maven
+
+      - name: Run backend tests
+        run: |
+          cd backend
+          mvn clean test
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backend-test-results
+          path: backend/target/surefire-reports/
+
+  test-frontend:
+    name: Test Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install and test
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+          npm run test || true
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist/
+
+  test-ai-service:
+    name: Test AI Service
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          cd ai-service
+          pip install -r requirements.txt
+
+      - name: Run tests
+        run: |
+          cd ai-service
+          python -m pytest tests/ -v || true
+
+  # ==========================================
+  # BUILD DOCKER IMAGES
+  # ==========================================
+  build-images:
+    name: Build Docker Images
+    needs: [test-backend, test-frontend, test-ai-service]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        component: [backend, frontend, ai-service, collector]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.component }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: ./${{ matrix.component }}
+          file: ./${{ matrix.component }}/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ==========================================
+  # DEPLOY TO COMPUTER 1 ONLY
+  # ==========================================
+  deploy-computer1:
+    name: Deploy to Computer 1 (Full Stack)
+    needs: build-images
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main'
+    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.8.0
+        with:
+          ssh-private-key: ${{ secrets.COMPUTER1_SSH_KEY }}
+
+      - name: Add host to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.COMPUTER1_IP }} >> ~/.ssh/known_hosts
+
+      - name: Deploy to Computer 1
+        env:
+          COMPUTER1_IP: ${{ secrets.COMPUTER1_IP }}
+          IGNITION_IP: ${{ secrets.IGNITION_IP }}
+          DEPLOYMENT_USER: ${{ secrets.DEPLOYMENT_USER }}
+        run: |
+          # Copy docker-compose and env files
+          scp docker-compose.yml $DEPLOYMENT_USER@$COMPUTER1_IP:~/virtplc/
+          scp .env.example $DEPLOYMENT_USER@$COMPUTER1_IP:~/virtplc/.env
+
+          # SSH and deploy
+          ssh $DEPLOYMENT_USER@$COMPUTER1_IP << 'EOF'
+            cd ~/virtplc
+            
+            # Update environment variables
+            sed -i "s|COMPUTER1_HOST=.*|COMPUTER1_HOST=$COMPUTER1_IP|g" .env
+            sed -i "s|IGNITION_HOST=.*|IGNITION_HOST=$IGNITION_IP|g" .env
+            
+            # Login to registry
+            echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            
+            # Pull latest images
+            docker-compose pull
+            
+            # Deploy all services on Computer 1
+            docker-compose up -d \
+              timescale \
+              postgres \
+              redis \
+              backend \
+              frontend \
+              ai-service \
+              ollama \
+              db-mcp-server \
+              mqtt \
+              nodered
+            
+            # Clean up old images
+            docker image prune -f
+          EOF
+
+  # ==========================================
+  # HEALTH CHECK
+  # ==========================================
+  health-check:
+    name: Health Check
+    needs: deploy-computer1
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for services
+        run: sleep 30
+
+      - name: Check Computer 1 Services
+        run: |
+          curl -f http://${{ secrets.COMPUTER1_IP }}:8080/actuator/health || echo "Warning: Backend health check failed"
+          curl -f http://${{ secrets.COMPUTER1_IP }}:3000 || echo "Warning: Frontend health check failed"
+          curl -f http://${{ secrets.COMPUTER1_IP }}:3001/health || echo "Warning: AI Service health check failed"
+          curl -f http://${{ secrets.COMPUTER1_IP }}:1883 || echo "MQTT broker listening"

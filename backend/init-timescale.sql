@@ -10,7 +10,12 @@ IF NOT EXISTS plc_data
     device_id TEXT NOT NULL,
     type TEXT NOT NULL,
     data JSONB,
-    metadata JSONB
+    metadata JSONB,
+    rpm DOUBLE PRECISION,
+    position_x DOUBLE PRECISION,
+    position_y DOUBLE PRECISION,
+    is_on BOOLEAN,
+    in_operation BOOLEAN
 );
 
 -- Convert to hypertable

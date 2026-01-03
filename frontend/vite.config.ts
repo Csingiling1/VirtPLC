@@ -10,7 +10,8 @@ export default defineConfig(({ mode }) => ({
     port: 3000,
     proxy: {
       '/api': {
-        target: 'http://192.168.2.145:18080',
+        // Proxy API requests to the backend service inside Docker network
+        target: 'http://backend:8080',
         changeOrigin: true,
         secure: false,
       },

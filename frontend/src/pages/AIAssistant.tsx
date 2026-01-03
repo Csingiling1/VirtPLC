@@ -5,10 +5,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Bot, User, Send, BarChart3, TrendingUp, Plus, Trash2, MessageSquare, Edit3, X, Clock, Terminal } from 'lucide-react';
 import { AIChatResponse, ChartSuggestion } from '../types';
 import AIChart from '../components/AIChart';
-import ArtifactRenderer from '../components/ArtifactRenderer';
+import ArtifactPanel from '../components/ArtifactPanel';
 
 interface Artifact {
     type: string;
@@ -35,6 +36,8 @@ interface Conversation {
     updatedAt: string; // ISO
 }
 
+type Model = 'ollama' | 'claude';
+
 function AIAssistant() {
     const [conversations, setConversations] = useState<Conversation[]>([]);
     const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
@@ -45,6 +48,8 @@ function AIAssistant() {
     const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
     const [editingContent, setEditingContent] = useState('');
     const [isTemporaryMode, setIsTemporaryMode] = useState(false);
+    const [activeArtifact, setActiveArtifact] = useState<Artifact | null>(null);
+    const [selectedModel, setSelectedModel] = useState<Model>('ollama');
     const scrollAreaRef = useRef<HTMLDivElement>(null);
 
     // Clear localStorage when entering temporary mode
@@ -154,13 +159,34 @@ function AIAssistant() {
         let cleanText = text;
         let match;
 
+        // First try to find <artifact> tags
         while ((match = artifactRegex.exec(text)) !== null) {
+            let content = match[3].trim();
+            // Remove markdown code block wrapper if present
+            const codeBlockMatch = content.match(/```(?:tsx|jsx|typescript|javascript)?\n([\s\S]*?)```/);
+            if (codeBlockMatch) {
+                content = codeBlockMatch[1].trim();
+            }
             artifacts.push({
                 type: match[1],
                 title: match[2],
-                content: match[3].trim()
+                content: content
             });
             cleanText = cleanText.replace(match[0], '');
+        }
+
+        // Fallback: if no artifacts found, check for tsx/jsx code blocks
+        if (artifacts.length === 0) {
+            const codeBlockRegex = /```(?:tsx|jsx)\n([\s\S]*?)```/g;
+            let codeMatch;
+            while ((codeMatch = codeBlockRegex.exec(text)) !== null) {
+                artifacts.push({
+                    type: 'react',
+                    title: 'Generated Chart',
+                    content: codeMatch[1].trim()
+                });
+                cleanText = cleanText.replace(codeMatch[0], '\n📊 Chart generated - see Artifact panel →');
+            }
         }
 
         const logs = text.match(toolRegex) || [];
@@ -173,109 +199,65 @@ function AIAssistant() {
         setIsLoading(true);
 
         try {
-            // Create streaming assistant message
+            // Create placeholder assistant message
             const assistantMessageId = (Date.now() + 1).toString();
-            const streamingMessage: Message = {
+            const placeholderMessage: Message = {
                 id: assistantMessageId,
                 role: 'assistant',
-                content: '',
+                content: 'Thinking...',
                 timestamp: new Date(),
                 isStreaming: true
             };
 
-            setMessages(prev => [...prev, streamingMessage]);
+            setMessages(prev => [...prev, placeholderMessage]);
 
-            // Call AI service with streaming
-            const response = await fetch('http://localhost:3001/api/chat/message', {
+            const endpoint = 'http://localhost:3001/api/chat/message';
+
+            // Call AI service (non-streaming)
+            const response = await fetch(endpoint, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
                     message: content,
+                    session_id: currentConversationId ? parseInt(currentConversationId.split('-')[1] || '1') : 1,
                     context: { messages: contextMessages.map(m => ({ role: m.role, content: m.content })) },
-                    stream: true
+                    model: selectedModel
                 }),
             });
 
             if (!response.ok) {
-                throw new Error('Failed to get streaming response');
+                throw new Error(`Failed to get response: ${response.status}`);
             }
 
-            const reader = response.body?.getReader();
-            const decoder = new TextDecoder();
-            let fullContent = '';
+            const data: AIChatResponse = await response.json();
 
-            if (reader) {
-                while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
+            const { cleanText, artifacts, logs } = parseContent(data.response || '');
 
-                    const chunk = decoder.decode(value);
-                    const lines = chunk.split('\n');
-
-                    for (const line of lines) {
-                        if (line.startsWith('data: ')) {
-                            try {
-                                const data = JSON.parse(line.slice(6));
-
-                                if (data.chunk) {
-                                    fullContent += data.chunk;
-                                    const { cleanText, artifacts, logs } = parseContent(fullContent);
-
-                                    setMessages(prev => prev.map(msg =>
-                                        msg.id === assistantMessageId
-                                            ? {
-                                                ...msg,
-                                                content: cleanText,
-                                                artifacts: artifacts,
-                                                logs: logs as string[]
-                                            }
-                                            : msg
-                                    ));
-                                }
-
-                                if (data.done) {
-                                    const { cleanText, artifacts, logs } = parseContent(fullContent);
-                                    // Update message with chart suggestions and mark as complete
-                                    setMessages(prev => prev.map(msg =>
-                                        msg.id === assistantMessageId
-                                            ? {
-                                                ...msg,
-                                                content: cleanText,
-                                                chartSuggestions: data.chart_suggestions,
-                                                artifacts: artifacts,
-                                                logs: logs as string[],
-                                                isStreaming: false
-                                            }
-                                            : msg
-                                    ));
-                                    setIsLoading(false);
-                                    return;
-                                }
-
-                                if (data.error) {
-                                    throw new Error(data.error);
-                                }
-                            } catch (e) {
-                                console.error('Failed to parse streaming data:', e);
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Fallback: mark as complete if streaming ends without done signal
+            // Update message with actual response
             setMessages(prev => prev.map(msg =>
                 msg.id === assistantMessageId
-                    ? { ...msg, isStreaming: false }
+                    ? {
+                        ...msg,
+                        content: cleanText,
+                        chartSuggestions: data.chart_suggestions,
+                        artifacts: artifacts,
+                        logs: logs as string[],
+                        isStreaming: false
+                    }
                     : msg
             ));
 
-        } catch (error: unknown) {
-            console.error('AI streaming error:', error);
+            // Auto-open artifact panel if artifacts were generated
+            if (artifacts.length > 0) {
+                setActiveArtifact(artifacts[0]);
+            }
 
-            // Remove the streaming message and add error message
+        } catch (error: unknown) {
+            console.error('AI error:', error);
+
+            // Remove the placeholder message and add error message
             setMessages(prev => prev.filter(msg => !msg.isStreaming));
 
             let errorContent = 'Sorry, I encountered an error. Please try again later.';
@@ -525,7 +507,7 @@ function AIAssistant() {
                 </div>
 
                 {/* Main Chat Area */}
-                <div className="flex-1 flex flex-col">
+                <div className={`flex flex-col transition-all duration-300 ${activeArtifact ? 'w-[60%]' : 'flex-1'}`}>
                     {currentConversationId ? (
                         <>
                             {/* Chat Header */}
@@ -607,11 +589,16 @@ function AIAssistant() {
                                                             )}
                                                             <div className="whitespace-pre-wrap">{message.content}</div>
                                                             {message.artifacts && message.artifacts.map((artifact, i) => (
-                                                                <ArtifactRenderer
+                                                                <Button
                                                                     key={i}
-                                                                    content={artifact.content}
-                                                                    title={artifact.title}
-                                                                />
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    className="mt-2 hover:bg-blue-50 transition-all hover:scale-105 hover:shadow-md"
+                                                                    onClick={() => setActiveArtifact(artifact)}
+                                                                >
+                                                                    <BarChart3 className="h-4 w-4 mr-2" />
+                                                                    View {artifact.title}
+                                                                </Button>
                                                             ))}
                                                             <div className="flex items-center space-x-1">
                                                                 <div className="flex space-x-1">
@@ -636,11 +623,16 @@ function AIAssistant() {
                                                             )}
                                                             <div className="whitespace-pre-wrap">{message.content}</div>
                                                             {message.artifacts && message.artifacts.map((artifact, i) => (
-                                                                <ArtifactRenderer
+                                                                <Button
                                                                     key={i}
-                                                                    content={artifact.content}
-                                                                    title={artifact.title}
-                                                                />
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    className="mt-2 hover:bg-blue-50 transition-all hover:scale-105 hover:shadow-md"
+                                                                    onClick={() => setActiveArtifact(artifact)}
+                                                                >
+                                                                    <BarChart3 className="h-4 w-4 mr-2" />
+                                                                    View {artifact.title}
+                                                                </Button>
                                                             ))}
                                                         </div>
                                                     )}
@@ -741,7 +733,7 @@ function AIAssistant() {
                             {/* Input Area */}
                             <div className="border-t border-gray-200 bg-white px-6 py-4">
                                 <div className="max-w-4xl mx-auto">
-                                    <div className="flex gap-3">
+                                    <div className="flex items-center gap-3">
                                         <Textarea
                                             value={input}
                                             onChange={(e) => setInput(e.target.value)}
@@ -750,14 +742,25 @@ function AIAssistant() {
                                             className="min-h-[52px] resize-none border-gray-300 focus:border-blue-500 focus:ring-blue-500"
                                             disabled={isLoading}
                                         />
-                                        <Button
-                                            onClick={sendMessage}
-                                            disabled={isLoading || !input.trim()}
-                                            size="lg"
-                                            className="px-6"
-                                        >
-                                            <Send className="h-4 w-4" />
-                                        </Button>
+                                        <div className="flex flex-col gap-2">
+                                            <Button
+                                                onClick={sendMessage}
+                                                disabled={isLoading || !input.trim()}
+                                                size="lg"
+                                                className="px-6 h-full"
+                                            >
+                                                <Send className="h-4 w-4" />
+                                            </Button>
+                                            <Select value={selectedModel} onValueChange={(value) => setSelectedModel(value as Model)}>
+                                                <SelectTrigger className="w-[120px]">
+                                                    <SelectValue placeholder="Model" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="ollama">Ollama</SelectItem>
+                                                    <SelectItem value="claude">Claude</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -786,6 +789,16 @@ function AIAssistant() {
                         </div>
                     )}
                 </div>
+
+                {/* Artifact Panel */}
+                {activeArtifact && (
+                    <div className="w-[40%] border-l border-gray-200">
+                        <ArtifactPanel
+                            artifact={activeArtifact}
+                            onClose={() => setActiveArtifact(null)}
+                        />
+                    </div>
+                )}
             </div>
         </Layout>
     );

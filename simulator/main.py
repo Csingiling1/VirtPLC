@@ -687,6 +687,9 @@ class SimulatorApp:
             for tenant in tenants:
                 for manufacturer in tenant.manufacturers:
                     for factory in manufacturer.factories:
+                        # Update sensor values before publishing
+                        factory.update_plcs()
+                        
                         # Publish PLCs
                         for plc in factory.plcs:
                             topic = f"plc/{plc.id}"

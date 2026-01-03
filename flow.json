@@ -1,0 +1,375 @@
+[
+    {
+        "id": "59f9764efc65aaa6",
+        "type": "mqtt in",
+        "z": "01f13b5392ec548e",
+        "name": "Simulator: plc/+",
+        "topic": "plc/+",
+        "qos": "1",
+        "datatype": "json",
+        "broker": "mqtt_broker_cfg",
+        "nl": false,
+        "rap": false,
+        "inputs": 0,
+        "x": 140,
+        "y": 100,
+        "wires": [
+            [
+                "bb98b059bbc13ac4"
+            ]
+        ]
+    },
+    {
+        "id": "bb98b059bbc13ac4",
+        "type": "function",
+        "z": "01f13b5392ec548e",
+        "name": "Validate & Enrich (Legacy)",
+        "func": "if (!msg.payload.device_id || !msg.payload.timestamp) {\n    node.warn('Missing required fields');\n    return null;\n}\n\nlet count = context.get('messageCount') || 0;\ncount++;\ncontext.set('messageCount', count);\n\nmsg.enriched = {\n    ...msg.payload,\n    processed_at: new Date().toISOString(),\n    node_red_version: '1.0',\n    topic_original: msg.topic,\n    data_quality: { valid: true, latency_ms: Date.now() - (msg.payload.timestamp * 1000) }\n};\n\nnode.status({ fill: 'green', shape: 'dot', text: `${msg.payload.device_id} (${count})` });\nreturn msg;",
+        "outputs": 1,
+        "x": 380,
+        "y": 100,
+        "wires": [
+            [
+                "8a21ec6145b67f3f"
+            ]
+        ]
+    },
+    {
+        "id": "8a21ec6145b67f3f",
+        "type": "switch",
+        "z": "01f13b5392ec548e",
+        "name": "Route by Type",
+        "property": "payload.type",
+        "rules": [
+            {
+                "t": "eq",
+                "v": "plc",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "sensor",
+                "vt": "str"
+            }
+        ],
+        "outputs": 2,
+        "x": 620,
+        "y": 100,
+        "wires": [
+            [
+                "af307d9f011f5bbc"
+            ],
+            [
+                "b3eaa473767f74c3"
+            ]
+        ]
+    },
+    {
+        "id": "af307d9f011f5bbc",
+        "type": "function",
+        "z": "01f13b5392ec548e",
+        "name": "Format PLC Data",
+        "func": "msg.payload = { ...msg.enriched, category: 'PLC', priority: 'high' };\nmsg.topic = 'collector/ingest';\nreturn msg;",
+        "outputs": 1,
+        "x": 830,
+        "y": 60,
+        "wires": [
+            [
+                "4653e2f6d81e66ab",
+                "7bdec7420409758f"
+            ]
+        ]
+    },
+    {
+        "id": "b3eaa473767f74c3",
+        "type": "function",
+        "z": "01f13b5392ec548e",
+        "name": "Format Sensor Data",
+        "func": "msg.payload = { ...msg.enriched, category: 'Sensor', priority: 'medium' };\nmsg.topic = 'collector/ingest';\nreturn msg;",
+        "outputs": 1,
+        "x": 840,
+        "y": 100,
+        "wires": [
+            [
+                "4653e2f6d81e66ab",
+                "7bdec7420409758f"
+            ]
+        ]
+    },
+    {
+        "id": "4653e2f6d81e66ab",
+        "type": "mqtt out",
+        "z": "01f13b5392ec548e",
+        "name": "To Collector",
+        "topic": "",
+        "qos": "1",
+        "broker": "mqtt_broker_cfg",
+        "x": 1070,
+        "y": 100,
+        "wires": []
+    },
+    {
+        "id": "d72045e35f72d77e",
+        "type": "mqtt in",
+        "z": "01f13b5392ec548e",
+        "name": "Unreal: factory/data/#",
+        "topic": "factory/data/#",
+        "datatype": "buffer",
+        "broker": "mqtt_broker_cfg",
+        "inputs": 0,
+        "x": 160,
+        "y": 380,
+        "wires": [
+            [
+                "0b5bb75c5c765cbd"
+            ]
+        ]
+    },
+    {
+        "id": "cfa2a169fb7fa302",
+        "type": "function",
+        "z": "01f13b5392ec548e",
+        "name": "HMI -> Unreal CMD",
+        "func": "if (msg.payload.type !== 'register') return null;\nlet addr = msg.payload.address;\nlet val = msg.payload.value;\nlet dev = addr === 0 ? 'Conveyor1' : addr === 1 ? 'Conveyor2' : addr === 2 ? 'Placer1' : null;\nif (!dev) return null;\nreturn { topic: `factory/command/${dev}`, payload: { rpm: val, is_on: val > 0 } };",
+        "outputs": 1,
+        "x": 1050,
+        "y": 340,
+        "wires": [
+            [
+                "ddf9782055d2a1d5",
+                "2d757acd55387627"
+            ]
+        ]
+    },
+    {
+        "id": "ddf9782055d2a1d5",
+        "type": "mqtt out",
+        "z": "01f13b5392ec548e",
+        "name": "To Unreal",
+        "topic": "",
+        "broker": "mqtt_broker_cfg",
+        "x": 1250,
+        "y": 340,
+        "wires": []
+    },
+    {
+        "id": "352ada70e4d43f1c",
+        "type": "inject",
+        "z": "01f13b5392ec548e",
+        "name": "Toggle MOCK",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": "",
+        "topic": "",
+        "payload": "true",
+        "payloadType": "bool",
+        "x": 150,
+        "y": 480,
+        "wires": [
+            [
+                "6ab726a7a156181e"
+            ]
+        ]
+    },
+    {
+        "id": "6ab726a7a156181e",
+        "type": "change",
+        "z": "01f13b5392ec548e",
+        "name": "Set Sim Active",
+        "rules": [
+            {
+                "t": "set",
+                "p": "sim_active",
+                "pt": "flow",
+                "to": "payload",
+                "tot": "msg"
+            }
+        ],
+        "x": 360,
+        "y": 480,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "def8df4f36bd4b22",
+        "type": "inject",
+        "z": "01f13b5392ec548e",
+        "name": "Ticker",
+        "repeat": "1",
+        "topic": "tick",
+        "x": 150,
+        "y": 440,
+        "wires": [
+            [
+                "0b5bb75c5c765cbd"
+            ]
+        ]
+    },
+    {
+        "id": "b7f34cea54254a1c",
+        "type": "modbus-server",
+        "z": "01f13b5392ec548e",
+        "name": "Virtual PLC Server",
+        "logEnabled": false,
+        "hostname": "0.0.0.0",
+        "serverPort": 5020,
+        "responseDelay": 0,
+        "delayUnit": "ms",
+        "coilsBufferSize": 1024,
+        "holdingBufferSize": 1024,
+        "inputBufferSize": 1024,
+        "discreteBufferSize": 1024,
+        "showErrors": true,
+        "x": 830,
+        "y": 340,
+        "wires": [
+            [
+                "cfa2a169fb7fa302"
+            ],
+            [],
+            [],
+            [],
+            []
+        ]
+    },
+    {
+        "id": "0b5bb75c5c765cbd",
+        "type": "function",
+        "z": "01f13b5392ec548e",
+        "name": "🧠 THE BRAIN",
+        "func": "let c1 = flow.get('c1_rpm') || 0;\nlet c2 = flow.get('c2_rpm') || 0;\nlet px = flow.get('placer_x') || 0;\nlet py = flow.get('placer_y') || 0;\nlet c1_on = flow.get('c1_on') || false;\nlet c2_on = flow.get('c2_on') || false;\nlet p1_ready = flow.get('p1_ready') || false;\nlet simActive = true; // Force to true for testing\n\nif (msg.payload && msg.topic !== 'tick' && !simActive) {\n    try {\n        let data = JSON.parse(msg.payload.toString().replace(/\\.\\s*\"/g, ',\"').replace(/(\\d),\\s*(\\d)/g, '$1$2'));\n        let dev = msg.topic.split('/').pop();\n        if (dev === 'Conveyor1') { flow.set('c1_rpm', data.rpm); flow.set('c1_on', data.is_on); }\n        if (dev === 'Conveyor2') { flow.set('c2_rpm', data.rpm); flow.set('c2_on', data.is_on); }\n        if (dev === 'Placer1') { flow.set('placer_x', data.posX); flow.set('placer_y', data.posY); flow.set('p1_ready', data.is_ready); }\n        node.send([null, { topic: 'collector/ingest', payload: { device: dev, data: data, type: 'UNREAL' } }]);\n    } catch(e) {}\n}\n\nif (msg.topic === 'tick') {\n    if (simActive) {\n        c1 = Math.floor(Math.random() * 4000) + 1000;\n        c2 = Math.floor(Math.random() * 4000) + 1000;\n        px = Math.floor(Math.random() * 101); py = Math.floor(Math.random() * 101);\n        c1_on = true; p1_ready = true;\n        node.send([null, { topic: 'collector/ingest', payload: { type: 'MOCK', c1, c2, px, py } }]);\n    }\n    let mask = 0;\n    if (c1_on) mask |= (1 << 0); if (c2_on) mask |= (1 << 1); if (p1_ready) mask |= (1 << 3);\n    let buf = Buffer.alloc(10);\n    buf.writeUInt16BE(c1, 0); buf.writeUInt16BE(c2, 2); buf.writeUInt16BE(px, 4); buf.writeUInt16BE(py, 6); buf.writeUInt16BE(mask, 8);\n    return [{ payload: { value: buf, register: 'holding', address: 1, disableMsgOutput: 1 } }, null];\n}\nreturn null;",
+        "outputs": 2,
+        "x": 410,
+        "y": 380,
+        "wires": [
+            [
+                "582297515ee7bbc1"
+            ],
+            [
+                "ddda61d94e7cd7d2"
+            ]
+        ]
+    },
+    {
+        "id": "582297515ee7bbc1",
+        "type": "delay",
+        "z": "01f13b5392ec548e",
+        "name": "50ms",
+        "pauseType": "delay",
+        "timeout": 50,
+        "timeoutUnits": "milliseconds",
+        "outputs": 1,
+        "x": 610,
+        "y": 340,
+        "wires": [
+            [
+                "b7f34cea54254a1c"
+            ]
+        ]
+    },
+    {
+        "id": "ddda61d94e7cd7d2",
+        "type": "function",
+        "z": "01f13b5392ec548e",
+        "name": "Format Unreal Collector",
+        "func": "// Split MOCK UNREAL data into 3 individual device messages\nif (msg.payload.type === 'MOCK' || msg.payload.type === 'UNREAL') {\n    let timestamp = Date.now() / 1000;\n    let c1 = msg.payload.c1 || 0;\n    let c2 = msg.payload.c2 || 0;\n    let px = msg.payload.px || 0;\n    let py = msg.payload.py || 0;\n    \n    let metadata = {\n        tenant: 'accenture',\n        factory: 'test_factory',\n        processed_at: new Date().toISOString(),\n        category: 'UNREAL',\n        priority: 'medium'\n    };\n    \n    // Create 3 separate device messages\n    let devices = [\n        {\n            device_id: 'conveyor1',\n            type: 'UNREAL',\n            timestamp: timestamp,\n            data: {\n                rpm: c1,\n                is_on: true\n            },\n            metadata: metadata\n        },\n        {\n            device_id: 'conveyor2',\n            type: 'UNREAL',\n            timestamp: timestamp,\n            data: {\n                rpm: c2,\n                is_on: true\n            },\n            metadata: metadata\n        },\n        {\n            device_id: 'placer',\n            type: 'UNREAL',\n            timestamp: timestamp,\n            data: {\n                posX: px,\n                posY: py,\n                is_on: true,\n                is_ready: true\n            },\n            metadata: metadata\n        }\n    ];\n    \n    // Send each device as a separate message\n    devices.forEach(dev => {\n        node.send({ topic: 'collector/ingest', payload: dev });\n    });\n    \n    return null; // Don't forward the original MOCK message\n}\n\n// For other messages, just add metadata\nmsg.topic = 'collector/ingest';\nmsg.payload = { ...msg.payload, category: 'UNREAL_PIPE', processed_at: new Date().toISOString() };\nreturn msg;",
+        "outputs": 1,
+        "x": 730,
+        "y": 440,
+        "wires": [
+            [
+                "4653e2f6d81e66ab",
+                "c8a8059496afb998"
+            ]
+        ]
+    },
+    {
+        "id": "7bdec7420409758f",
+        "type": "debug",
+        "z": "01f13b5392ec548e",
+        "name": "DEBUG: Legacy Ingest",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "complete": "payload",
+        "x": 1090,
+        "y": 40,
+        "wires": []
+    },
+    {
+        "id": "c8a8059496afb998",
+        "type": "debug",
+        "z": "01f13b5392ec548e",
+        "name": "DEBUG: unreal data",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 990,
+        "y": 520,
+        "wires": []
+    },
+    {
+        "id": "2d757acd55387627",
+        "type": "debug",
+        "z": "01f13b5392ec548e",
+        "name": "DEBUG: CMD to unreal",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1290,
+        "y": 420,
+        "wires": []
+    },
+    {
+        "id": "mqtt_broker_cfg",
+        "type": "mqtt-broker",
+        "name": "Factory RabbitMQ (Docker)",
+        "broker": "virtplc-rabbitmq",
+        "port": "1883",
+        "clientid": "nodered-hybrid-bridge",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": "4",
+        "keepalive": "60",
+        "cleansession": true,
+        "autoUnsubscribe": true,
+        "birthTopic": "nodered/status",
+        "birthQos": "1",
+        "birthPayload": "online",
+        "birthMsg": {},
+        "closeTopic": "",
+        "closePayload": "",
+        "closeMsg": {},
+        "willTopic": "nodered/status",
+        "willQos": "0",
+        "willPayload": "offline",
+        "willMsg": {},
+        "userProps": "",
+        "sessionExpiry": ""
+    },
+    {
+        "id": "37d4e6cd71a2f16e",
+        "type": "global-config",
+        "env": [],
+        "modules": {
+            "node-red-contrib-modbus": "5.45.2"
+        }
+    }
+]

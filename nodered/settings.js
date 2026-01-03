@@ -17,15 +17,15 @@ module.exports = {
     // User directory
     userDir: '/data',
     
-    // Security
-    adminAuth: {
-        type: "credentials",
-        users: [{
-            username: process.env.NODE_RED_USERNAME || "admin",
-            password: process.env.NODE_RED_PASSWORD_HASH || "$2a$08$zZWtXTja0fB1pzD4sHCMyOCMYz2Z6dNbM6tl8sJogENOMcxWV9DN.",
-            permissions: "*"
-        }]
-    },
+    // Security - DISABLED for development
+    // adminAuth: {
+    //     type: "credentials",
+    //     users: [{
+    //         username: process.env.NODE_RED_USERNAME || "admin",
+    //         password: process.env.NODE_RED_PASSWORD_HASH || "$2a$08$zZWtXTja0fB1pzD4sHCMyOCMYz2Z6dNbM6tl8sJogENOMcxWV9DN.",
+    //         permissions: "*"
+    //     }]
+    // },
     
     // HTTPS settings (optional)
     // https: {

@@ -6,7 +6,7 @@ const AI_API_BASE_URL = import.meta.env.VITE_AI_API_URL || 'http://localhost:300
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 10000,
+  timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -48,6 +48,10 @@ api.interceptors.response.use(
 export const dataApi = {
   getLatest: async () => {
     const response = await api.get('/api/data/latest');
+    return response.data;
+  },
+  getHierarchical: async () => {
+    const response = await api.get('/api/data/hierarchical');
     return response.data;
   },
   getRange: async (startTime: number, endTime: number, page: number = 0, size: number = 1000, query?: string) => {

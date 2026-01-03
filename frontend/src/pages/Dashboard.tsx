@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Layout from '@/components/Layout';
 import StatusCard from '@/components/StatusCard';
-import { dataApi } from '@/lib/api';
+import { dataApi, api } from '@/lib/api';
 import { SensorData } from '@/types';
-import { Activity, Gauge, ThermometerSun, AlertCircle, CheckCircle, Building, Factory, MapPin, Server } from 'lucide-react';
+import { Activity, Gauge, ThermometerSun, AlertCircle, CheckCircle, Building, Factory, MapPin, Server, Settings, Database } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface HierarchicalSensorData {
@@ -39,24 +41,31 @@ interface HierarchicalSensorData {
 
 const Dashboard = () => {
   const [sensorData, setSensorData] = useState<HierarchicalSensorData | null>(null);
+  const [factoryAssignments, setFactoryAssignments] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const response = await fetch('http://localhost:5000/api/stream/latest');
-        const data = await response.json();
+        // Fetch sensor data
+        const sensorResponse = await fetch('http://localhost:5000/api/stream/latest');
+        const sensorData = await sensorResponse.json();
+
+        // Fetch factory assignments
+        const assignmentsResponse = await api.get('/api/admin/device-assignments');
+        const assignmentsData = assignmentsResponse.data;
 
         // Filter data by user's manufacturer if not admin
-        let filteredData = data;
+        let filteredData = sensorData;
         if (user && user.role !== 'ADMIN' && user.manufacturer) {
           const userManufacturerId = user.manufacturer.manufacturerId;
 
           filteredData = {
-            ...data,
-            tenants: data.tenants.map((tenant: any) => ({
+            ...sensorData,
+            tenants: sensorData.tenants.map((tenant: any) => ({
               ...tenant,
               manufacturers: tenant.manufacturers.filter(
                 (m: any) => m.id === userManufacturerId
@@ -66,6 +75,7 @@ const Dashboard = () => {
         }
 
         setSensorData(filteredData);
+        setFactoryAssignments(assignmentsData);
         setIsLoading(false);
       } catch (error) {
         console.error('Failed to fetch data:', error);
@@ -201,6 +211,90 @@ const Dashboard = () => {
               icon={Activity}
               status="info"
             />
+          </div>
+        )}
+
+        {/* Factory Assignments Overview */}
+        {factoryAssignments && (
+          <div className="mt-8">
+            <div className="flex items-center gap-3 mb-6">
+              <Settings className="h-6 w-6 text-primary" />
+              <h2 className="text-2xl font-bold">Factory Assignments</h2>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {factoryAssignments.factories?.map((factory: any) => (
+                <Card key={factory.id} className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => navigate(`/monitoring?factoryId=${factory.factoryId}`)}>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Factory className="h-5 w-5" />
+                      {factory.name}
+                    </CardTitle>
+                    {factory.description && (
+                      <CardDescription>{factory.description}</CardDescription>
+                    )}
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">Devices:</span>
+                        <Badge variant="secondary">{factory.devices?.length || 0}</Badge>
+                      </div>
+                      {factory.devices && factory.devices.length > 0 && (
+                        <div className="space-y-2">
+                          {factory.devices.slice(0, 3).map((device: any) => (
+                            <div key={device.id} className="flex items-center justify-between p-2 bg-muted/50 rounded">
+                              <div>
+                                <div className="font-medium text-sm">{device.name}</div>
+                                <div className="text-xs text-muted-foreground">{device.type}</div>
+                              </div>
+                              <Badge variant="outline" className="text-xs">
+                                {device.signals?.length || 0} signals
+                              </Badge>
+                            </div>
+                          ))}
+                          {factory.devices.length > 3 && (
+                            <div className="text-xs text-muted-foreground text-center">
+                              +{factory.devices.length - 3} more devices
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+              {factoryAssignments.orphans && factoryAssignments.orphans.length > 0 && (
+                <Card className="border-dashed">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Database className="h-5 w-5 text-yellow-500" />
+                      Unassigned Devices
+                    </CardTitle>
+                    <CardDescription>Devices waiting to be assigned to factories</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      {factoryAssignments.orphans.slice(0, 5).map((device: any) => (
+                        <div key={device.id} className="flex items-center justify-between p-2 bg-yellow-50 dark:bg-yellow-950/20 rounded">
+                          <div>
+                            <div className="font-medium text-sm">{device.name}</div>
+                            <div className="text-xs text-muted-foreground">{device.type}</div>
+                          </div>
+                          <Badge variant="outline" className="text-xs">
+                            {device.signals?.length || 0} signals
+                          </Badge>
+                        </div>
+                      ))}
+                      {factoryAssignments.orphans.length > 5 && (
+                        <div className="text-xs text-muted-foreground text-center">
+                          +{factoryAssignments.orphans.length - 5} more unassigned devices
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
           </div>
         )}
 
