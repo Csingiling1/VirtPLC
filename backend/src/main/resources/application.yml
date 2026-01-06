@@ -19,6 +19,16 @@ spring:
     init:
       mode: always
       schema-locations: classpath:schema.sql
+  # Redis Cache Configuration
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      timeout: 2000ms
+  cache:
+    type: ${SPRING_CACHE_TYPE:redis}
+    redis:
+      time-to-live: 30000 # Default TTL: 30 seconds
 
 server:
   port: 8080

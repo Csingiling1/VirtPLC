@@ -185,38 +185,38 @@ const MonitoringNew = () => {
       return true;
     })
     .map(sensor => {
-    const timeSeriesData = historicalData.map(dataPoint => {
-      let sensorValue: number | null = null;
-      dataPoint.tenants.forEach(tenant => {
-        tenant.manufacturers.forEach(manufacturer => {
-          manufacturer.factories.forEach(factory => {
-            factory.plcs.forEach(plc => {
-              if (plc.id === currentPLC.id) {
-                const matchingSensor = plc.sensors.find(s => s.id === sensor.id);
-                if (matchingSensor) {
-                  sensorValue = matchingSensor.value;
+      const timeSeriesData = historicalData.map(dataPoint => {
+        let sensorValue: number | null = null;
+        dataPoint.tenants.forEach(tenant => {
+          tenant.manufacturers.forEach(manufacturer => {
+            manufacturer.factories.forEach(factory => {
+              factory.plcs.forEach(plc => {
+                if (plc.id === currentPLC.id) {
+                  const matchingSensor = plc.sensors.find(s => s.id === sensor.id);
+                  if (matchingSensor) {
+                    sensorValue = matchingSensor.value;
+                  }
                 }
-              }
+              });
             });
           });
         });
-      });
+
+        return {
+          time: new Date(dataPoint.timestamp).toLocaleTimeString(),
+          value: sensorValue,
+          timestamp: dataPoint.timestamp
+        };
+      }).filter(point => point.value !== null && !isNaN(point.value as number));
 
       return {
-        time: new Date(dataPoint.timestamp).toLocaleTimeString(),
-        value: sensorValue,
-        timestamp: dataPoint.timestamp
+        id: sensor.id,
+        name: sensor.name,
+        unit: sensor.unit,
+        currentValue: sensor.value,
+        data: timeSeriesData
       };
-    }).filter(point => point.value !== null && !isNaN(point.value as number));
-
-    return {
-      id: sensor.id,
-      name: sensor.name,
-      unit: sensor.unit,
-      currentValue: sensor.value,
-      data: timeSeriesData
-    };
-  }) || [];
+    }) || [];
 
   const handlePrevPLC = () => {
     setCurrentPLCIndex((prev) => (prev > 0 ? prev - 1 : allPLCs.length - 1));

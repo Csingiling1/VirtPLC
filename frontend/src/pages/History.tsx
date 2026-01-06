@@ -36,15 +36,13 @@ const History = () => {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
-  const { toast } = useToast();
-
   // Fetch available devices on mount
   useEffect(() => {
     const fetchDevices = async () => {
       try {
         const hierarchicalData = await dataApi.getHierarchical();
         const deviceList: DeviceInfo[] = [];
-        
+
         hierarchicalData.tenants.forEach((tenant: any) => {
           tenant.manufacturers.forEach((manufacturer: any) => {
             manufacturer.factories.forEach((factory: any) => {
@@ -61,7 +59,7 @@ const History = () => {
             });
           });
         });
-        
+
         setDevices(deviceList);
         if (deviceList.length > 0) {
           setSelectedDevice(deviceList[0].deviceId);
@@ -75,7 +73,7 @@ const History = () => {
         });
       }
     };
-    
+
     fetchDevices();
   }, [toast]);
 
@@ -109,7 +107,7 @@ const History = () => {
       });
 
       setHistoricalData(response.data);
-      
+
       toast({
         title: "Success",
         description: `Loaded ${response.data.length} data points`,
@@ -170,7 +168,7 @@ const History = () => {
                   </SelectContent>
                 </Select>
               </div>
-              
+
               <div className="flex flex-wrap gap-4 items-end">
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Start Date</label>

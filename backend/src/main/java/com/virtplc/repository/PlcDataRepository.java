@@ -1,6 +1,7 @@
 package com.virtplc.repository;
 
 import com.virtplc.model.PlcData;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
@@ -63,6 +64,7 @@ public class PlcDataRepository {
     /**
      * Find all latest PLC data grouped by device_id.
      */
+    @Cacheable(value = "devices", key = "'all-devices'")
     public List<PlcData> findLatestForAllDevices() {
         String sql = """
                 SELECT DISTINCT ON (device_id) timestamp, device_id, type, data, metadata, rpm, position_x, position_y, is_on, in_operation
@@ -85,6 +87,7 @@ public class PlcDataRepository {
      * Find latest sensor data grouped by device_id where type='sensor'.
      * Returns latest reading for each simulator sensor.
      */
+    @Cacheable(value = "devices", key = "'sensors'")
     public List<PlcData> findLatestSensors() {
         String sql = """
                 SELECT DISTINCT ON (device_id) timestamp, device_id, type, data, metadata, rpm, position_x, position_y, is_on, in_operation
@@ -99,6 +102,7 @@ public class PlcDataRepository {
     /**
      * Find latest UNREAL devices.
      */
+    @Cacheable(value = "devices", key = "'unreal'")
     public List<PlcData> findLatestUnrealDevices() {
         String sql = """
                 SELECT DISTINCT ON (device_id) timestamp, device_id, type, data, metadata, rpm, position_x, position_y, is_on, in_operation
@@ -114,9 +118,10 @@ public class PlcDataRepository {
      * Find historical data for a specific device within a time range.
      * Returns timestamp, deviceId, and value for charting.
      */
+    @Cacheable(value = "history", key = "#deviceId + '-' + #startTimeMs + '-' + #endTimeMs")
     public List<Map<String, Object>> findDeviceHistory(String deviceId, Long startTimeMs, Long endTimeMs) {
         String sql = """
-                SELECT 
+                SELECT
                     EXTRACT(EPOCH FROM timestamp) * 1000 as timestamp,
                     device_id,
                     COALESCE(rpm, position_x, position_y, 0.0) as value

@@ -30,6 +30,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
@@ -78,7 +79,7 @@ public class DataController {
             @RequestParam Long startTime,
             @RequestParam Long endTime) {
         log.info("GET /api/data/device/{}/history?startTime={}&endTime={}", deviceId, startTime, endTime);
-        
+
         try {
             List<Map<String, Object>> history = plcDataRepository.findDeviceHistory(deviceId, startTime, endTime);
             log.info("Found {} historical data points for device {}", history.size(), deviceId);
@@ -88,8 +89,6 @@ public class DataController {
             return ResponseEntity.status(500).body(List.of());
         }
     }
-
-
 
     /**
      * Extract manufacturers from authenticated user request attributes.
@@ -135,13 +134,14 @@ public class DataController {
 
             // Query TimescaleDB for all sensors (simulator data)
             List<PlcData> simulatorSensors = plcDataRepository.findLatestSensors();
-            
+
             // Query TimescaleDB for Unreal devices
             List<PlcData> unrealDevices = plcDataRepository.findLatestUnrealDevices();
-            
+
             log.info("Found {} simulator sensors and {} Unreal devices", simulatorSensors.size(), unrealDevices.size());
 
-            // Group simulator sensors by PLC (extract from device_id like "motor_speed_PLC-NY-001")
+            // Group simulator sensors by PLC (extract from device_id like
+            // "motor_speed_PLC-NY-001")
             Map<String, List<PlcData>> sensorsByPlc = simulatorSensors.stream()
                     .collect(Collectors.groupingBy(sensor -> extractPlcId(sensor.getDeviceId())));
 
@@ -151,19 +151,20 @@ public class DataController {
 
             // Process sensors to build hierarchy
             for (PlcData sensor : simulatorSensors) {
-                if (sensor.getMetadata() == null) continue;
-                
+                if (sensor.getMetadata() == null)
+                    continue;
+
                 String tenant = sensor.getMetadata().path("tenant").asText("unknown");
                 String factory = sensor.getMetadata().path("factory").asText("unknown");
                 String plcId = extractPlcId(sensor.getDeviceId());
-                
+
                 // Determine manufacturer from factory name or use tenant
                 String manufacturer = tenant + "-motors";
-                
+
                 hierarchy.putIfAbsent(tenant, new HashMap<>());
                 hierarchy.get(tenant).putIfAbsent(manufacturer, new HashMap<>());
                 hierarchy.get(tenant).get(manufacturer).putIfAbsent(factory, new ArrayList<>());
-                
+
                 if (!hierarchy.get(tenant).get(manufacturer).get(factory).contains(plcId)) {
                     hierarchy.get(tenant).get(manufacturer).get(factory).add(plcId);
                 }
@@ -173,147 +174,152 @@ public class DataController {
             if (!unrealDevices.isEmpty()) {
                 hierarchy.putIfAbsent("accenture", new HashMap<>());
                 hierarchy.get("accenture").putIfAbsent("accenture-manufacturing", new HashMap<>());
-                hierarchy.get("accenture").get("accenture-manufacturing").putIfAbsent("test-factory", new ArrayList<>());
+                hierarchy.get("accenture").get("accenture-manufacturing").putIfAbsent("test-factory",
+                        new ArrayList<>());
             }
 
             // Build response structure
             List<Map<String, Object>> tenants = new ArrayList<>();
-            
+
             for (Map.Entry<String, Map<String, Map<String, List<String>>>> tenantEntry : hierarchy.entrySet()) {
                 String tenantId = tenantEntry.getKey();
                 Map<String, Object> tenantMap = new HashMap<>();
                 tenantMap.put("id", tenantId);
                 tenantMap.put("name", capitalize(tenantId));
-                
+
                 List<Map<String, Object>> manufacturers = new ArrayList<>();
-                
+
                 for (Map.Entry<String, Map<String, List<String>>> mfgEntry : tenantEntry.getValue().entrySet()) {
                     String mfgId = mfgEntry.getKey();
                     Map<String, Object> mfgMap = new HashMap<>();
                     mfgMap.put("id", mfgId);
                     mfgMap.put("name", capitalize(mfgId));
-                    
+
                     List<Map<String, Object>> factories = new ArrayList<>();
-                    
+
                     for (Map.Entry<String, List<String>> factoryEntry : mfgEntry.getValue().entrySet()) {
                         String factoryId = factoryEntry.getKey();
                         Map<String, Object> factoryMap = new HashMap<>();
                         factoryMap.put("id", factoryId);
                         factoryMap.put("name", capitalize(factoryId));
-                        
+
                         List<Map<String, Object>> plcs = new ArrayList<>();
-                        
+
                         // Add each PLC with its sensors
                         for (String plcId : factoryEntry.getValue()) {
                             Map<String, Object> plcMap = new HashMap<>();
                             plcMap.put("id", plcId);
                             plcMap.put("name", plcId);
-                            
+
                             List<Map<String, Object>> sensors = new ArrayList<>();
                             List<PlcData> plcSensors = sensorsByPlc.get(plcId);
-                            
+
                             if (plcSensors != null) {
                                 for (PlcData sensorData : plcSensors) {
                                     Map<String, Object> sensor = new HashMap<>();
                                     sensor.put("id", sensorData.getDeviceId());
                                     sensor.put("deviceId", sensorData.getDeviceId());
-                                    
+
                                     // Extract sensor name from data.name
-                                    String sensorName = sensorData.getData() != null ? 
-                                            sensorData.getData().path("name").asText(sensorData.getDeviceId()) :
-                                            sensorData.getDeviceId();
+                                    String sensorName = sensorData.getData() != null
+                                            ? sensorData.getData().path("name").asText(sensorData.getDeviceId())
+                                            : sensorData.getDeviceId();
                                     sensor.put("name", sensorName);
-                                    
+
                                     // Extract unit from data.signal_config.unit
                                     String unit = "";
                                     if (sensorData.getData() != null && sensorData.getData().has("signal_config")) {
                                         unit = sensorData.getData().path("signal_config").path("unit").asText("");
                                     }
                                     sensor.put("unit", unit);
-                                    
+
                                     // Value is stored in rpm column for sensors
                                     sensor.put("value", sensorData.getRpm() != null ? sensorData.getRpm() : 0.0);
-                                    sensor.put("timestamp", sensorData.getTimestamp().toInstant(ZoneOffset.UTC).toEpochMilli());
-                                    
+                                    sensor.put("timestamp",
+                                            sensorData.getTimestamp().toInstant(ZoneOffset.UTC).toEpochMilli());
+
                                     sensors.add(sensor);
                                 }
                             }
-                            
+
                             plcMap.put("sensors", sensors);
                             plcs.add(plcMap);
                         }
-                        
+
                         // Add Unreal devices to "accenture" tenant's "test-factory"
                         if ("test-factory".equalsIgnoreCase(factoryId)) {
                             for (PlcData unrealDevice : unrealDevices) {
                                 Map<String, Object> plcMap = new HashMap<>();
                                 plcMap.put("id", unrealDevice.getDeviceId());
                                 plcMap.put("name", capitalize(unrealDevice.getDeviceId()));
-                                
+
                                 List<Map<String, Object>> sensors = new ArrayList<>();
                                 long timestamp = unrealDevice.getTimestamp().toInstant(ZoneOffset.UTC).toEpochMilli();
-                                
+
                                 // Add RPM if present
                                 if (unrealDevice.getRpm() != null && unrealDevice.getRpm() != 0.0) {
                                     Map<String, Object> sensor = new HashMap<>();
                                     String sensorId = unrealDevice.getDeviceId() + "_rpm";
                                     sensor.put("id", sensorId);
-                                    sensor.put("deviceId", sensorId);
+                                    sensor.put("deviceId", unrealDevice.getDeviceId()); // Use base device_id for
+                                                                                        // history queries
                                     sensor.put("name", "RPM");
                                     sensor.put("unit", "rpm");
                                     sensor.put("value", unrealDevice.getRpm());
                                     sensor.put("timestamp", timestamp);
                                     sensors.add(sensor);
                                 }
-                                
+
                                 // Add position_x if present
                                 if (unrealDevice.getPositionX() != null && unrealDevice.getPositionX() != 0.0) {
                                     Map<String, Object> sensor = new HashMap<>();
                                     String sensorId = unrealDevice.getDeviceId() + "_position_x";
                                     sensor.put("id", sensorId);
-                                    sensor.put("deviceId", sensorId);
+                                    sensor.put("deviceId", unrealDevice.getDeviceId()); // Use base device_id for
+                                                                                        // history queries
                                     sensor.put("name", "Position_X");
                                     sensor.put("unit", "");
                                     sensor.put("value", unrealDevice.getPositionX());
                                     sensor.put("timestamp", timestamp);
                                     sensors.add(sensor);
                                 }
-                                
+
                                 // Add position_y if present
                                 if (unrealDevice.getPositionY() != null && unrealDevice.getPositionY() != 0.0) {
                                     Map<String, Object> sensor = new HashMap<>();
                                     String sensorId = unrealDevice.getDeviceId() + "_position_y";
                                     sensor.put("id", sensorId);
-                                    sensor.put("deviceId", sensorId);
+                                    sensor.put("deviceId", unrealDevice.getDeviceId()); // Use base device_id for
+                                                                                        // history queries
                                     sensor.put("name", "Position_Y");
                                     sensor.put("unit", "");
                                     sensor.put("value", unrealDevice.getPositionY());
                                     sensor.put("timestamp", timestamp);
                                     sensors.add(sensor);
                                 }
-                                
+
                                 if (!sensors.isEmpty()) {
                                     plcMap.put("sensors", sensors);
                                     plcs.add(plcMap);
                                 }
                             }
                         }
-                        
+
                         factoryMap.put("plcs", plcs);
                         factories.add(factoryMap);
                     }
-                    
+
                     mfgMap.put("factories", factories);
                     manufacturers.add(mfgMap);
                 }
-                
+
                 tenantMap.put("manufacturers", manufacturers);
                 tenants.add(tenantMap);
             }
-            
+
             response.put("tenants", tenants);
             log.info("Returning {} tenants with live data", tenants.size());
-            
+
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             log.error("Error fetching live hierarchical data", e);
@@ -326,14 +332,15 @@ public class DataController {
      * Example: "motor_speed_PLC-NY-001" -> "PLC-NY-001"
      */
     private String extractPlcId(String deviceId) {
-        if (deviceId == null) return "UNKNOWN";
-        
+        if (deviceId == null)
+            return "UNKNOWN";
+
         // Find "PLC-" in the string
         int plcIndex = deviceId.indexOf("PLC-");
         if (plcIndex >= 0) {
             return deviceId.substring(plcIndex);
         }
-        
+
         return deviceId;
     }
 
@@ -512,11 +519,13 @@ public class DataController {
 
                                 // Dynamically extract all non-null numeric fields from the device
                                 long timestamp = unrealDevice.getTimestamp().toInstant(ZoneOffset.UTC).toEpochMilli();
-                                
+
                                 // Add RPM if present
                                 if (unrealDevice.getRpm() != null && unrealDevice.getRpm() != 0.0) {
                                     Map<String, Object> sensor = new HashMap<>();
                                     sensor.put("id", unrealDevice.getDeviceId() + "_rpm");
+                                    sensor.put("deviceId", unrealDevice.getDeviceId()); // Use base device_id for
+                                                                                        // history queries
                                     sensor.put("name", "RPM");
                                     sensor.put("unit", "rpm");
                                     sensor.put("value", unrealDevice.getRpm());
@@ -528,6 +537,8 @@ public class DataController {
                                 if (unrealDevice.getPositionX() != null && unrealDevice.getPositionX() != 0.0) {
                                     Map<String, Object> sensor = new HashMap<>();
                                     sensor.put("id", unrealDevice.getDeviceId() + "_position_x");
+                                    sensor.put("deviceId", unrealDevice.getDeviceId()); // Use base device_id for
+                                                                                        // history queries
                                     sensor.put("name", "Position_X");
                                     sensor.put("unit", "");
                                     sensor.put("value", unrealDevice.getPositionX());
@@ -539,6 +550,8 @@ public class DataController {
                                 if (unrealDevice.getPositionY() != null && unrealDevice.getPositionY() != 0.0) {
                                     Map<String, Object> sensor = new HashMap<>();
                                     sensor.put("id", unrealDevice.getDeviceId() + "_position_y");
+                                    sensor.put("deviceId", unrealDevice.getDeviceId()); // Use base device_id for
+                                                                                        // history queries
                                     sensor.put("name", "Position_Y");
                                     sensor.put("unit", "");
                                     sensor.put("value", unrealDevice.getPositionY());
@@ -610,49 +623,49 @@ public class DataController {
     @GetMapping("/plc-data/latest")
     public ResponseEntity<List<Map<String, Object>>> getLatestPlcData() {
         log.info("GET /api/data/plc-data/latest - Fetching latest Unreal PLC data");
-        
+
         try {
             List<PlcData> latestData = plcDataRepository.findLatestForAllDevices();
-            
+
             List<Map<String, Object>> response = latestData.stream()
-                .map(plcData -> {
-                    Map<String, Object> deviceMap = new HashMap<>();
-                    deviceMap.put("device_id", plcData.getDeviceId());
-                    deviceMap.put("timestamp", plcData.getTimestamp().toEpochSecond(ZoneOffset.UTC) * 1000);
-                    deviceMap.put("type", plcData.getType());
-                    
-                    // Add numeric fields if present
-                    if (plcData.getRpm() != null) {
-                        deviceMap.put("rpm", plcData.getRpm());
-                    }
-                    if (plcData.getPositionX() != null) {
-                        deviceMap.put("position_x", plcData.getPositionX());
-                    }
-                    if (plcData.getPositionY() != null) {
-                        deviceMap.put("position_y", plcData.getPositionY());
-                    }
-                    if (plcData.getIsOn() != null) {
-                        deviceMap.put("is_on", plcData.getIsOn());
-                    }
-                    if (plcData.getInOperation() != null) {
-                        deviceMap.put("in_operation", plcData.getInOperation());
-                    }
-                    
-                    // Add JSONB fields if present
-                    if (plcData.getData() != null) {
-                        deviceMap.put("data", plcData.getData());
-                    }
-                    if (plcData.getMetadata() != null) {
-                        deviceMap.put("metadata", plcData.getMetadata());
-                    }
-                    
-                    return deviceMap;
-                })
-                .collect(Collectors.toList());
-            
+                    .map(plcData -> {
+                        Map<String, Object> deviceMap = new HashMap<>();
+                        deviceMap.put("device_id", plcData.getDeviceId());
+                        deviceMap.put("timestamp", plcData.getTimestamp().toEpochSecond(ZoneOffset.UTC) * 1000);
+                        deviceMap.put("type", plcData.getType());
+
+                        // Add numeric fields if present
+                        if (plcData.getRpm() != null) {
+                            deviceMap.put("rpm", plcData.getRpm());
+                        }
+                        if (plcData.getPositionX() != null) {
+                            deviceMap.put("position_x", plcData.getPositionX());
+                        }
+                        if (plcData.getPositionY() != null) {
+                            deviceMap.put("position_y", plcData.getPositionY());
+                        }
+                        if (plcData.getIsOn() != null) {
+                            deviceMap.put("is_on", plcData.getIsOn());
+                        }
+                        if (plcData.getInOperation() != null) {
+                            deviceMap.put("in_operation", plcData.getInOperation());
+                        }
+
+                        // Add JSONB fields if present
+                        if (plcData.getData() != null) {
+                            deviceMap.put("data", plcData.getData());
+                        }
+                        if (plcData.getMetadata() != null) {
+                            deviceMap.put("metadata", plcData.getMetadata());
+                        }
+
+                        return deviceMap;
+                    })
+                    .collect(Collectors.toList());
+
             log.info("Found {} Unreal PLC devices with latest data", response.size());
             return ResponseEntity.ok(response);
-            
+
         } catch (Exception e) {
             log.error("Error fetching latest PLC data", e);
             return ResponseEntity.internalServerError().build();
