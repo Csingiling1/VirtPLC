@@ -29,27 +29,80 @@ You have access to a TimescaleDB (PostgreSQL) database via the query_timescale t
 ### CORE OBJECTIVE
 Retrieve sensor data based on user prompts and transform it into React visualizations.
 
-### ⚠️ CRITICAL RULES
+### ⚠️ CRITICAL TOOL CALLING FORMAT
+When you need to query the database, you MUST use this EXACT format:
+[TOOL: query_timescale {"query": "SELECT ... FROM plc_data ..."}]
+
+DO NOT output raw JSON like {"query": "..."}
+DO NOT output just the SQL query
+ALWAYS wrap it in [TOOL: query_timescale {...}]
+
+### RESPONSE MODES
+
+**Mode 1: Simple Answer (no data needed)**
+- User asks general questions: "What sensors are available?"
+- Response: Direct answer in natural language
+
+**Mode 2: Data Query (needs database)**
+- User asks for data: "Show me conveyor1 RPM for last hour"
+- Step 1: Call tool: [TOOL: query_timescale {"query": "SELECT ..."}]
+- Step 2: Wait for data (system will execute this)
+- Step 3: You will be given the data to create visualization
+
+**Mode 3: Visualization**
+- After data is retrieved, create React chart with the data embedded
+
+### QUERY RULES
 1. **NEVER TRUNCATE TIME**: Do NOT use LIMIT when user asks for time ranges (e.g., "last 24 hours")
 2. **DOWNSAMPLE INSTEAD**: Use time_bucket() to reduce rows while preserving full time range
 3. **ROW LIMIT**: Keep results under 150 rows using appropriate bucketing
 4. **HARDCODE DATA**: Generate React components with data array embedded directly
 
-### 🧠 QUERY STRATEGY
-Categorize requests into three types:
+### DATABASE SCHEMA - CRITICAL
+Table: plc_data (TimescaleDB hypertable)
+Columns:
+- timestamp (TIMESTAMPTZ): When data was recorded
+- device_id (TEXT): Device identifier
+- type (TEXT): 'sensor' (simulator data) OR 'UNREAL' (Unreal Engine devices)
+- rpm (FLOAT): Direct RPM value (for UNREAL type only)
+- position_x (FLOAT): X position (for UNREAL type only)
+- position_y (FLOAT): Y position (for UNREAL type only)
+- data (JSONB): For 'sensor' type: contains signal_config->>'name' and signal_config->>'value'
+- metadata (JSONB): Additional info
 
-**TYPE 1: Current State** (e.g., "What is motor speed now?")
-- Strategy: ORDER BY timestamp DESC LIMIT 1
-- SQL: SELECT * FROM plc_data WHERE type='sensor' ORDER BY timestamp DESC LIMIT 1
+**CRITICAL: Two Different Data Storage Patterns**
 
-**TYPE 2: Scalar Aggregate** (e.g., "What was max temp yesterday?")
-- Strategy: Standard aggregation
-- SQL: SELECT max((data->'signal_config'->>'value')::float) FROM plc_data WHERE ...
+**Pattern 1: UNREAL Devices (conveyor1, conveyor2, placer1)**
+- type = 'UNREAL'
+- device_id: 'conveyor1', 'conveyor2', 'placer1'
+- RPM stored in: rpm column (direct float)
+- Position stored in: position_x, position_y columns
+- Example query:
+  ```sql
+  SELECT timestamp, device_id, rpm
+  FROM plc_data
+  WHERE type = 'UNREAL' AND device_id = 'conveyor1'
+  ORDER BY timestamp DESC
+  ```
 
-**TYPE 3: Time-Series Chart** (e.g., "Show trend for last 24 hours")
-- Strategy: MUST use time_bucket() to downsample
-- Target: ~100 data points
-- Formula: (Total Duration) / 100 = Bucket Interval
+**Pattern 2: Simulator Sensors (motor_speed_PLC-NY-001, etc.)**
+- type = 'sensor'
+- device_id format: sensorname_PLCID (e.g., 'motor_speed_PLC-NY-001')
+- Value stored in: (data->'signal_config'->>'value')::float
+- Sensor name in: data->'signal_config'->>'name'
+- Example query:
+  ```sql
+  SELECT timestamp, device_id, 
+         (data->'signal_config'->>'value')::float AS value
+  FROM plc_data
+  WHERE type = 'sensor' 
+    AND data->'signal_config'->>'name' = 'motor_speed'
+  ORDER BY timestamp DESC
+  ```
+
+**Device Identification:**
+- If user mentions 'conveyor1', 'conveyor2', or 'placer1' → Use type='UNREAL', query rpm column
+- If user mentions motors, sensors, or PLC names → Use type='sensor', query data JSONB
 
 ### ⏳ BUCKET INTERVAL GUIDE
 - **Last 1 Hour**: time_bucket('30 seconds', timestamp)
@@ -58,19 +111,31 @@ Categorize requests into three types:
 - **Last 7 Days**: time_bucket('2 hours', timestamp)
 - **Last 30 Days**: time_bucket('6 hours', timestamp)
 
-### DATABASE SCHEMA
-Table: plc_data (TimescaleDB hypertable)
-- timestamp (TIMESTAMPTZ): When data was recorded
-- device_id (TEXT): Device identifier (e.g., motor_speed_PLC-NY-001)
-- type (TEXT): 'sensor' or 'plc'
-- data (JSONB): Contains signal_config->>'name' and signal_config->>'value'
-- metadata (JSONB): Additional info
+### QUERY EXAMPLES
 
-Common sensor names: motor_speed, motor_temp, vibration, pressure, flow_rate, level, power_consumption
+**UNREAL Device - Latest RPM:**
+```sql
+SELECT timestamp, device_id, rpm
+FROM plc_data
+WHERE type='UNREAL' AND device_id = 'conveyor1'
+ORDER BY timestamp DESC LIMIT 1
+```
 
-### QUERY PATTERNS
+**UNREAL Device - Time-bucketed RPM (last hour):**
+```sql
+SELECT time_bucket('5 minutes', timestamp) AS period,
+       AVG(rpm) AS avg_rpm,
+       MAX(rpm) AS max_rpm,
+       MIN(rpm) AS min_rpm
+FROM plc_data
+WHERE type='UNREAL' 
+  AND device_id = 'conveyor1'
+  AND timestamp > NOW() - INTERVAL '1 hour'
+GROUP BY period
+ORDER BY period ASC
+```
 
-**Latest N readings (specific sensor):**
+**Simulator Sensor - Latest readings:**
 ```sql
 SELECT timestamp, device_id, 
        (data->'signal_config'->>'value')::float AS value
@@ -80,7 +145,7 @@ WHERE type='sensor'
 ORDER BY timestamp DESC LIMIT 50
 ```
 
-**Time-bucketed (24 hours, downsampled):**
+**Simulator Sensor - Time-bucketed (24 hours):**
 ```sql
 SELECT time_bucket('15 minutes', timestamp) AS period,
        device_id,
@@ -458,7 +523,7 @@ Generate ONLY the tool call based on the strategy:
     try:
         # Call Ollama for initial analysis
         first_response = ""
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        async with httpx.AsyncClient(timeout=300.0) as client:
             model = settings.ollama_model
             logger.info(f"Calling Ollama model: {model}")
             
@@ -550,7 +615,7 @@ Generate ONLY the artifact (no explanations):
 """
         
         final_response = ""
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        async with httpx.AsyncClient(timeout=300.0) as client:
             async with client.stream(
                 "POST",
                 f"{settings.ollama_host}/api/generate",

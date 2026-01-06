@@ -12,6 +12,8 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
 
 /**
  * Repository for PLC data stored in TimescaleDB.
@@ -77,6 +79,62 @@ public class PlcDataRepository {
     public List<String> findAllDistinctDeviceIds() {
         String sql = "SELECT DISTINCT device_id FROM plc_data ORDER BY device_id";
         return jdbcTemplate.queryForList(sql, String.class);
+    }
+
+    /**
+     * Find latest sensor data grouped by device_id where type='sensor'.
+     * Returns latest reading for each simulator sensor.
+     */
+    public List<PlcData> findLatestSensors() {
+        String sql = """
+                SELECT DISTINCT ON (device_id) timestamp, device_id, type, data, metadata, rpm, position_x, position_y, is_on, in_operation
+                FROM plc_data
+                WHERE type = 'sensor'
+                ORDER BY device_id, timestamp DESC
+                """;
+
+        return jdbcTemplate.query(sql, new PlcDataRowMapper());
+    }
+
+    /**
+     * Find latest UNREAL devices.
+     */
+    public List<PlcData> findLatestUnrealDevices() {
+        String sql = """
+                SELECT DISTINCT ON (device_id) timestamp, device_id, type, data, metadata, rpm, position_x, position_y, is_on, in_operation
+                FROM plc_data
+                WHERE type = 'UNREAL'
+                ORDER BY device_id, timestamp DESC
+                """;
+
+        return jdbcTemplate.query(sql, new PlcDataRowMapper());
+    }
+
+    /**
+     * Find historical data for a specific device within a time range.
+     * Returns timestamp, deviceId, and value for charting.
+     */
+    public List<Map<String, Object>> findDeviceHistory(String deviceId, Long startTimeMs, Long endTimeMs) {
+        String sql = """
+                SELECT 
+                    EXTRACT(EPOCH FROM timestamp) * 1000 as timestamp,
+                    device_id,
+                    COALESCE(rpm, position_x, position_y, 0.0) as value
+                FROM plc_data
+                WHERE device_id = ?
+                  AND timestamp >= to_timestamp(? / 1000.0)
+                  AND timestamp <= to_timestamp(? / 1000.0)
+                ORDER BY timestamp ASC
+                LIMIT 10000
+                """;
+
+        return jdbcTemplate.query(sql, (rs, rowNum) -> {
+            java.util.Map<String, Object> map = new java.util.HashMap<>();
+            map.put("timestamp", rs.getLong("timestamp"));
+            map.put("deviceId", rs.getString("device_id"));
+            map.put("value", rs.getDouble("value"));
+            return map;
+        }, deviceId, startTimeMs, endTimeMs);
     }
 
     private class PlcDataRowMapper implements RowMapper<PlcData> {

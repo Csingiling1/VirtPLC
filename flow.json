@@ -114,14 +114,18 @@
         "z": "01f13b5392ec548e",
         "name": "Unreal: factory/data/#",
         "topic": "factory/data/#",
+        "qos": "2",
         "datatype": "buffer",
         "broker": "mqtt_broker_cfg",
+        "nl": false,
+        "rap": false,
         "inputs": 0,
         "x": 160,
         "y": 380,
         "wires": [
             [
-                "0b5bb75c5c765cbd"
+                "0b5bb75c5c765cbd",
+                "bc6172c64162bd80"
             ]
         ]
     },
@@ -130,8 +134,13 @@
         "type": "function",
         "z": "01f13b5392ec548e",
         "name": "HMI -> Unreal CMD",
-        "func": "if (msg.payload.type !== 'register') return null;\nlet addr = msg.payload.address;\nlet val = msg.payload.value;\nlet dev = addr === 0 ? 'Conveyor1' : addr === 1 ? 'Conveyor2' : addr === 2 ? 'Placer1' : null;\nif (!dev) return null;\nreturn { topic: `factory/command/${dev}`, payload: { rpm: val, is_on: val > 0 } };",
+        "func": "// Filter: Ensure we only process data if it has a value\nif (!msg.payload || typeof msg.payload.value === 'undefined') return null;\n\nlet addr = msg.payload.address;\nlet val = msg.payload.value;\n\n// Debug log to confirm we received the write\nnode.warn(\"Modbus Write Received -> Addr: \" + addr + \" | Value: \" + val);\n\n// --- UNPACKING LOGIC FOR REGISTER 9 ---\nif (addr === 9) {\n    // Decode the Integer into Booleans\n    // (val & 1) checks bit 0, (val & 2) checks bit 1, etc.\n    let c1_active = (val & 1) > 0;  // Bit 0 (Decimal 1)\n    let c2_active = (val & 2) > 0;  // Bit 1 (Decimal 2)\n    let p1_active = (val & 4) > 0;  // Bit 2 (Decimal 4)\n    let p1_ready  = (val & 8) > 0;  // Bit 3 (Decimal 8)\n\n    // Send 3 separate commands to your Unreal/Collector flow\n    // We send an array of 3 messages\n    return [\n        { \n            topic: \"factory/command/Conveyor1\", \n            payload: { is_on: c1_active } \n        },\n        { \n            topic: \"factory/command/Conveyor2\", \n            payload: { is_on: c2_active } \n        },\n        { \n            topic: \"factory/command/Placer1\", \n            payload: { is_on: p1_active, is_ready: p1_ready } \n        }\n    ];\n}\n\nreturn null;",
         "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
         "x": 1050,
         "y": 340,
         "wires": [
@@ -167,7 +176,7 @@
         "once": false,
         "onceDelay": "",
         "topic": "",
-        "payload": "true",
+        "payload": "false",
         "payloadType": "bool",
         "x": 150,
         "y": 480,
@@ -231,7 +240,8 @@
         "y": 340,
         "wires": [
             [
-                "cfa2a169fb7fa302"
+                "cfa2a169fb7fa302",
+                "4f1aea8eed54bbfa"
             ],
             [],
             [],
@@ -244,8 +254,13 @@
         "type": "function",
         "z": "01f13b5392ec548e",
         "name": "🧠 THE BRAIN",
-        "func": "let c1 = flow.get('c1_rpm') || 0;\nlet c2 = flow.get('c2_rpm') || 0;\nlet px = flow.get('placer_x') || 0;\nlet py = flow.get('placer_y') || 0;\nlet c1_on = flow.get('c1_on') || false;\nlet c2_on = flow.get('c2_on') || false;\nlet p1_ready = flow.get('p1_ready') || false;\nlet simActive = true; // Force to true for testing\n\nif (msg.payload && msg.topic !== 'tick' && !simActive) {\n    try {\n        let data = JSON.parse(msg.payload.toString().replace(/\\.\\s*\"/g, ',\"').replace(/(\\d),\\s*(\\d)/g, '$1$2'));\n        let dev = msg.topic.split('/').pop();\n        if (dev === 'Conveyor1') { flow.set('c1_rpm', data.rpm); flow.set('c1_on', data.is_on); }\n        if (dev === 'Conveyor2') { flow.set('c2_rpm', data.rpm); flow.set('c2_on', data.is_on); }\n        if (dev === 'Placer1') { flow.set('placer_x', data.posX); flow.set('placer_y', data.posY); flow.set('p1_ready', data.is_ready); }\n        node.send([null, { topic: 'collector/ingest', payload: { device: dev, data: data, type: 'UNREAL' } }]);\n    } catch(e) {}\n}\n\nif (msg.topic === 'tick') {\n    if (simActive) {\n        c1 = Math.floor(Math.random() * 4000) + 1000;\n        c2 = Math.floor(Math.random() * 4000) + 1000;\n        px = Math.floor(Math.random() * 101); py = Math.floor(Math.random() * 101);\n        c1_on = true; p1_ready = true;\n        node.send([null, { topic: 'collector/ingest', payload: { type: 'MOCK', c1, c2, px, py } }]);\n    }\n    let mask = 0;\n    if (c1_on) mask |= (1 << 0); if (c2_on) mask |= (1 << 1); if (p1_ready) mask |= (1 << 3);\n    let buf = Buffer.alloc(10);\n    buf.writeUInt16BE(c1, 0); buf.writeUInt16BE(c2, 2); buf.writeUInt16BE(px, 4); buf.writeUInt16BE(py, 6); buf.writeUInt16BE(mask, 8);\n    return [{ payload: { value: buf, register: 'holding', address: 1, disableMsgOutput: 1 } }, null];\n}\nreturn null;",
+        "func": "let c1 = flow.get('c1_rpm') || 0;\nlet c2 = flow.get('c2_rpm') || 0;\nlet px = flow.get('placer_x') || 0;\nlet py = flow.get('placer_y') || 0;\nlet c1_on = flow.get('c1_on') || false;\nlet c2_on = flow.get('c2_on') || false;\nlet p1_ready = flow.get('p1_ready') || false;\nlet simActive = false; // Force to true for testing\n\nif (msg.payload && msg.topic !== 'tick' && !simActive) {\n    try {\n        let data = JSON.parse(msg.payload.toString().replace(/\\.\\s*\"/g, ',\"').replace(/(\\d),\\s*(\\d)/g, '$1$2'));\n        let dev = msg.topic.split('/').pop();\n        if (dev === 'Conveyor1') { flow.set('c1_rpm', data.rpm); flow.set('c1_on', data.is_on); }\n        if (dev === 'Conveyor2') { flow.set('c2_rpm', data.rpm); flow.set('c2_on', data.is_on); }\n        if (dev === 'Placer1') { flow.set('placer_x', data.posX); flow.set('placer_y', data.posY); flow.set('p1_ready', data.is_ready); }\n        node.send([null, { topic: 'collector/ingest', payload: { device: dev, data: data, type: 'UNREAL' } }]);\n    } catch(e) {}\n}\n\nif (msg.topic === 'tick') {\n    if (simActive) {\n        c1 = Math.floor(Math.random() * 4000) + 1000;\n        c2 = Math.floor(Math.random() * 4000) + 1000;\n        px = Math.floor(Math.random() * 101); py = Math.floor(Math.random() * 101);\n        c1_on = true; p1_ready = true;\n        node.send([null, { topic: 'collector/ingest', payload: { type: 'MOCK', c1, c2, px, py } }]);\n    }\n    let mask = 0;\n    if (c1_on) mask |= (1 << 0); if (c2_on) mask |= (1 << 1); if (p1_ready) mask |= (1 << 3);\n    let buf = Buffer.alloc(10);\n    buf.writeUInt16BE(c1, 0); buf.writeUInt16BE(c2, 2); buf.writeUInt16BE(px, 4); buf.writeUInt16BE(py, 6); buf.writeUInt16BE(mask, 8);\n    return [{ payload: { value: buf, register: 'holding', address: 1, disableMsgOutput: 1 } }, null];\n}\nreturn null;",
         "outputs": 2,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
         "x": 410,
         "y": 380,
         "wires": [
@@ -338,6 +353,38 @@
         "wires": []
     },
     {
+        "id": "bc6172c64162bd80",
+        "type": "debug",
+        "z": "01f13b5392ec548e",
+        "name": "debug 1",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "false",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 350,
+        "y": 280,
+        "wires": []
+    },
+    {
+        "id": "4f1aea8eed54bbfa",
+        "type": "debug",
+        "z": "01f13b5392ec548e",
+        "name": "debug 2",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "false",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1040,
+        "y": 420,
+        "wires": []
+    },
+    {
         "id": "mqtt_broker_cfg",
         "type": "mqtt-broker",
         "name": "Factory RabbitMQ (Docker)",
@@ -365,7 +412,7 @@
         "sessionExpiry": ""
     },
     {
-        "id": "37d4e6cd71a2f16e",
+        "id": "b78628393ba775e4",
         "type": "global-config",
         "env": [],
         "modules": {

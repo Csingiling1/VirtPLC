@@ -656,7 +656,7 @@ class SimulatorApp:
         import json
         import time
         
-        MQTT_BROKER = os.getenv("MQTT_BROKER", "mqtt")
+        MQTT_BROKER = os.getenv("MQTT_BROKER", "rabbitmq")  # Fixed: Use 'rabbitmq' service name
         MQTT_PORT = int(os.getenv("MQTT_PORT", 1883))
         MQTT_USERNAME = os.getenv("MQTT_USERNAME", "")
         MQTT_PASSWORD = os.getenv("MQTT_PASSWORD", "")
@@ -683,6 +683,7 @@ class SimulatorApp:
             tenants = self.db.get_all_tenants()
             timestamp = time.time()
             
+            published_count = 0
             # Publish individual device data
             for tenant in tenants:
                 for manufacturer in tenant.manufacturers:
@@ -690,25 +691,14 @@ class SimulatorApp:
                         # Update sensor values before publishing
                         factory.update_plcs()
                         
-                        # Publish PLCs
+                        # Publish Sensors individually (not PLCs)
                         for plc in factory.plcs:
-                            topic = f"plc/{plc.id}"
-                            payload = {
-                                "device_id": plc.id,
-                                "type": "plc",
-                                "timestamp": timestamp,
-                                "data": plc.to_dict(),
-                                "metadata": {
-                                    "tenant": tenant.id,
-                                    "factory": factory.id
-                                }
-                            }
-                            client.publish(topic, json.dumps(payload))
-                            logger.debug(f"Published PLC data to {topic}")
-                            
-                            # Publish Sensors within this PLC
                             for sensor in plc.sensors:
                                 topic = f"plc/{sensor.id}"
+                                
+                                # Get sensor value
+                                sensor_value = sensor.signal_config.value if sensor.signal_config else 0
+                                
                                 payload = {
                                     "device_id": sensor.id,
                                     "type": "sensor",
@@ -717,13 +707,17 @@ class SimulatorApp:
                                     "metadata": {
                                         "tenant": tenant.id,
                                         "factory": factory.id,
-                                        "plc": plc.id
+                                        "plc": plc.id,
+                                        "category": "Sensor",
+                                        "priority": "medium"
                                     }
                                 }
                                 client.publish(topic, json.dumps(payload))
-                                logger.debug(f"Published sensor data to {topic}")
+                                published_count += 1
+                                logger.info(f"📤 MQTT Published: {topic} -> {sensor.name}={sensor_value:.2f} {sensor.signal_config.unit if sensor.signal_config else ''}")
 
-            await asyncio.sleep(1)  # Publish every second
+            logger.info(f"✅ Published {published_count} sensor readings to MQTT")
+            await asyncio.sleep(2)  # Publish every 2 seconds
 
 def main():
     """Main entry point - simplified for multi-tenant testing"""
@@ -743,12 +737,28 @@ def main():
     app = SimulatorApp(args.db_path)
     
     if args.mode == "plc-server":
-        # Start MQTT client in a separate thread
+        # Start MQTT client in a separate thread with its own event loop
         logger.info(f"Starting MQTT client in plc-server mode connecting to {args.mqtt_broker}:{args.mqtt_port}")
         import threading
-        mqtt_thread = threading.Thread(target=lambda: asyncio.run(app.start_mqtt_client()))
+        
+        def mqtt_loop():
+            logger.info("🧵 MQTT thread started!")
+            try:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                logger.info("🔄 MQTT event loop created, starting client...")
+                loop.run_until_complete(app.start_mqtt_client())
+            except Exception as e:
+                logger.error(f"❌ MQTT loop error: {e}", exc_info=True)
+        
+        mqtt_thread = threading.Thread(target=mqtt_loop)
         mqtt_thread.daemon = True
         mqtt_thread.start()
+        logger.info(f"🚀 MQTT thread started as daemon")
+        
+        # Give MQTT thread time to connect
+        import time
+        time.sleep(2)
         
         # Start web server (blocking)
         app.start_web_server(args.host, args.port)
