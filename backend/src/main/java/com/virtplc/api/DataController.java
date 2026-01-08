@@ -45,7 +45,6 @@ import org.springframework.transaction.annotation.Propagation;
 @RestController
 @RequestMapping("/api/data")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 public class DataController {
 
     private final DataService dataService;
@@ -79,6 +78,28 @@ public class DataController {
             @RequestParam Long startTime,
             @RequestParam Long endTime) {
         log.info("GET /api/data/device/{}/history?startTime={}&endTime={}", deviceId, startTime, endTime);
+
+        // Input validation to prevent injection attacks
+        if (deviceId == null || deviceId.trim().isEmpty() || deviceId.length() > 100) {
+            log.warn("Invalid deviceId: {}", deviceId);
+            return ResponseEntity.badRequest().body(List.of());
+        }
+        // Validate deviceId contains only safe characters
+        if (!deviceId.matches("^[a-zA-Z0-9_-]+$")) {
+            log.warn("DeviceId contains invalid characters: {}", deviceId);
+            return ResponseEntity.badRequest().body(List.of());
+        }
+        // Validate time range
+        if (startTime == null || endTime == null || startTime < 0 || endTime < 0 || endTime < startTime) {
+            log.warn("Invalid time range: start={}, end={}", startTime, endTime);
+            return ResponseEntity.badRequest().body(List.of());
+        }
+        // Prevent excessively large time ranges (max 30 days)
+        long maxRange = 30L * 24L * 60L * 60L * 1000L; // 30 days in milliseconds
+        if (endTime - startTime > maxRange) {
+            log.warn("Time range too large: {} ms", endTime - startTime);
+            return ResponseEntity.badRequest().body(List.of());
+        }
 
         try {
             List<Map<String, Object>> history = plcDataRepository.findDeviceHistory(deviceId, startTime, endTime);
