@@ -38,9 +38,9 @@ public class CorsConfig {
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         // Be specific about allowed headers
         configuration.setAllowedHeaders(Arrays.asList(
-                "Authorization", 
-                "Content-Type", 
-                "Accept", 
+                "Authorization",
+                "Content-Type",
+                "Accept",
                 "X-Requested-With",
                 "Cache-Control"));
         configuration.setAllowCredentials(true);

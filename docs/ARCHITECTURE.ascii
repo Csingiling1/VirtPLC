@@ -1,0 +1,546 @@
+╔════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
+║                                          VirtPLC - COMPLETE SYSTEM ARCHITECTURE                                            ║
+║                                   Industrial IoT Platform with AI-Powered Analytics                                        ║
+╚════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+
+┌────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                                    CLIENT LAYER                                                            │
+└────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+                                                          │
+                                                 Browser (Port 80/443)
+                                                          │
+                                    ┌─────────────────────┴──────────────────────┐
+                                    │                                            │
+                              acme.virtplc.com                            techcorp.virtplc.com
+                            (Multi-Tenant Routing)                      (Multi-Tenant Routing)
+                                    │                                            │
+                                    └─────────────────────┬──────────────────────┘
+                                                          ▼
+╔════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
+║                                              NGINX REVERSE PROXY (Alpine)                                                  ║
+║  Port 80/443  │  Security: HSTS, CSP, X-Frame-Options  │  Rate Limiting: 10/5/100 req/s  │  Slowloris Protection         ║
+╚════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+                │                           │                           │                           │
+        ┌───────┴────────┐         ┌────────┴─────────┐         ┌──────┴────────┐         ┌──────┴────────┐
+        │                │         │                  │         │               │         │               │
+        ▼                ▼         ▼                  ▼         ▼               ▼         ▼               ▼
+┌─────────────┐  ┌─────────────┐  ┌──────────────┐  ┌──────────────┐  ┌─────────────┐  ┌─────────────┐
+│  Frontend   │  │  Frontend   │  │   Backend    │  │   Backend    │  │ AI Service  │  │ AI Service  │
+│  (Tenant 1) │  │  (Tenant 2) │  │  (Tenant 1)  │  │  (Tenant 2)  │  │ (Tenant 1)  │  │ (Tenant 2)  │
+│   React     │  │   React     │  │ Spring Boot  │  │ Spring Boot  │  │  FastAPI    │  │  FastAPI    │
+│  Port 5173  │  │  Port 5173  │  │  Port 8080   │  │  Port 8080   │  │  Port 3001  │  │  Port 3001  │
+└──────┬──────┘  └──────┬──────┘  └──────┬───────┘  └──────┬───────┘  └──────┬──────┘  └──────┬──────┘
+       │                │                │                 │                 │                 │
+       └────────────────┴────────────────┴─────────────────┴─────────────────┴─────────────────┘
+                                                          │
+                                         ┌────────────────┴─────────────────┐
+                                         │                                  │
+┌────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                            APPLICATION LAYER (Microservices)                                               │
+└────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+╔════════════════════════════════╗    ╔════════════════════════════════╗    ╔════════════════════════════════╗
+║      FRONTEND (React+TS)       ║    ║    BACKEND (Spring Boot 3.2)   ║    ║    AI SERVICE (FastAPI)        ║
+║  Framework: Vite + TypeScript  ║    ║   Language: Java 21            ║    ║   Language: Python 3.11        ║
+║  Port: 5173 (dev), 80 (prod)   ║    ║   Port: 8080 (REST), 8000 (MCP)║    ║   Port: 3001 (REST), 3002 (WS) ║
+╠════════════════════════════════╣    ╠════════════════════════════════╣    ╠════════════════════════════════╣
+║ Pages:                         ║    ║ Controllers:                   ║    ║ Routes:                        ║
+║  • Dashboard (Real-time)       ║    ║  • DataController              ║    ║  • /chat/message               ║
+║  • History (Time-series)       ║───▶║  • AIController                ║◀───║  • /chat/stream (SSE)          ║
+║  • AI Chat (NL Queries)        ║    ║  • AdminController             ║    ║  • /analysis/predict           ║
+║  • Admin Panel                 ║    ║  • MCPController               ║    ║  • /factory/insights           ║
+║                                ║    ║  • FactoryController           ║    ║                                ║
+║ Components:                    ║    ║                                ║    ║ AI Models:                     ║
+║  • DeviceCard                  ║    ║ Services:                      ║    ║  • Ollama (qwen2:0.5b)         ║
+║  • HistoryChart (Recharts)     ║    ║  • PlcDataRepository           ║    ║  • Claude (claude-3-opus)      ║
+║  • ChatInterface               ║    ║  • CacheConfig (Redis)         ║    ║                                ║
+║  • ArtifactRenderer            ║    ║  • SecurityConfig              ║    ║ Clients:                       ║
+║                                ║    ║  • WebSocketHandler            ║    ║  • MCP Client (DB access)      ║
+║ Libraries:                     ║    ║                                ║    ║  • Claude Client (API)         ║
+║  • React 18                    ║    ║ Security:                      ║    ║  • TimeBase Client             ║
+║  • Recharts                    ║    ║  • CORS: Origin patterns       ║    ║  • TimescaleDB Client          ║
+║  • Tailwind CSS                ║    ║  • Input validation (regex)    ║    ║                                ║
+║  • Shadcn/ui                   ║    ║  • JWT Authentication          ║    ║ Features:                      ║
+║                                ║    ║  • @Cacheable annotations      ║    ║  • Natural language queries    ║
+╚════════════════════════════════╝    ╚════════════════════════════════╝    ║  • SQL generation via tools    ║
+                                                     │                       ║  • React chart generation      ║
+                                                     │                       ║  • Streaming responses         ║
+                                                     │                       ╚════════════════════════════════╝
+                                                     │
+                                           ┌─────────┴─────────┐
+                                           │                   │
+                                           ▼                   ▼
+                              ╔════════════════════╗  ╔════════════════════╗
+                              ║  MCP SERVER (Java) ║  ║  COLLECTOR (Go)    ║
+                              ║  db-mcp-server     ║  ║  gRPC Data Writer  ║
+                              ║  Port 8000         ║  ║  Port 9090         ║
+                              ╠════════════════════╣  ╠════════════════════╣
+                              ║ Tools:             ║  ║ Features:          ║
+                              ║  • query_timescale ║  ║  • Batch writes    ║
+                              ║  • list_tables     ║  ║  • gRPC endpoint   ║
+                              ║  • describe_table  ║  ║  • UNREAL devices  ║
+                              ║                    ║  ║  • Sensor data     ║
+                              ║ Protocol:          ║  ║                    ║
+                              ║  • JSON-RPC 2.0    ║  ║ Performance:       ║
+                              ║  • SSE streaming   ║  ║  • 35 devices      ║
+                              ║                    ║  ║  • 35 writes/sec   ║
+                              ╚═════════┬══════════╝  ╚═════════┬══════════╝
+                                        │                       │
+                                        └───────────┬───────────┘
+                                                    │
+┌────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                              DATA STORAGE LAYER                                                            │
+└────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+     ┌──────────────────────────────┬──────────────────────────────┬──────────────────────────────┐
+     │                              │                              │                              │
+     ▼                              ▼                              ▼                              ▼
+╔═══════════════════════╗  ╔═══════════════════════╗  ╔═══════════════════════╗  ╔═══════════════════════╗
+║  TIMESCALEDB (PG 16)  ║  ║   POSTGRESQL (PG 16)  ║  ║    REDIS (Cache)      ║  ║  OLLAMA (Local LLM)   ║
+║  Time-Series Storage  ║  ║  Relational Storage   ║  ║  In-Memory Cache      ║  ║  AI Model Server      ║
+║  Port 5432            ║  ║  Port 5432            ║  ║  Port 6379            ║  ║  Port 11434           ║
+╠═══════════════════════╣  ╠═══════════════════════╣  ╠═══════════════════════╣  ╠═══════════════════════╣
+║ Database: virtplc_ts  ║  ║ Database: virtplc     ║  ║ Keys:                 ║  ║ Models:               ║
+║                       ║  ║                       ║  ║  • devices::*         ║  ║  • qwen2:0.5b         ║
+║ Hypertable: plc_data  ║  ║ Tables:               ║  ║  • hierarchical::*    ║  ║  • llama3:8b          ║
+║  • timestamp          ║  ║  • chat_sessions      ║  ║  • history::{dev}-*   ║  ║  • qwen2.5-coder:7b   ║
+║  • device_id          ║  ║  • chat_messages      ║  ║  • metadata::*        ║  ║                       ║
+║  • type (sensor/      ║  ║  • dashboards         ║  ║                       ║  ║ Features:             ║
+║    UNREAL)            ║  ║  • dashboard_         ║  ║ TTL Strategy:         ║  ║  • Text generation    ║
+║  • rpm (FLOAT)        ║  ║    components         ║  ║  • devices: 5s        ║  ║  • Tool calling       ║
+║  • position_x         ║  ║  • users              ║  ║  • hierarchical: 5s   ║  ║  • Streaming          ║
+║  • position_y         ║  ║  • roles              ║  ║  • history: 60s       ║  ║  • Code generation    ║
+║  • data (JSONB)       ║  ║  • permissions        ║  ║  • metadata: 5min     ║  ║                       ║
+║  • metadata (JSONB)   ║  ║                       ║  ║                       ║  ║ API:                  ║
+║                       ║  ║ Multi-Tenant:         ║  ║ Performance:          ║  ║  • /api/generate      ║
+║ Features:             ║  ║  • tenant_acme123     ║  ║  • Cache hit: 0.01s   ║  ║  • /api/chat          ║
+║  • Auto partitioning  ║  ║  • tenant_tech456     ║  ║  • Cache miss: 0.17s  ║  ║  • /api/embeddings    ║
+║  • Compression (7d)   ║  ║  • Separate schemas   ║  ║  • 17x speedup        ║  ║                       ║
+║  • time_bucket()      ║  ║                       ║  ║                       ║  ║ Context:              ║
+║  • Continuous aggs    ║  ║ Retention:            ║  ║ Memory:               ║  ║  • 2K-200K tokens     ║
+║                       ║  ║  • Chat: 30 days      ║  ║  • Max 2GB usage      ║  ║  • Model-dependent    ║
+║ Compression:          ║  ║  • Logs: 90 days      ║  ║  • LRU eviction       ║  ║                       ║
+║  • 4x reduction       ║  ║                       ║  ║                       ║  ╚═══════════════════════╝
+║  • After 7 days       ║  ╚═══════════════════════╝  ╚═══════════════════════╝
+║                       ║
+║ Retention:            ║
+║  • 60 days total      ║
+║  • Cleanup: 25%/2mo   ║
+║                       ║
+║ Performance:          ║
+║  • 3M rows/day        ║
+║  • 35 inserts/sec     ║
+╚═══════════════════════╝
+
+┌────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                        DATA INGESTION PIPELINE (MQTT-based)                                                │
+└────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+╔═══════════════════════╗          ╔═══════════════════════╗          ╔═══════════════════════╗          ╔═══════════════════╗
+║   SIMULATOR (Python)  ║  MQTT    ║  MQTT BROKER          ║  Sub     ║    NODE-RED           ║  HTTP    ║  COLLECTOR (Go)   ║
+║   PLC/Factory Sim     ║──Pub───▶║  RabbitMQ             ║────────▶║  Data Enrichment      ║─POST───▶║  gRPC Writer      ║
+║   Port 8080 (API)     ║  plc/    ║  Port 1883 (internal) ║  plc/#   ║  Port 1880            ║  JSON    ║  Port 9090        ║
+║                       ║  {dev}   ║  Port 1884 (external) ║          ║                       ║          ║                   ║
+╠═══════════════════════╣          ╠═══════════════════════╣          ╠═══════════════════════╣          ╠═══════════════════╣
+║ Devices (35 total):   ║          ║ Topics:               ║          ║ Flows:                ║          ║ Writes to:        ║
+║                       ║          ║  • plc/{device_id}    ║          ║  • Validation         ║          ║  • TimescaleDB    ║
+║ UNREAL Devices:       ║          ║  • factory/alerts     ║          ║  • Enrichment         ║          ║                   ║
+║  • conveyor1 (RPM)    ║          ║  • system/status      ║          ║  • Routing            ║          ║ Batch Size:       ║
+║  • conveyor2 (RPM)    ║          ║  • metrics/summary    ║          ║  • Alerting           ║          ║  • 100 records    ║
+║  • placer1 (RPM+Pos)  ║          ║                       ║          ║                       ║          ║                   ║
+║                       ║          ║ Auth:                 ║          ║ Transformations:      ║          ║ Performance:      ║
+║ Simulator Sensors:    ║          ║  • Username/Password  ║          ║  • Range checks       ║          ║  • 35 writes/sec  ║
+║  • motor_speed_*      ║          ║  • ACL per tenant     ║          ║  • Type conversion    ║          ║  • gRPC protocol  ║
+║  • temperature_*      ║          ║  • TLS optional       ║          ║  • Unit conversion    ║          ║  • Error recovery ║
+║  • pressure_*         ║          ║                       ║          ║  • Location tagging   ║          ║                   ║
+║  • vibration_*        ║          ║ QoS: 0, 1, 2          ║          ║                       ║          ║ Data Format:      ║
+║                       ║          ║ Retain: configurable  ║          ║ Error Handling:       ║          ║  • timestamp      ║
+║ API:                  ║          ║                       ║          ║  • Dead letter queue  ║          ║  • device_id      ║
+║  • GET /devices       ║          ║ Performance:          ║          ║  • Retry logic        ║          ║  • type           ║
+║  • GET /metrics       ║          ║  • 10K msgs/sec       ║          ║  • Alert on failure   ║          ║  • value (JSONB)  ║
+║  • POST /command      ║          ║  • Persistent msgs    ║          ║                       ║          ║                   ║
+║  • WebSocket /ws/data ║          ║                       ║          ║ Output:               ║          ╚═══════════════════╝
+║                       ║          ╚═══════════════════════╝          ║  • HTTP POST          ║                    │
+║ Update Rate:          ║                                             ║  • MQTT forward       ║                    │
+║  • 1 second interval  ║                                             ║  • WebSocket          ║                    ▼
+║  • 35 updates/sec     ║                                             ╚═══════════════════════╝          ╔═══════════════════╗
+║                       ║                                                                                ║   TIMESCALEDB     ║
+║ Config:               ║                                                                                ║   plc_data table  ║
+║  • YAML-based         ║                                                                                ║   Hypertable      ║
+║  • Hot reload         ║                                                                                ╚═══════════════════╝
+╚═══════════════════════╝
+
+┌────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                           AI PROCESSING WORKFLOW                                                           │
+└────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+   USER QUERY: "Show conveyor1 RPM for last hour"
+        │
+        ▼
+   ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
+   ║                              FRONTEND - AI Chat Interface (React)                                                     ║
+   ║  POST /api/ai/chat/stream                                                                                             ║
+   ║  Body: {"message": "Show conveyor1 RPM for last hour", "model": "ollama"}  // or "claude"                             ║
+   ╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+        │ HTTP POST (Server-Sent Events)
+        ▼
+   ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
+   ║                              AI SERVICE - Chat Router (FastAPI)                                                       ║
+   ║  Route: /chat/stream                                                                                                  ║
+   ║  Model Selection: if request.model == "claude" → claude_client else → ollama_client                                   ║
+   ╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+        │
+        ├─────────────────────────────────┬─────────────────────────────────┐
+        │                                 │                                 │
+        ▼                                 ▼                                 ▼
+   ┌──────────────────────┐      ┌──────────────────────┐      ┌──────────────────────┐
+   │  OLLAMA CLIENT       │      │  CLAUDE CLIENT       │      │  MCP CLIENT          │
+   │  Local LLM           │      │  Anthropic API       │      │  Database Access     │
+   └──────────────────────┘      └──────────────────────┘      └──────────────────────┘
+        │                                 │                                 │
+        ▼                                 ▼                                 │
+   ╔═══════════════════════════════════════════════════════════════════════╗│
+   ║              PHASE 1: ANALYZE QUERY & GENERATE TOOL CALL              ║│
+   ║                                                                       ║│
+   ║  System Prompt: Database schema + Tool format + Query examples        ║│
+   ║  User Query: "Show conveyor1 RPM for last hour"                       ║│
+   ║                                                                       ║│
+   ║  AI Output:                                                           ║│
+   ║  [TOOL: query_timescale {                                             ║│
+   ║    "query": "SELECT time_bucket('5 minutes', timestamp) AS period,    ║│
+   ║              AVG(rpm) AS avg_rpm                                      ║│
+   ║              FROM plc_data                                            ║│
+   ║              WHERE type='UNREAL' AND device_id='conveyor1'            ║│
+   ║              AND timestamp > NOW() - INTERVAL '1 hour'                ║│
+   ║              GROUP BY period ORDER BY period ASC"                     ║│
+   ║  }]                                                                   ║│
+   ╚═══════════════════════════════════════════════════════════════════════╝│
+        │                                                                   │
+        ▼ Extract tool call                                                 │
+   ╔═══════════════════════════════════════════════════════════════════════╗│
+   ║              PHASE 2: EXECUTE DATABASE QUERY VIA MCP                  ║│
+   ║                                                                       ║│
+   ║  Tool: query_timescale                                                ║│
+   ║  Args: {"query": "SELECT time_bucket..."}                             ║│
+   ╚═══════════════════════════════════════════════════════════════════════╝│
+        │                                 ◄─────────────────────────────────┘
+        ▼ POST http://backend:8000/jsonrpc
+   ╔═══════════════════════════════════════════════════════════════════════╗
+   ║                   BACKEND - MCP SERVER (db-mcp-server)                ║
+   ║  Method: tools/call                                                   ║
+   ║  Params: {name: "query_timescale", arguments: {...}}                  ║
+   ╚═══════════════════════════════════════════════════════════════════════╝
+        │ Execute SQL
+        ▼
+   ╔═══════════════════════════════════════════════════════════════════════╗
+   ║                        TIMESCALEDB - Execute Query                    ║
+   ║  SELECT time_bucket('5 minutes', timestamp) AS period,                ║
+   ║         AVG(rpm) AS avg_rpm                                           ║
+   ║  FROM plc_data                                                        ║
+   ║  WHERE type='UNREAL' AND device_id='conveyor1'                        ║
+   ║    AND timestamp > NOW() - INTERVAL '1 hour'                          ║
+   ║  GROUP BY period ORDER BY period ASC                                  ║
+   ║                                                                       ║
+   ║  Result: 12 rows (5-minute buckets)                                   ║
+   ║  [{"period": "2026-01-08T10:00:00Z", "avg_rpm": 1500},                ║
+   ║   {"period": "2026-01-08T10:05:00Z", "avg_rpm": 1520}, ...]           ║
+   ╚═══════════════════════════════════════════════════════════════════════╝
+        │ Return data
+        ▼
+   ╔═══════════════════════════════════════════════════════════════════════╗
+   ║              PHASE 3: GENERATE REACT ARTIFACT WITH DATA               ║
+   ║                                                                       ║
+   ║  System Prompt: "Generate React chart component"                     ║
+   ║  Data: [{"period": "10:00", "avg_rpm": 1500}, ...]                  ║
+   ║                                                                       ║
+   ║  AI Output:                                                           ║
+   ║  <artifact type="react" title="Conveyor1 RPM - Last Hour">           ║
+   ║  ```tsx                                                               ║
+   ║  import { LineChart, Line, XAxis, YAxis, CartesianGrid,             ║
+   ║           Tooltip, Legend, ResponsiveContainer } from 'recharts';    ║
+   ║                                                                       ║
+   ║  export default function ConveyorRPMChart() {                        ║
+   ║    const data = [                                                     ║
+   ║      {"period": "2026-01-08T10:00:00Z", "avg_rpm": 1500},           ║
+   ║      {"period": "2026-01-08T10:05:00Z", "avg_rpm": 1520},           ║
+   ║      // ... all 12 rows embedded                                     ║
+   ║    ];                                                                 ║
+   ║                                                                       ║
+   ║    return (                                                           ║
+   ║      <ResponsiveContainer width="100%" height={400}>                 ║
+   ║        <LineChart data={data}>                                        ║
+   ║          <CartesianGrid strokeDasharray="3 3" />                     ║
+   ║          <XAxis dataKey="period"                                      ║
+   ║                 tickFormatter={(ts) => new Date(ts)                   ║
+   ║                   .toLocaleTimeString()} />                           ║
+   ║          <YAxis />                                                    ║
+   ║          <Tooltip />                                                  ║
+   ║          <Legend />                                                   ║
+   ║          <Line type="monotone" dataKey="avg_rpm"                     ║
+   ║                stroke="#8884d8" />                                    ║
+   ║        </LineChart>                                                   ║
+   ║      </ResponsiveContainer>                                           ║
+   ║    );                                                                 ║
+   ║  }                                                                    ║
+   ║  ```                                                                  ║
+   ║  </artifact>                                                          ║
+   ╚═══════════════════════════════════════════════════════════════════════╝
+        │ Stream to frontend
+        ▼
+   ╔═══════════════════════════════════════════════════════════════════════╗
+   ║              FRONTEND - ARTIFACT RENDERER (React)                     ║
+   ║                                                                       ║
+   ║  1. Parse <artifact> tags                                            ║
+   ║  2. Extract React component code                                      ║
+   ║  3. Transpile TypeScript → JavaScript                                ║
+   ║  4. Render in sandboxed iframe                                        ║
+   ║  5. Display interactive chart to user                                 ║
+   ╚═══════════════════════════════════════════════════════════════════════╝
+
+┌────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                       KUBERNETES MULTI-TENANT ARCHITECTURE                                                 │
+└────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+╔════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
+║                                        INGRESS CONTROLLER (Nginx Ingress)                                                  ║
+║  Domain Routing: acme.virtplc.com → virtplc-tenant-acme123, techcorp.virtplc.com → virtplc-tenant-tech456                 ║
+╚════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+                                                          │
+                     ┌────────────────────────────────────┼────────────────────────────────────┐
+                     │                                    │                                    │
+                     ▼                                    ▼                                    ▼
+        ╔════════════════════════╗        ╔════════════════════════╗        ╔════════════════════════╗
+        ║ Namespace: virtplc-    ║        ║ Namespace: virtplc-    ║        ║ Namespace: virtplc-    ║
+        ║ system (SHARED)        ║        ║ tenant-acme123         ║        ║ tenant-tech456         ║
+        ╠════════════════════════╣        ╠════════════════════════╣        ╠════════════════════════╣
+        ║ Services:              ║        ║ Services:              ║        ║ Services:              ║
+        ║  • PostgreSQL          ║────┐   ║  • Backend (Java)      ║        ║  • Backend (Java)      ║
+        ║  • Redis               ║    │   ║  • Frontend (React)    ║        ║  • Frontend (React)    ║
+        ║  • Ollama              ║    │   ║  • AI Service (Python) ║        ║  • AI Service (Python) ║
+        ║  • MQTT Broker         ║    │   ║  • Simulator (Python)  ║        ║  • Simulator (Python)  ║
+        ║  • Node-RED            ║    │   ║                        ║        ║                        ║
+        ║  • TimescaleDB         ║    │   ║ Database Schema:       ║        ║ Database Schema:       ║
+        ║                        ║    └──▶║  tenant_acme123        ║        ║  tenant_tech456        ║
+        ║ Network Policies:      ║        ║                        ║        ║                        ║
+        ║  • Allow tenant access ║        ║ Network Policies:      ║        ║ Network Policies:      ║
+        ║  • Block cross-tenant  ║        ║  • Allow system access ║        ║  • Allow system access ║
+        ║                        ║        ║  • Block other tenants ║        ║  • Block other tenants ║
+        ║ Resource Quotas:       ║        ║                        ║        ║                        ║
+        ║  • CPU: unlimited      ║        ║ Resource Quotas:       ║        ║ Resource Quotas:       ║
+        ║  • Memory: unlimited   ║        ║  • CPU: 4 cores        ║        ║  • CPU: 4 cores        ║
+        ╚════════════════════════╝        ║  • Memory: 8Gi         ║        ║  • Memory: 8Gi         ║
+                                          ║  • Pods: 20            ║        ║  • Pods: 20            ║
+                                          ╚════════════════════════╝        ╚════════════════════════╝
+
+┌────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                          SECURITY & MONITORING                                                             │
+└────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+╔════════════════════════════════╗  ╔════════════════════════════════╗  ╔════════════════════════════════╗
+║     SECURITY MEASURES          ║  ║      MONITORING STACK          ║  ║     DATA LIFECYCLE             ║
+╠════════════════════════════════╣  ╠════════════════════════════════╣  ╠════════════════════════════════╣
+║ Network Layer:                 ║  ║ Prometheus (Metrics):          ║  ║ Day 0-7: Uncompressed          ║
+║  • Rate Limiting               ║  ║  • Port 9090                   ║  ║  • Full resolution             ║
+║    - API: 10 req/s             ║  ║  • Backend metrics             ║  ║  • Fast writes/queries         ║
+║    - Data: 5 req/s             ║  ║  • AI Service metrics          ║  ║  • ~1.2GB per month            ║
+║    - Static: 100 req/s         ║  ║  • TimescaleDB metrics         ║  ║                                ║
+║  • Slowloris Protection        ║  ║  • Redis metrics               ║  ║ Day 7-60: Compressed           ║
+║    - 12s body timeout          ║  ║                                ║  ║  • 4x reduction                ║
+║    - 12s header timeout        ║  ║ Grafana (Dashboards):          ║  ║  • ~300MB per month            ║
+║    - 1K buffer limits          ║  ║  • Port 3000                   ║  ║  • Acceptable query speed      ║
+║                                ║  ║  • Real-time charts            ║  ║                                ║
+║ Application Layer:             ║  ║  • Alerting                    ║  ║ Day 60+: Cleanup               ║
+║  • Input Validation            ║  ║  • Custom dashboards           ║  ║  • Cron: Every 2 months        ║
+║    - Device ID regex           ║  ║                                ║  ║  • Delete oldest 25%           ║
+║    - Time range max 30d        ║  ║ Logs (Centralized):            ║  ║  • Keep ~45 days history       ║
+║  • SQL Injection Prevention    ║  ║  • ELK Stack (optional)        ║  ║                                ║
+║    - Parameterized queries     ║  ║  • Loki + Grafana              ║  ║ Redis Cache:                   ║
+║  • CORS Restrictions           ║  ║  • CloudWatch (AWS)            ║  ║  • devices: 5s TTL             ║
+║    - Origin patterns           ║  ║                                ║  ║  • hierarchical: 5s TTL        ║
+║    - Specific headers          ║  ║ Health Checks:                 ║  ║  • history: 60s TTL            ║
+║  • File Access Protection      ║  ║  • /health endpoints           ║  ║  • metadata: 5min TTL          ║
+║    - Block .env, .git, .sql    ║  ║  • Kubernetes probes           ║  ║  • LRU eviction                ║
+║                                ║  ║  • Service dependencies        ║  ║                                ║
+║ Headers:                       ║  ║                                ║  ║ PostgreSQL:                    ║
+║  • HSTS (1 year)               ║  ║ Alerting:                      ║  ║  • Chat: 30-day retention      ║
+║  • CSP (strict)                ║  ║  • High error rate             ║  ║  • Logs: 90-day retention      ║
+║  • X-Frame-Options             ║  ║  • Low cache hit rate          ║  ║  • Vacuum: Weekly              ║
+║  • X-Content-Type-Options      ║  ║  • Database slow queries       ║  ║                                ║
+║  • Permissions-Policy          ║  ║  • Disk space warnings         ║  ╚════════════════════════════════╝
+║                                ║  ║  • Service health failures     ║
+║ Authentication:                ║  ╚════════════════════════════════╝
+║  • JWT Tokens                  ║
+║  • Session management          ║
+║  • Multi-tenant isolation      ║
+╚════════════════════════════════╝
+
+┌────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                            TECHNOLOGY STACK                                                                │
+└────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+╔═══════════════════════╗  ╔═══════════════════════╗  ╔═══════════════════════╗  ╔═══════════════════════╗
+║     FRONTEND          ║  ║      BACKEND          ║  ║     AI SERVICE        ║  ║     DATA TIER         ║
+╠═══════════════════════╣  ╠═══════════════════════╣  ╠═══════════════════════╣  ╠═══════════════════════╣
+║ • React 18            ║  ║ • Java 21             ║  ║ • Python 3.11         ║  ║ • TimescaleDB 2.14    ║
+║ • TypeScript 5        ║  ║ • Spring Boot 3.2     ║  ║ • FastAPI 0.109       ║  ║ • PostgreSQL 16       ║
+║ • Vite 5              ║  ║ • Spring Data JPA     ║  ║ • Pydantic 2          ║  ║ • Redis 7             ║
+║ • Recharts 2          ║  ║ • Spring Security     ║  ║ • httpx (async)       ║  ║ • Ollama (latest)     ║
+║ • Tailwind CSS 3      ║  ║ • Spring Data Redis   ║  ║ • anthropic SDK       ║  ║                       ║
+║ • Shadcn/ui           ║  ║ • Spring WebSocket    ║  ║ • SQLAlchemy 2        ║  ║ MQTT:                 ║
+║ • Axios               ║  ║ • Spring Cache        ║  ║ • Alembic (migrations)║  ║ • RabbitMQ            ║
+║ • React Router 6      ║  ║ • Maven 3.9           ║  ║ • uvicorn (ASGI)      ║  ║                       ║
+║                       ║  ║ • Lombok              ║  ║                       ║  ║ Collector:            ║
+║ Build:                ║  ║ • MapStruct           ║  ║ Testing:              ║  ║ • Go 1.21             ║
+║ • Node.js 20          ║  ║                       ║  ║ • pytest              ║  ║ • gRPC                ║
+║ • Bun (package mgr)   ║  ║ Testing:              ║  ║ • pytest-asyncio      ║  ║ • protobuf            ║
+║ • ESLint              ║  ║ • JUnit 5             ║  ║ • httpx-mock          ║  ║                       ║
+║ • Prettier            ║  ║ • Mockito             ║  ║                       ║  ║ Node-RED:             ║
+║                       ║  ║ • TestContainers      ║  ╚═══════════════════════╝  ║ • Node.js 20          ║
+╚═══════════════════════╝  ╚═══════════════════════╝                             ║ • Flow-based UI       ║
+                                                                                  ╚═══════════════════════╝
+
+┌────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                              DEPLOYMENT & DEVOPS                                                           │
+└────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
+║                                    DEPLOYMENT OPTIONS (3 Modes)                                                           ║
+╠═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣
+║                                                                                                                           ║
+║  ┌─────────────────────────────────┐  ┌─────────────────────────────────┐  ┌─────────────────────────────────┐          ║
+║  │  1. DOCKER COMPOSE (Dev)        │  │  2. DOCKER COMPOSE (Prod)       │  │  3. KUBERNETES (Multi-Tenant)   │          ║
+║  ├─────────────────────────────────┤  ├─────────────────────────────────┤  ├─────────────────────────────────┤          ║
+║  │ Command: ./deploy.sh dev        │  │ Command: ./deploy.sh prod       │  │ Command: ./setup-k8s.sh         │          ║
+║  │                                 │  │                                 │  │                                 │          ║
+║  │ Features:                       │  │ Features:                       │  │ Features:                       │          ║
+║  │ • Hot reload (frontend/backend) │  │ • Production builds             │  │ • Multi-tenant isolation        │          ║
+║  │ • Debug ports exposed           │  │ • Optimized images              │  │ • Shared infrastructure         │          ║
+║  │ • Source volume mounts          │  │ • Health checks                 │  │ • Network policies              │          ║
+║  │ • Fast iteration                │  │ • Auto-restart                  │  │ • Resource quotas               │          ║
+║  │                                 │  │ • Redis caching                 │  │ • Horizontal pod scaling        │          ║
+║  │ Use Case:                       │  │                                 │  │ • Automated tenant provisioning │          ║
+║  │ • Local development             │  │ Use Case:                       │  │ • Load balancing                │          ║
+║  │ • Testing                       │  │ • Single-tenant production      │  │ • Rolling updates               │          ║
+║  │ • Debugging                     │  │ • Small deployments             │  │                                 │          ║
+║  │                                 │  │ • On-premise installations      │  │ Use Case:                       │          ║
+║  └─────────────────────────────────┘  └─────────────────────────────────┘  │ • SaaS platform                 │          ║
+║                                                                             │ • Multi-customer deployments    │          ║
+║  Services:                                                                  │ • Enterprise production         │          ║
+║  • nginx (port 80)                                                          │                                 │          ║
+║  • frontend (port 3000)                                                     │ Namespaces:                     │          ║
+║  • backend (port 8080, 18080)                                               │ • virtplc-system (shared)       │          ║
+║  • ai-service (port 3001)                                                   │ • virtplc-tenant-acme123        │          ║
+║  • simulator (port 5000)                                                    │ • virtplc-tenant-tech456        │          ║
+║  • collector (port 9090)                                                    │                                 │          ║
+║  • postgres (port 15432)                                                    │ Tools:                          │          ║
+║  • timescale (port 15433)                                                   │ • kubectl                       │          ║
+║  • redis (port 6379)                                                        │ • helm (optional)               │          ║
+║  • ollama (port 11434)                                                      │ • kind/minikube (local)         │          ║
+║  • mqtt (port 1883, 1884)                                                   │ • EKS/GKE/AKS (cloud)           │          ║
+║  • nodered (port 1880)                                                      └─────────────────────────────────┘          ║
+║                                                                                                                           ║
+╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+
+╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
+║                                         CI/CD PIPELINE (Jenkins)                                                          ║
+╠═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣
+║                                                                                                                           ║
+║  Git Push → GitHub → Webhook → Jenkins                                                                                   ║
+║                                    │                                                                                      ║
+║                                    ▼                                                                                      ║
+║  ┌──────────────────────────────────────────────────────────────────────────────────────────────────────────┐            ║
+║  │ Stage 1: Build & Test                                                                                    │            ║
+║  │  • mvn clean package (backend)                                                                           │            ║
+║  │  • npm run build (frontend)                                                                              │            ║
+║  │  • pytest (ai-service)                                                                                   │            ║
+║  │  • go build (collector)                                                                                  │            ║
+║  └────────────────────────────────────┬─────────────────────────────────────────────────────────────────────┘            ║
+║                                       ▼                                                                                   ║
+║  ┌──────────────────────────────────────────────────────────────────────────────────────────────────────────┐            ║
+║  │ Stage 2: Security Scan                                                                                   │            ║
+║  │  • OWASP ZAP (vulnerability scan)                                                                        │            ║
+║  │  • Trivy (container image scan)                                                                          │            ║
+║  │  • Hadolint (Dockerfile linting)                                                                         │            ║
+║  └────────────────────────────────────┬─────────────────────────────────────────────────────────────────────┘            ║
+║                                       ▼                                                                                   ║
+║  ┌──────────────────────────────────────────────────────────────────────────────────────────────────────────┐            ║
+║  │ Stage 3: Docker Build                                                                                    │            ║
+║  │  • docker build -t virtplc-backend:$TAG                                                                  │            ║
+║  │  • docker build -t virtplc-frontend:$TAG                                                                 │            ║
+║  │  • docker build -t virtplc-ai-service:$TAG                                                               │            ║
+║  │  • docker build -t virtplc-collector:$TAG                                                                │            ║
+║  └────────────────────────────────────┬─────────────────────────────────────────────────────────────────────┘            ║
+║                                       ▼                                                                                   ║
+║  ┌──────────────────────────────────────────────────────────────────────────────────────────────────────────┐            ║
+║  │ Stage 4: Push to Registry                                                                                │            ║
+║  │  • docker push ghcr.io/dedzsinator/virtplc-backend:$TAG                                                  │            ║
+║  │  • docker push ghcr.io/dedzsinator/virtplc-frontend:$TAG                                                 │            ║
+║  └────────────────────────────────────┬─────────────────────────────────────────────────────────────────────┘            ║
+║                                       ▼                                                                                   ║
+║  ┌──────────────────────────────────────────────────────────────────────────────────────────────────────────┐            ║
+║  │ Stage 5: Deploy                                                                                          │            ║
+║  │  • kubectl set image deployment/backend backend=ghcr.io/.../backend:$TAG                                │            ║
+║  │  • kubectl rollout status deployment/backend                                                             │            ║
+║  │  • Notify Slack/Email                                                                                    │            ║
+║  └──────────────────────────────────────────────────────────────────────────────────────────────────────────┘            ║
+║                                                                                                                           ║
+╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+
+┌────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                         PORT MAPPING REFERENCE                                                             │
+└────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
+║ Service          │ Internal Port │ External Port │ Protocol │ Description                                                ║
+╠═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣
+║ Nginx            │ 80            │ 80            │ HTTP     │ Reverse proxy (production)                                 ║
+║ Nginx            │ 443           │ 443           │ HTTPS    │ Reverse proxy (SSL)                                        ║
+║ Frontend         │ 5173          │ 3000          │ HTTP     │ React dev server (Vite)                                    ║
+║ Backend          │ 8080          │ 18080         │ HTTP     │ Spring Boot REST API                                       ║
+║ Backend MCP      │ 8000          │ 8000          │ HTTP     │ Model Context Protocol server                              ║
+║ Backend gRPC     │ 9090          │ 9091          │ gRPC     │ gRPC endpoint (collector)                                  ║
+║ AI Service       │ 3001          │ 3001          │ HTTP     │ FastAPI REST API                                           ║
+║ AI Service WS    │ 3002          │ 3002          │ WS       │ WebSocket streaming                                        ║
+║ Simulator        │ 8080          │ 5000          │ HTTP     │ PLC simulator API                                          ║
+║ Collector        │ 9090          │ 9090          │ gRPC     │ gRPC data ingestion                                        ║
+║ PostgreSQL       │ 5432          │ 15432         │ TCP      │ Relational database                                        ║
+║ TimescaleDB      │ 5432          │ 15433         │ TCP      │ Time-series database                                       ║
+║ Redis            │ 6379          │ 6379          │ TCP      │ Cache & sessions                                           ║
+║ Ollama           │ 11434         │ 11434         │ HTTP     │ Local LLM API                                              ║
+║ MQTT (internal)  │ 1883          │ -             │ MQTT     │ Internal broker                                            ║
+║ MQTT (external)  │ 1883          │ 1884          │ MQTT     │ External broker (auth)                                     ║
+║ Node-RED         │ 1880          │ 1880          │ HTTP     │ Flow editor & runtime                                      ║
+║ Prometheus       │ 9090          │ 9090          │ HTTP     │ Metrics collection                                         ║
+║ Grafana          │ 3000          │ 3000          │ HTTP     │ Metrics visualization                                      ║
+╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+
+┌────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                         DATA FLOW SUMMARY                                                                  │
+└────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────┐
+│ 1. INGESTION│  Simulator → MQTT → Node-RED → Collector → TimescaleDB (35 writes/sec)
+└─────────────┘
+
+┌─────────────┐
+│ 2. RETRIEVAL│  Frontend → Nginx → Backend → Redis Cache? → TimescaleDB → JSON Response
+└─────────────┘
+
+┌─────────────┐
+│ 3. AI QUERY │  User → Frontend → AI Service → Ollama/Claude → [TOOL: query] → MCP → TimescaleDB
+└─────────────┘                                       ↓
+                                           Data → Ollama/Claude → React Component → Frontend Render
+
+┌─────────────┐
+│ 4. CACHING  │  Request → @Cacheable → Redis? → (hit: return cached) OR (miss: query DB → cache → return)
+└─────────────┘
+
+┌─────────────┐
+│ 5. CLEANUP  │  Cron (every 2 months) → TimescaleDB → DELETE oldest 25% → Free space
+└─────────────┘
+
+╔════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
+║                                           END OF ARCHITECTURE                                                              ║
+║                                    VirtPLC Industrial IoT Platform                                                         ║
+║                                   Last Updated: January 8, 2026                                                            ║
+╚════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
