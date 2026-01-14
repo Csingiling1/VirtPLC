@@ -18,7 +18,6 @@ import java.util.stream.Collectors;
 @RequestMapping("/api/factories")
 @RequiredArgsConstructor
 @Slf4j
-@CrossOrigin(origins = "*")
 public class FactoryController {
 
     private final FactoryService factoryService;

@@ -5,14 +5,40 @@
 #   Production (3 servers):   docker-compose -f docker-compose.yml -f docker-compose.prod.yml up
 
 services:
+  # Nginx Reverse Proxy with Rate Limiting
+  nginx:
+    image: nginx:alpine
+    container_name: virtplc-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/logs:/var/log/nginx
+    depends_on:
+      - backend
+      - frontend
+      - ai-service
+    networks:
+      - main_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
   # Spring Boot Backend
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
     container_name: virtplc-backend
+    expose:
+      - "8080"   # REST API (internal only, accessed via nginx)
     ports:
-      - "18080:8080"   # REST API
+      - "18080:8080"   # Direct access for debugging (optional, can be removed in production)
       - "8000:8000"   # MCP Server
       - "9091:9090"   # gRPC Server
     environment:
@@ -27,6 +53,9 @@ services:
       - SPRING_DATASOURCE_USERNAME=virtplc
       - SPRING_DATASOURCE_PASSWORD=changeme
       - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - SPRING_DATA_REDIS_HOST=redis
+      - SPRING_DATA_REDIS_PORT=6379
+      - SPRING_CACHE_TYPE=redis
       - MCP_ENABLED=true
       - MCP_PORT=8000
       - JWT_SECRET=${JWT_SECRET:-your-secret-key-change-in-production}
@@ -38,6 +67,8 @@ services:
         condition: service_healthy
       timescale:
         condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - main_network
       - data_network
@@ -105,22 +136,24 @@ services:
       dockerfile: Dockerfile
       args:
         - VITE_WS_URL=ws://localhost:3002
-        - VITE_AI_API_URL=http://localhost:3001
-        - VITE_API_BASE_URL=http://localhost:18080
+        - VITE_AI_API_URL=http://localhost/ai
+        - VITE_API_BASE_URL=http://localhost/api
     container_name: virtplc-frontend
+    expose:
+      - "5173"   # Vite dev server (internal only, accessed via nginx)
     ports:
-      - "3000:3000"
+      - "3000:5173"   # Direct access for debugging (optional)
     volumes:
       - ./frontend:/app
       - /app/node_modules
-    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "3000"]
+    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5173"]
     depends_on:
       - backend
       - ai-service
     networks:
       - main_network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:5173"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -134,6 +167,13 @@ services:
       - "11434:11434"
     volumes:
       - ollama-data:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
     networks:
       - main_network
     healthcheck:

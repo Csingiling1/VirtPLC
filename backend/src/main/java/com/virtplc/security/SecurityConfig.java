@@ -26,7 +26,15 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
+                // CSRF disabled for stateless API (JWT-based auth)
+                // For production, consider enabling CSRF for state-changing operations
                 .csrf(AbstractHttpConfigurer::disable)
+                .headers(headers -> headers
+                        .frameOptions(frame -> frame.sameOrigin())
+                        .contentTypeOptions(content -> content.disable())
+                        .httpStrictTransportSecurity(hsts -> hsts
+                                .includeSubDomains(true)
+                                .maxAgeInSeconds(31536000)))
                 .authorizeHttpRequests(authz -> authz
                         // Public endpoints
                         .requestMatchers(HttpMethod.OPTIONS).permitAll()
@@ -38,6 +46,9 @@ public class SecurityConfig {
                         .requestMatchers("/api/data/latest").permitAll()
                         .requestMatchers("/api/data/range").permitAll()
                         .requestMatchers("/api/data/hierarchical").permitAll()
+                        .requestMatchers("/api/data/hierarchical-live").permitAll()
+                        .requestMatchers("/api/data/device/*/history").permitAll()
+                        .requestMatchers("/api/data/plc-data/latest").permitAll()
                         .requestMatchers("/api/admin/device-assignments").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/admin/factories").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/admin/devices").permitAll()

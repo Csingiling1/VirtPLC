@@ -75,11 +75,14 @@ func main() {
 
 	// Subscribe to Collector data (from Node-RED)
 	client.Subscribe("collector/ingest", 0, func(client MQTT.Client, msg MQTT.Message) {
+		log.Printf("DEBUG: Received MQTT message: %s", string(msg.Payload()))
 		var data DeviceData
 		if err := json.Unmarshal(msg.Payload(), &data); err != nil {
 			log.Printf("Failed to parse MQTT message: %v", err)
 			return
 		}
+		log.Printf("DEBUG: Parsed device_id=%s type=%s timestamp=%f", data.DeviceID, data.Type, data.Timestamp)
+		log.Printf("DEBUG: Data map: %+v", data.Data)
 
 		// Process and store data
 		if err := processAndStore(db, data); err != nil {
@@ -166,26 +169,15 @@ func processAndStore(db *sql.DB, data DeviceData) error {
 			inOperation = &isReadyVal  // Map is_ready to in_operation column
 		}
 	} else if data.Type == "sensor" {
-		// Handle sensor data - extract value from signal_config
+		// Handle sensor data - extract value from signal_config and store in rpm column
 		if signalConfig, ok := data.Data["signal_config"].(map[string]interface{}); ok {
 			if value, ok := signalConfig["value"].(float64); ok {
 				rpm = &value
 			}
 		}
-	} else if data.Type == "plc" {
-		// Handle PLC data
-		if x, ok := data.Data["x_position"].(float64); ok {
-			positionX = &x
-		}
-		if y, ok := data.Data["y_position"].(float64); ok {
-			positionY = &y
-		}
-		if active, ok := data.Data["is_active"].(bool); ok {
-			isOn = &active
-		}
 	}
 
-	// Insert into database
+	// Insert into plc_data table  
 	query := `
 		INSERT INTO plc_data (timestamp, device_id, type, data, metadata, rpm, position_x, position_y, is_on, in_operation)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)

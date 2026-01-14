@@ -1,0 +1,121 @@
+# Unreal Engine generated files and build artifacts
+Binaries/
+Intermediate/
+DerivedDataCache/
+Saved/
+.vs/
+*.sln
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.suo
+*.user
+*.aps
+*.pch
+*.vspscc
+*.vssscc
+*.tmp
+*.bak
+*.swp
+*~
+
+# Upgrade logs
+UpgradeLog.htm
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+
+# Backup files
+Backup/
+
+# Plugin binaries (if any)
+Plugins/*/Binaries/
+Plugins/*/Intermediate/
+
+# Build files
+Build/
+
+# Shader debug info
+ShaderDebugInfo/
+
+# Autosaves
+Autosaves/
+
+# Crashes
+Crashes/
+
+# Telemetry
+Telemetry/
+
+# Web cache
+webcache_*/
+
+# Unreal Build Tool cache
+UnrealBuildTool/
+
+# Source control
+SourceControl/
+
+# Collections (might be generated)
+Collections/
+
+# Reimport cache
+ReimportCache/
+
+# Shader autogen
+ShaderAutogen/
+
+# Cached asset registry
+CachedAssetRegistry*.bin
+
+# Target info
+TargetInfo.json
+
+# Coalesced source configs
+CoalescedSourceConfigs/
+
+# Build rules
+BuildRules/
+BuildRulesProjects/
+
+# Automation tool references
+AutomationTool.csproj.References
+
+# UE5 project files (generated)
+UE5.vcxproj
+UE5.vcxproj.filters
+UE5.vcxproj.user
+
+# VirtFactory project files (generated - assuming .uproject is the source)
+VirtFactory.vcxproj
+VirtFactory.vcxproj.filters
+VirtFactory.vcxproj.user
+
+# If you want to track the .sln, remove this line
+# VirtFactory.sln
+
+# Keep these (uncomment if you want to ignore)
+# Config/Default*.ini  # Usually tracked
+# Content/  # Usually tracked
+# Source/  # Usually tracked
+# Plugins/  # Usually tracked
+# .uproject  # Usually tracked

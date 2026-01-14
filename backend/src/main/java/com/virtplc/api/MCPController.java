@@ -19,7 +19,6 @@ import java.util.Map;
 @RequiredArgsConstructor
 @Slf4j
 @ConditionalOnProperty(name = "mcp.enabled", havingValue = "true")
-@CrossOrigin(origins = "*")
 public class MCPController {
 
     private final TimescaleMCPServer mcpServer;

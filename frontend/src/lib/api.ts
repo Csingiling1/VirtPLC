@@ -51,7 +51,7 @@ export const dataApi = {
     return response.data;
   },
   getHierarchical: async () => {
-    const response = await api.get('/api/data/hierarchical');
+    const response = await api.get('/api/data/hierarchical-live');
     return response.data;
   },
   getRange: async (startTime: number, endTime: number, page: number = 0, size: number = 1000, query?: string) => {

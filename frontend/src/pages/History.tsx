@@ -4,30 +4,78 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { CalendarIcon, Download } from 'lucide-react';
 import { format, subDays, startOfDay, endOfDay } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { dataApi } from '@/lib/api';
-import { SensorData } from '@/types';
+import { dataApi, api } from '@/lib/api';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { useToast } from '@/hooks/use-toast';
 
-interface ApiError {
-  response?: {
-    status: number;
-  };
-  isNetworkError?: boolean;
-  message?: string;
+interface DeviceInfo {
+  deviceId: string;
+  name: string;
+  plcId: string;
+  plcName: string;
+}
+
+interface HistoricalDataPoint {
+  timestamp: number;
+  deviceId: string;
+  value: number;
 }
 
 const History = () => {
   const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
-    from: undefined, // No default date range
-    to: undefined,
+    from: startOfDay(subDays(new Date(), 1)),
+    to: endOfDay(new Date()),
   });
-  const [historicalData, setHistoricalData] = useState<SensorData[]>([]);
+  const [devices, setDevices] = useState<DeviceInfo[]>([]);
+  const [selectedDevice, setSelectedDevice] = useState<string>('');
+  const [historicalData, setHistoricalData] = useState<HistoricalDataPoint[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+
+  // Fetch available devices on mount
+  useEffect(() => {
+    const fetchDevices = async () => {
+      try {
+        const hierarchicalData = await dataApi.getHierarchical();
+        const deviceList: DeviceInfo[] = [];
+
+        hierarchicalData.tenants.forEach((tenant: any) => {
+          tenant.manufacturers.forEach((manufacturer: any) => {
+            manufacturer.factories.forEach((factory: any) => {
+              factory.plcs.forEach((plc: any) => {
+                plc.sensors.forEach((sensor: any) => {
+                  deviceList.push({
+                    deviceId: sensor.deviceId || sensor.id,
+                    name: `${plc.name} - ${sensor.name}`,
+                    plcId: plc.id,
+                    plcName: plc.name
+                  });
+                });
+              });
+            });
+          });
+        });
+
+        setDevices(deviceList);
+        if (deviceList.length > 0) {
+          setSelectedDevice(deviceList[0].deviceId);
+        }
+      } catch (error) {
+        console.error('Failed to fetch devices:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load available devices",
+          variant: "destructive",
+        });
+      }
+    };
+
+    fetchDevices();
+  }, [toast]);
 
   const handleLoadData = useCallback(async () => {
     if (!dateRange.from || !dateRange.to) {
@@ -39,13 +87,10 @@ const History = () => {
       return;
     }
 
-    const rangeMs = dateRange.to.getTime() - dateRange.from.getTime();
-    const rangeDays = rangeMs / (1000 * 60 * 60 * 24);
-
-    if (rangeDays > 7) {
+    if (!selectedDevice) {
       toast({
-        title: "Large Date Range",
-        description: "Date ranges over 7 days may load slowly. Consider selecting a smaller range for better performance.",
+        title: "Error",
+        description: "Please select a device",
         variant: "destructive",
       });
       return;
@@ -56,46 +101,23 @@ const History = () => {
       const startTime = dateRange.from.getTime();
       const endTime = dateRange.to.getTime();
 
-      const data = await dataApi.getRange(startTime, endTime);
+      // Query TimescaleDB through backend for device historical data
+      const response = await api.get(`/api/data/device/${selectedDevice}/history`, {
+        params: { startTime, endTime }
+      });
 
-      // Limit to 1000 data points for performance
-      const maxPoints = 1000;
-      let processedData = data;
-      if (data.length > maxPoints) {
-        // Sample evenly across the range
-        const step = Math.floor(data.length / maxPoints);
-        processedData = data.filter((_, index) => index % step === 0).slice(0, maxPoints);
-        toast({
-          title: "Data Sampled",
-          description: `Loaded ${processedData.length} of ${data.length} data points (sampled for performance)`,
-        });
-      } else {
-        toast({
-          title: "Success",
-          description: `Loaded ${data.length} data points`,
-        });
-      }
+      setHistoricalData(response.data);
 
-      setHistoricalData(processedData);
-    } catch (error: unknown) {
+      toast({
+        title: "Success",
+        description: `Loaded ${response.data.length} data points`,
+      });
+    } catch (error: any) {
       console.error('Failed to fetch historical data:', error);
 
       let errorMessage = "Failed to load historical data";
-
-      const err = error as ApiError;
-      if (err.response) {
-        // Server responded with error status
-        if (err.response.status === 401) {
-          errorMessage = "Authentication required. Please log in again.";
-        } else if (err.response.status === 400) {
-          errorMessage = "Invalid request. Please check your date range.";
-        } else if (err.response.status === 403) {
-          errorMessage = "Access denied. You don't have permission to view this data.";
-        } else {
-          errorMessage = `Server error: ${err.response.status}`;
-        }
-      } else if (err.isNetworkError) {
-        errorMessage = err.message || "Network error occurred";
+      if (error.response?.status === 404) {
+        errorMessage = "No historical data found for selected device and time range";
       }
 
       toast({
@@ -103,23 +125,16 @@ const History = () => {
         description: errorMessage,
         variant: "destructive",
       });
+      setHistoricalData([]);
     } finally {
       setIsLoading(false);
     }
-  }, [dateRange.from, dateRange.to, toast]);
-
-  // Removed auto-load on mount and date change for performance
+  }, [dateRange.from, dateRange.to, selectedDevice, toast, api]);
 
   const formatChartData = () => {
     return historicalData.map(data => ({
-      timestamp: format(new Date(data.timestamp), 'HH:mm:ss'),
-      motor1Speed: data.motor1Speed,
-      motor1Temp: data.motor1Temp,
-      motor2Speed: data.motor2Speed,
-      motor2Temp: data.motor2Temp,
-      conveyor1Speed: data.conveyor1Speed,
-      sensor1Value: data.sensor1Value,
-      sensor2Value: data.sensor2Value,
+      timestamp: format(new Date(data.timestamp), 'MM/dd HH:mm:ss'),
+      value: data.value,
     }));
   };
 
@@ -133,11 +148,27 @@ const History = () => {
 
         <Card className="mb-6">
           <CardHeader>
-            <CardTitle>Date Range Selection</CardTitle>
-            <CardDescription>Select a time period to view historical data</CardDescription>
+            <CardTitle>Date Range & Device Selection</CardTitle>
+            <CardDescription>Select a device and time period to view historical data</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Select Device</label>
+                <Select value={selectedDevice} onValueChange={setSelectedDevice}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Choose a device" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {devices.map((device) => (
+                      <SelectItem key={device.deviceId} value={device.deviceId}>
+                        {device.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               <div className="flex flex-wrap gap-4 items-end">
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Start Date</label>
@@ -246,62 +277,21 @@ const History = () => {
         </Card>
 
         {historicalData.length > 0 ? (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 gap-6">
             <Card>
               <CardHeader>
-                <CardTitle>Motor Speeds</CardTitle>
-                <CardDescription>RPM values over time</CardDescription>
+                <CardTitle>{devices.find(d => d.deviceId === selectedDevice)?.name || 'Sensor Data'}</CardTitle>
+                <CardDescription>Values over time</CardDescription>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
+                <ResponsiveContainer width="100%" height={400}>
                   <LineChart data={formatChartData()}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="timestamp" />
                     <YAxis />
                     <Tooltip />
                     <Legend />
-                    <Line type="monotone" dataKey="motor1Speed" stroke="#8884d8" name="Motor 1 Speed" />
-                    <Line type="monotone" dataKey="motor2Speed" stroke="#82ca9d" name="Motor 2 Speed" />
-                  </LineChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Motor Temperatures</CardTitle>
-                <CardDescription>Temperature values over time</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={formatChartData()}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="timestamp" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Line type="monotone" dataKey="motor1Temp" stroke="#ff7300" name="Motor 1 Temp" />
-                    <Line type="monotone" dataKey="motor2Temp" stroke="#00ff00" name="Motor 2 Temp" />
-                  </LineChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Conveyor & Sensors</CardTitle>
-                <CardDescription>Conveyor speed and sensor values</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={formatChartData()}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="timestamp" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Line type="monotone" dataKey="conveyor1Speed" stroke="#ffc658" name="Conveyor Speed" />
-                    <Line type="monotone" dataKey="sensor1Value" stroke="#ff0000" name="Sensor 1" />
+                    <Line type="monotone" dataKey="value" stroke="#8884d8" name="Value" />
                   </LineChart>
                 </ResponsiveContainer>
               </CardContent>
@@ -314,13 +304,20 @@ const History = () => {
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
+                  <p><strong>Device:</strong> {devices.find(d => d.deviceId === selectedDevice)?.name || 'Unknown'}</p>
                   <p><strong>Total Points:</strong> {historicalData.length}</p>
                   <p><strong>Time Range:</strong> {dateRange.from && dateRange.to ?
                     `${format(dateRange.from, "PPP")} - ${format(dateRange.to, "PPP")}` :
                     "Not selected"}</p>
-                  <p><strong>Last Update:</strong> {historicalData.length > 0 ?
-                    format(new Date(historicalData[historicalData.length - 1].timestamp), "PPP p") :
-                    "N/A"}</p>
+                  {historicalData.length > 0 && (
+                    <>
+                      <p><strong>First Reading:</strong> {format(new Date(historicalData[0].timestamp), "PPP p")}</p>
+                      <p><strong>Last Reading:</strong> {format(new Date(historicalData[historicalData.length - 1].timestamp), "PPP p")}</p>
+                      <p><strong>Min Value:</strong> {Math.min(...historicalData.map(d => d.value)).toFixed(2)}</p>
+                      <p><strong>Max Value:</strong> {Math.max(...historicalData.map(d => d.value)).toFixed(2)}</p>
+                      <p><strong>Avg Value:</strong> {(historicalData.reduce((sum, d) => sum + d.value, 0) / historicalData.length).toFixed(2)}</p>
+                    </>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -332,9 +329,9 @@ const History = () => {
             </CardHeader>
             <CardContent>
               <div className="text-center py-12 text-muted-foreground">
-                {dateRange.from && dateRange.to ?
+                {selectedDevice && dateRange.from && dateRange.to ?
                   "Click 'Load Data' to view historical trends" :
-                  "Select a date range to view historical data"}
+                  "Select a device and date range to view historical data"}
               </div>
             </CardContent>
           </Card>
