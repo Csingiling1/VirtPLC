@@ -18,19 +18,19 @@ services:
     environment:
       - SPRING_PROFILES_ACTIVE=docker
       - SERVER_PORT=8080
-      - SIMULATOR_API_URL=http://simulator:8080
-      - SIMULATOR_WS_URL=ws://simulator:8080/ws/data
-      - SIMULATOR_BASE_URL=http://simulator:8080
+      - SIMULATOR_API_URL=http://${WINDOWS_IP}:5000
+      - SIMULATOR_WS_URL=ws://${WINDOWS_IP}:5000/ws/data
+      - SIMULATOR_BASE_URL=http://${WINDOWS_IP}:5000
       - DATA_SOURCE=simulator
       - SIMULATOR_NAME=VirtPLC Simulator
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://data-server:5432/virtplc
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://${HISTORIAN_IP}:5432/virtplc
       - SPRING_DATASOURCE_USERNAME=virtplc
       - SPRING_DATASOURCE_PASSWORD=changeme
       - SPRING_JPA_HIBERNATE_DDL_AUTO=update
       - MCP_ENABLED=true
       - MCP_PORT=8000
       - JWT_SECRET=${JWT_SECRET:-your-secret-key-change-in-production}
-      - POSTGRES_URL=jdbc:postgresql://data-server:5432/virtplc
+      - POSTGRES_URL=jdbc:postgresql://${HISTORIAN_IP}:5432/virtplc
       - POSTGRES_USER=virtplc
       - POSTGRES_PASSWORD=changeme
     networks:
@@ -43,51 +43,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
-    restart: unless-stopped
-
-  # Enhanced PLC Simulator (Python) - PLC Replacement Server
-  simulator:
-    build:
-      context: ../simulator
-      dockerfile: Dockerfile
-    container_name: virtplc-simulator
-    ports:
-      - "5000:8080"    # REST API & WebSocket
-    environment:
-      - PYTHONUNBUFFERED=1
-      - SIMULATOR_MODE=plc-server
-      - SIMULATOR_HOST=0.0.0.0
-      - SIMULATOR_PORT=8080
-      - MQTT_BROKER=plc-server
-      - MQTT_PORT=1883
-      - MQTT_USERNAME=${MQTT_USERNAME}
-      - MQTT_PASSWORD=${MQTT_PASSWORD}
-      - UPDATE_INTERVAL=1.0
-    volumes:
-      - simulator-data:/app/data
-    networks:
-      - main_network
-      - plc_network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/simulation/status"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-    restart: unless-stopped
-
-  # Simulator Monitoring Dashboard
-  simulator-monitor:
-    image: nginx:alpine
-    container_name: virtplc-simulator-monitor
-    ports:
-      - "5002:80"
-    volumes:
-      - ../simulator/monitor.html:/usr/share/nginx/html/index.html
-    depends_on:
-      - simulator
-    networks:
-      - main_network
     restart: unless-stopped
 
   # React Frontend
@@ -172,12 +127,12 @@ services:
       - MCP_SERVER_URL=http://db-mcp-server:9092/sse
       - OLLAMA_HOST=http://ollama:11434
       - OLLAMA_MODEL=qwen2.5-coder:7b
-      - TIMESCALE_HOST=data-server
+      - TIMESCALE_HOST=${HISTORIAN_IP}
       - TIMESCALE_PORT=5432
       - TIMESCALE_DB=virtplc_ts
       - TIMESCALE_USER=virtplc
       - TIMESCALE_PASSWORD=changeme
-      - POSTGRES_HOST=data-server
+      - POSTGRES_HOST=${HISTORIAN_IP}
       - POSTGRES_PORT=5432
       - POSTGRES_DB=virtplc
       - POSTGRES_USER=virtplc
@@ -227,11 +182,11 @@ services:
     build: ../collector
     container_name: virtplc-collector
     environment:
-      - MQTT_BROKER=plc-server
+      - MQTT_BROKER=${PLC_IP}
       - MQTT_PORT=1883
       - MQTT_USERNAME=${MQTT_USERNAME:-virtplc}
       - MQTT_PASSWORD=${MQTT_PASSWORD:-virtplc123}
-      - TIMESCALE_HOST=data-server
+      - TIMESCALE_HOST=${HISTORIAN_IP}
       - TIMESCALE_PORT=5432
       - TIMESCALE_USER=${TIMESCALE_USER:-virtplc}
       - TIMESCALE_PASSWORD=${TIMESCALE_PASSWORD:-changeme}
@@ -272,7 +227,7 @@ services:
       dockerfile: scripts/Dockerfile.cleanup
     container_name: virtplc-timescale-cleanup
     environment:
-      - TIMESCALE_HOST=data-server
+      - TIMESCALE_HOST=${HISTORIAN_IP}
       - TIMESCALE_PORT=5432
       - TIMESCALE_DB=virtplc_ts
       - TIMESCALE_USER=virtplc

@@ -4,19 +4,23 @@ This directory contains Docker Compose configurations for deploying VirtPLC acro
 
 ## Architecture Overview
 
-The VirtPLC system is split across three computers:
+The VirtPLC system is split across four computers:
 
-1. **PLC Computer** (Gaming PC with Unreal Engine)
+1. **PLC** (PLC machine)
    - Components: Ignition Edge, Node-RED, RabbitMQ
-   - Purpose: PLC simulation and data collection from Unreal Engine
+   - Purpose: PLC simulation and data collection
 
-2. **Data Server** (Windows machine with PLC)
+2. **Historian Server** (Server with PostgreSQL and TimescaleDB)
    - Components: TimescaleDB, PostgreSQL
    - Purpose: Time-series data storage and relational database
 
-3. **Main Server** (Linux server)
+3. **Main AI PC** (Linux server)
    - Components: Collector, Backend, Frontend, MCP, AI Service
    - Purpose: Main application logic, APIs, and user interfaces
+
+4. **Windows Machine** (Gaming PC with Unreal Engine)
+   - Components: Python PLC Simulator
+   - Purpose: Run PLC simulator alongside Unreal Engine
 
 ## Network Configuration
 
@@ -27,8 +31,8 @@ Each computer uses different subnets:
 
 ## Deployment Instructions
 
-### Step 1: PLC Computer Setup
-On the gaming PC with Unreal Engine:
+### Step 1: PLC Setup
+On the PLC machine:
 
 ```bash
 # Navigate to the essen-demo directory
@@ -46,8 +50,8 @@ docker-compose -f docker-compose.plc.yml ps
 - Ignition Edge: http://localhost:8088
 - RabbitMQ Management: http://localhost:15672 (user: virtplc, pass: virtplc123)
 
-### Step 2: Data Server Setup
-On the Windows machine with PLC:
+### Step 2: Historian Server Setup
+On the Historian server:
 
 ```bash
 # Navigate to the essen-demo directory
@@ -64,8 +68,29 @@ docker-compose -f docker-compose.data.yml ps
 - PostgreSQL: localhost:5432
 - TimescaleDB: localhost:5433
 
-### Step 3: Main Server Setup
-On the Linux server:
+### Step 3: Windows Machine Setup
+On the Windows machine (with Unreal Engine):
+
+```bash
+# Navigate to the essen-demo directory
+cd /path/to/VirtPLC/essen-demo
+
+# Set the PLC IP (replace with actual PLC machine IP)
+export PLC_IP=<PLC_MACHINE_IP>
+
+# Start simulator services
+docker-compose -f docker-compose.simulator.yml up -d
+
+# Verify services are running
+docker-compose -f docker-compose.simulator.yml ps
+```
+
+**Access Points:**
+- Simulator API: http://localhost:5000
+- Simulator Monitor: http://localhost:5002
+
+### Step 4: Main AI PC Setup
+On the Main AI PC (Linux):
 
 ```bash
 # Navigate to the essen-demo directory
@@ -74,6 +99,11 @@ cd /path/to/VirtPLC/essen-demo
 # Create external networks (run once)
 docker network create --driver bridge --subnet=172.21.0.0/16 virtplc_data_network
 docker network create --driver bridge --subnet=172.20.0.0/16 virtplc_plc_network
+
+# Set environment variables with actual IPs
+export HISTORIAN_IP=<HISTORIAN_SERVER_IP>
+export PLC_IP=<PLC_MACHINE_IP>
+export WINDOWS_IP=<WINDOWS_MACHINE_IP>
 
 # Start main application services
 docker-compose -f docker-compose.main.yml up -d
@@ -84,31 +114,30 @@ docker-compose -f docker-compose.main.yml ps
 
 **Access Points:**
 - Frontend: http://localhost:3000
-- Backend API: http://localhost:8080
+- Backend API: http://localhost:18080
 - Collector: http://localhost:8082
 - MCP: http://localhost:3001
 - AI Service: http://localhost:8001
 
 ## Inter-Computer Communication
 
-The services communicate across computers using IP addresses. Update the following environment variables in `docker-compose.main.yml` with the actual IP addresses:
+The services communicate across computers using IP addresses. Set the following environment variables before running docker-compose:
 
-```yaml
-environment:
-  # Update these with actual IP addresses of other computers
-  - POSTGRES_URL=jdbc:postgresql://DATA_SERVER_IP:5432/virtplc
-  - TIMESCALE_URL=jdbc:postgresql://DATA_SERVER_IP:5433/virtplc_ts
-  - RABBITMQ_HOST=PLC_SERVER_IP
-```
+- `HISTORIAN_IP`: IP of the Historian server
+- `PLC_IP`: IP of the PLC machine
+- `WINDOWS_IP`: IP of the Windows machine
+
+These are used in the docker-compose files for cross-machine connections.
 
 ## Data Flow
 
-1. **Unreal Engine** → MQTT → **Node-RED** (PLC Computer)
-2. **Node-RED** → MQTT → **Ignition Edge** (PLC Computer)
-3. **Node-RED** → MQTT → **Collector** (Main Server)
-4. **Collector** → Database → **TimescaleDB/PostgreSQL** (Data Server)
-5. **Backend** → Database → **TimescaleDB/PostgreSQL** (Data Server)
-6. **Frontend** → API → **Backend** (Main Server)
+1. **Unreal Engine** → MQTT → **Node-RED** (PLC)
+2. **Node-RED** → MQTT → **Ignition Edge** (PLC)
+3. **Python Simulator** → MQTT → **Node-RED** (PLC)
+4. **Node-RED** → MQTT → **Collector** (Main AI PC)
+5. **Collector** → Database → **TimescaleDB/PostgreSQL** (Historian Server)
+6. **Backend** → Database → **TimescaleDB/PostgreSQL** (Historian Server)
+7. **Frontend** → API → **Backend** (Main AI PC)
 
 ## Monitoring and Troubleshooting
 

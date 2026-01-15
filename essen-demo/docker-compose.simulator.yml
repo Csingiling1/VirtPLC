@@ -1,0 +1,59 @@
+version: '3.8'
+
+# Simulator Setup for Windows Machine
+# Components: Python PLC Simulator and Monitoring Dashboard
+# Purpose: Run PLC simulation alongside Unreal Engine
+
+services:
+  # Enhanced PLC Simulator (Python) - PLC Replacement Server
+  simulator:
+    build:
+      context: ../simulator
+      dockerfile: Dockerfile
+    container_name: virtplc-simulator
+    ports:
+      - "5000:8080"    # REST API & WebSocket
+    environment:
+      - PYTHONUNBUFFERED=1
+      - SIMULATOR_MODE=plc-server
+      - SIMULATOR_HOST=0.0.0.0
+      - SIMULATOR_PORT=8080
+      - MQTT_BROKER=${PLC_IP}  # Update with PLC machine IP
+      - MQTT_PORT=1883
+      - MQTT_USERNAME=${MQTT_USERNAME}
+      - MQTT_PASSWORD=${MQTT_PASSWORD}
+      - UPDATE_INTERVAL=1.0
+    volumes:
+      - simulator-data:/app/data
+    networks:
+      - plc_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/simulation/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+  # Simulator Monitoring Dashboard
+  simulator-monitor:
+    image: nginx:alpine
+    container_name: virtplc-simulator-monitor
+    ports:
+      - "5002:80"
+    volumes:
+      - ../simulator/monitor.html:/usr/share/nginx/html/index.html
+    depends_on:
+      - simulator
+    networks:
+      - plc_network
+    restart: unless-stopped
+
+volumes:
+  simulator-data:
+    name: virtplc-simulator-data
+
+networks:
+  plc_network:
+    external: true
+    name: virtplc_plc_network
