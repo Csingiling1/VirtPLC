@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { api } from '@/lib/api';
+import { apiClient } from '@/lib/api';
 import Layout from '@/components/Layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -167,16 +167,25 @@ export default function DeviceManager() {
         try {
             setLoading(true);
             const [factoriesResponse, devicesResponse] = await Promise.all([
-                api.get('/api/admin/factories'),
-                api.get('/api/admin/devices'),
+                apiClient.get('/api/admin/factories'),
+                apiClient.get('/api/admin/devices'),
             ]);
 
-            setFactories(factoriesResponse.data);
+            // apiClient.get returns the data directly (response.data from axios)
+            const factoriesArray = Array.isArray(factoriesResponse) ? factoriesResponse : [];
+            const devicesArray = Array.isArray(devicesResponse) ? devicesResponse : [];
+
+            console.log('Loaded factories:', factoriesArray.length);
+            console.log('Loaded devices:', devicesArray.length);
+
+            setFactories(factoriesArray);
             // Filter orphan devices and deduplicate by id
-            const allDevices = devicesResponse.data;
-            const uniqueDevices = Array.from(new Map(allDevices.map(d => [d.id, d])).values());
+            const uniqueDevices = Array.from(new Map(devicesArray.map((d: Device) => [d.id, d])).values());
             setOrphanDevices(uniqueDevices.filter((d: Device) => !d.factoryId));
+            
+            console.log('Orphan devices:', uniqueDevices.filter((d: Device) => !d.factoryId).length);
         } catch (error) {
+            console.error('DeviceManager loadData error:', error);
             toast({
                 title: 'Error',
                 description: 'Failed to load data',
@@ -228,7 +237,7 @@ export default function DeviceManager() {
                 }))
             );
 
-            await api.post('/api/admin/device-assignments', { assignments });
+            await apiClient.post('/api/admin/device-assignments', { assignments });
             toast({
                 title: 'Success',
                 description: 'Device assignments saved successfully',
@@ -256,12 +265,12 @@ export default function DeviceManager() {
 
         try {
             setCreating(true);
-            const response = await api.post('/api/admin/factories', {
+            const response = await apiClient.post('/api/admin/factories', {
                 name: newFactoryName.trim(),
                 description: newFactoryDescription.trim(),
             });
 
-            setFactories(prev => [...prev, response.data]);
+            setFactories(prev => [...prev, response]);
             setCreateDialogOpen(false);
             setNewFactoryName('');
             setNewFactoryDescription('');
@@ -300,13 +309,13 @@ export default function DeviceManager() {
 
         try {
             setUpdating(true);
-            const response = await api.put(`/api/admin/factories/${editingFactory.id}`, {
+            const response = await apiClient.put(`/admin/factories/${editingFactory.id}`, {
                 name: editFactoryName.trim(),
                 description: editFactoryDescription.trim(),
             });
 
             setFactories(prev => prev.map(f =>
-                f.id === editingFactory.id ? { ...f, ...response.data } : f
+                f.id === editingFactory.id ? { ...f, ...response } : f
             ));
             setEditDialogOpen(false);
             setEditingFactory(null);
@@ -341,7 +350,7 @@ export default function DeviceManager() {
         }
 
         try {
-            await api.delete(`/api/admin/factories/${factory.id}`);
+            await apiClient.delete(`/admin/factories/${factory.id}`);
             setFactories(prev => prev.filter(f => f.id !== factory.id));
 
             toast({

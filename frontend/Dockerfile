@@ -23,7 +23,7 @@ ENV VITE_AI_API_URL=$VITE_AI_API_URL
 RUN npm run build
 
 # Expose port
-EXPOSE 3000
+EXPOSE 5173
 
-# Start the application
-CMD ["npm", "run", "preview", "--", "--host", "0.0.0.0", "--port", "3000"]
+# Start the application in development mode
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5173"]

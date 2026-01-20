@@ -10,6 +10,9 @@ import { Bot, User, Send, BarChart3, TrendingUp, Plus, Trash2, MessageSquare, Ed
 import { AIChatResponse, ChartSuggestion } from '../types';
 import AIChart from '../components/AIChart';
 import ArtifactPanel from '../components/ArtifactPanel';
+import ClaudeInterface from '../components/ClaudeInterface';
+import { useAsyncOperation } from '@/hooks/useAsyncOperation';
+import { useToast } from '@/hooks/use-toast';
 
 interface Artifact {
     type: string;
@@ -50,6 +53,8 @@ function AIAssistant() {
     const [isTemporaryMode, setIsTemporaryMode] = useState(false);
     const [activeArtifact, setActiveArtifact] = useState<Artifact | null>(null);
     const [selectedModel, setSelectedModel] = useState<Model>('ollama');
+    const [showClaudeInterface, setShowClaudeInterface] = useState(false);
+    const [pendingClaudeMessage, setPendingClaudeMessage] = useState<string>('');
     const scrollAreaRef = useRef<HTMLDivElement>(null);
 
     // Clear localStorage when entering temporary mode
@@ -195,74 +200,86 @@ function AIAssistant() {
         return { cleanText, artifacts, logs };
     };
 
-    const sendQuery = async (content: string, contextMessages: Message[]) => {
-        setIsLoading(true);
+    const sendQuery = useCallback(async (content: string, contextMessages: Message[]) => {
+        // Handle Claude model - open embedded interface instead of API call
+        if (selectedModel === 'claude') {
+            setPendingClaudeMessage(content);
+            setShowClaudeInterface(true);
+            return;
+        }
 
-        try {
-            // Create placeholder assistant message
-            const assistantMessageId = (Date.now() + 1).toString();
-            const placeholderMessage: Message = {
-                id: assistantMessageId,
-                role: 'assistant',
-                content: 'Thinking...',
-                timestamp: new Date(),
-                isStreaming: true
-            };
+        // Create placeholder assistant message
+        const assistantMessageId = (Date.now() + 1).toString();
+        const placeholderMessage: Message = {
+            id: assistantMessageId,
+            role: 'assistant',
+            content: 'Thinking...',
+            timestamp: new Date(),
+            isStreaming: true
+        };
 
-            setMessages(prev => [...prev, placeholderMessage]);
+        setMessages(prev => [...prev, placeholderMessage]);
 
-            const endpoint = 'http://localhost:3001/api/chat/message';
+        const endpoint = 'http://localhost:3001/api/chat/message';
 
-            // Call AI service (non-streaming)
-            const response = await fetch(endpoint, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    message: content,
-                    session_id: currentConversationId ? parseInt(currentConversationId.split('-')[1] || '1') : 1,
-                    context: { messages: contextMessages.map(m => ({ role: m.role, content: m.content })) },
-                    model: selectedModel
-                }),
-            });
+        // Call AI service (non-streaming)
+        const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                message: content,
+                session_id: currentConversationId ? parseInt(currentConversationId.split('-')[1] || '1') : 1,
+                context: { messages: contextMessages.map(m => ({ role: m.role, content: m.content })) },
+                model: selectedModel
+            }),
+        });
 
-            if (!response.ok) {
-                throw new Error(`Failed to get response: ${response.status}`);
-            }
+        if (!response.ok) {
+            throw new Error(`Failed to get response: ${response.status}`);
+        }
 
-            const data: AIChatResponse = await response.json();
+        const data: AIChatResponse = await response.json();
 
-            const { cleanText, artifacts, logs } = parseContent(data.response || '');
+        const { cleanText, artifacts, logs } = parseContent(data.response || '');
 
-            // Update message with actual response
-            setMessages(prev => prev.map(msg =>
-                msg.id === assistantMessageId
-                    ? {
-                        ...msg,
-                        content: cleanText,
-                        chartSuggestions: data.chart_suggestions,
-                        artifacts: artifacts,
-                        logs: logs as string[],
-                        isStreaming: false
-                    }
-                    : msg
-            ));
+        // Update message with actual response
+        setMessages(prev => prev.map(msg =>
+            msg.id === assistantMessageId
+                ? {
+                    ...msg,
+                    content: cleanText,
+                    chartSuggestions: data.chart_suggestions,
+                    artifacts: artifacts,
+                    logs: logs as string[],
+                    isStreaming: false
+                }
+                : msg
+        ));
 
-            // Auto-open artifact panel if artifacts were generated
-            if (artifacts.length > 0) {
-                setActiveArtifact(artifacts[0]);
-            }
+        // Auto-open artifact panel if artifacts were generated
+        if (artifacts.length > 0) {
+            setActiveArtifact(artifacts[0]);
+        }
 
-        } catch (error: unknown) {
+        return data;
+    }, [selectedModel, currentConversationId]);
+
+    const {
+        execute: executeSendQuery,
+        isLoading: isQueryLoading,
+        error: queryError,
+        reset: resetQueryError
+    } = useAsyncOperation(sendQuery, {
+        onError: (error) => {
             console.error('AI error:', error);
 
             // Remove the placeholder message and add error message
             setMessages(prev => prev.filter(msg => !msg.isStreaming));
 
             let errorContent = 'Sorry, I encountered an error. Please try again later.';
-            const err = error as { message?: string };
-            if (err.message?.includes('Failed to fetch') || err.message?.includes('Network')) {
+            if (error.message?.includes('Failed to fetch') || error.message?.includes('Network')) {
                 errorContent = 'AI service is currently unavailable. Please ensure the AI service is running and try again.';
             }
 
@@ -273,10 +290,8 @@ function AIAssistant() {
                 timestamp: new Date(),
             };
             setMessages(prev => [...prev, errorMessage]);
-        } finally {
-            setIsLoading(false);
         }
-    };
+    });
 
     const sendMessage = async () => {
         if (!input.trim()) return;
@@ -292,7 +307,6 @@ function AIAssistant() {
 
         setMessages(prev => [...prev, userMessage]);
         setInput('');
-        setIsLoading(true);
 
         // Update conversation title if this is the first message
         if (messages.length === 0 && currentConversationId) {
@@ -302,7 +316,7 @@ function AIAssistant() {
             ));
         }
 
-        await sendQuery(input, previousMessages);
+        await executeSendQuery(input, previousMessages);
     };    // Conversation management helpers
     const createNewConversation = () => {
         const id = `conv-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
@@ -691,7 +705,7 @@ function AIAssistant() {
                                                 )}
                                             </div>
                                         ))}
-                                        {isLoading && (
+                                        {isQueryLoading && (
                                             <div className="flex gap-4 justify-start">
                                                 <div className="flex-shrink-0">
                                                     <div className="w-8 h-8 bg-green-600 rounded-full flex items-center justify-center">
@@ -740,18 +754,24 @@ function AIAssistant() {
                                             onKeyPress={handleKeyPress}
                                             placeholder="Ask me anything about your VirtPLC system..."
                                             className="min-h-[52px] resize-none border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-                                            disabled={isLoading}
+                                            disabled={isQueryLoading}
                                         />
                                         <div className="flex flex-col gap-2">
                                             <Button
                                                 onClick={sendMessage}
-                                                disabled={isLoading || !input.trim()}
+                                                disabled={isQueryLoading || !input.trim()}
                                                 size="lg"
                                                 className="px-6 h-full"
                                             >
                                                 <Send className="h-4 w-4" />
                                             </Button>
-                                            <Select value={selectedModel} onValueChange={(value) => setSelectedModel(value as Model)}>
+                                            <Select value={selectedModel} onValueChange={(value) => {
+                                                const newModel = value as Model;
+                                                setSelectedModel(newModel);
+                                                if (newModel === 'claude') {
+                                                    setShowClaudeInterface(true);
+                                                }
+                                            }}>
                                                 <SelectTrigger className="w-[120px]">
                                                     <SelectValue placeholder="Model" />
                                                 </SelectTrigger>
@@ -800,6 +820,14 @@ function AIAssistant() {
                     </div>
                 )}
             </div>
+
+            {/* Claude Interface */}
+            {showClaudeInterface && (
+                <ClaudeInterface
+                    onClose={() => setShowClaudeInterface(false)}
+                    initialMessage={pendingClaudeMessage}
+                />
+            )}
         </Layout>
     );
 }

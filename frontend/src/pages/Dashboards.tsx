@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import Layout from '@/components/Layout';
-import { api } from '@/lib/api';
+import { apiClient } from '@/lib/api';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -44,8 +44,11 @@ const Dashboards = () => {
 
     const loadDashboards = async () => {
         try {
-            const response = await api.get('/api/dashboards');
-            setDashboards(response.data || []);
+            const response = await apiClient.get('/dashboards');
+            // Ensure response is always an array
+            const dashboardsData = Array.isArray(response) ? response :
+                (response?.data && Array.isArray(response.data)) ? response.data : [];
+            setDashboards(dashboardsData);
         } catch (error) {
             console.error('Failed to load dashboards:', error);
             toast({
@@ -53,6 +56,7 @@ const Dashboards = () => {
                 description: "Failed to load dashboards",
                 variant: "destructive",
             });
+            setDashboards([]);
         } finally {
             setIsLoading(false);
         }

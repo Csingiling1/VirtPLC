@@ -1,167 +1,98 @@
-import axios from 'axios';
+import { ApiClient } from './apiClient';
 import { SimulatorDevice, SignalConfig, SensorData, AIChatResponse } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 const AI_API_BASE_URL = import.meta.env.VITE_AI_API_URL || 'http://localhost:3001';
 
-export const api = axios.create({
+// Create API clients with proper configuration
+const apiClient = new ApiClient({
   baseURL: API_BASE_URL,
   timeout: 30000,
-  headers: {
-    'Content-Type': 'application/json',
-  },
+  retries: 3,
 });
 
-// Request interceptor to add JWT token
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('authToken');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  }
-);
+const aiApiClient = new ApiClient({
+  baseURL: AI_API_BASE_URL,
+  timeout: 60000, // Longer timeout for AI operations
+  retries: 2,
+});
 
-// Response interceptor for error handling
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    // Handle network errors
-    if (!error.response) {
-      console.error('Network error: Backend API is not reachable at', API_BASE_URL);
-      return Promise.reject({
-        message: 'Backend API is not reachable. Please ensure the server is running.',
-        isNetworkError: true,
-        ...error
-      });
-    }
-    
-    return Promise.reject(error);
-  }
-);
-
-// Data API
+// Data API with type-safe methods
 export const dataApi = {
   getLatest: async () => {
-    const response = await api.get('/api/data/latest');
-    return response.data;
+    return apiClient.get('/api/data/latest');
   },
   getHierarchical: async () => {
-    const response = await api.get('/api/data/hierarchical-live');
-    return response.data;
+    return apiClient.get('/api/data/hierarchical-live');
   },
   getRange: async (startTime: number, endTime: number, page: number = 0, size: number = 1000, query?: string) => {
-    // Use AI service historical data endpoint
-    const params: any = { 
+    const params: Record<string, any> = {
       start_time: new Date(startTime).toISOString(),
       end_time: new Date(endTime).toISOString(),
-      limit: size 
+      limit: size
     };
     if (query) {
       params.query = query;
     }
-    const response = await aiApi.get('/api/analysis/historical', { params });
-    // AI service returns { data: array, count: number }
-    return response.data.data || [];
+    const response = await aiApiClient.get('/api/analysis/historical', { params });
+    return response.data || [];
   },
   getHealth: async () => {
-    const response = await api.get('/api/data/health');
-    return response.data;
+    return apiClient.get('/api/data/health');
   },
 };
 
-// Simulator API
+// Simulator API with type-safe methods
 export const simulatorApi = {
-  getDevices: async () => {
-    const response = await api.get('/api/simulator/devices');
-    return response.data;
+  getDevices: async (): Promise<SimulatorDevice[]> => {
+    return apiClient.get('/api/simulator/devices');
   },
-  getDevice: async (deviceId: string) => {
-    const response = await api.get(`/api/simulator/devices/${deviceId}`);
-    return response.data;
+  getDevice: async (deviceId: string): Promise<SimulatorDevice> => {
+    return apiClient.get(`/api/simulator/devices/${deviceId}`);
   },
-  createDevice: async (device) => {
-    const response = await api.post('/api/simulator/devices', device);
-    return response.data;
+  createDevice: async (device: Omit<SimulatorDevice, 'id'>): Promise<SimulatorDevice> => {
+    return apiClient.post('/api/simulator/devices', device);
   },
-  updateDevice: async (deviceId: string, device: Partial<SimulatorDevice>) => {
-    const response = await api.put(`/api/simulator/devices/${deviceId}`, device);
-    return response.data;
+  updateDevice: async (deviceId: string, device: Partial<SimulatorDevice>): Promise<SimulatorDevice> => {
+    return apiClient.put(`/api/simulator/devices/${deviceId}`, device);
   },
-  deleteDevice: async (deviceId: string) => {
-    const response = await api.delete(`/api/simulator/devices/${deviceId}`);
-    return response.data;
+  deleteDevice: async (deviceId: string): Promise<void> => {
+    return apiClient.delete(`/api/simulator/devices/${deviceId}`);
   },
-  getSignal: async (deviceId: string, signalName: string) => {
-    const response = await api.get(`/api/simulator/devices/${deviceId}/signals/${signalName}`);
-    return response.data;
+  getSignal: async (deviceId: string, signalName: string): Promise<SignalConfig> => {
+    return apiClient.get(`/api/simulator/devices/${deviceId}/signals/${signalName}`);
   },
-  setSignal: async (deviceId: string, signalName: string, value: number) => {
-    const response = await api.put(`/api/simulator/devices/${deviceId}/signals/${signalName}`, { value });
-    return response.data;
+  setSignal: async (deviceId: string, signalName: string, value: number): Promise<SignalConfig> => {
+    return apiClient.put(`/api/simulator/devices/${deviceId}/signals/${signalName}`, { value });
   },
-  addSignal: async (deviceId: string, signal: Omit<SignalConfig, 'lastUpdate'>) => {
-    const response = await api.post(`/api/simulator/devices/${deviceId}/signals`, signal);
-    return response.data;
+  addSignal: async (deviceId: string, signal: Omit<SignalConfig, 'lastUpdate'>): Promise<SignalConfig> => {
+    return apiClient.post(`/api/simulator/devices/${deviceId}/signals`, signal);
   },
   getStatus: async () => {
-    const response = await api.get('/api/simulator/status');
-    return response.data;
+    return apiClient.get('/api/simulator/status');
   },
   triggerUpdate: async () => {
-    const response = await api.post('/api/simulator/update');
-    return response.data;
+    return apiClient.post('/api/simulator/update', {});
   },
 };
 
-export const aiApi = axios.create({
-  baseURL: AI_API_BASE_URL,
-  timeout: 30000, // Longer timeout for AI operations
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
-
-// Response interceptor for AI API error handling
-aiApi.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    // Handle network errors
-    if (!error.response) {
-      console.error('Network error: AI API is not reachable at', AI_API_BASE_URL);
-      return Promise.reject({
-        message: 'AI API is not reachable. Please ensure the AI service is running.',
-        isNetworkError: true,
-        ...error
-      });
-    }
-    
-    return Promise.reject(error);
-  }
-);
-
-// AI API functions
+// AI API functions with type-safe methods
 export const aiApiFunctions = {
-  chat: async (message: string, context?: string): Promise<AIChatResponse> => {
-    const response = await aiApi.post('/api/chat/message', {
+  chat: async (message: string, context?: string, model: 'ollama' | 'claude' = 'ollama'): Promise<AIChatResponse> => {
+    return aiApiClient.post('/api/chat/message', {
       message,
       context: context ? { description: context } : null,
+      model,
     });
-    return response.data;
   },
   getAnalysis: async (data: { sensorData?: SensorData[]; timeRange?: { start: number; end: number } }) => {
-    const response = await aiApi.post('/analyze', data);
-    return response.data;
+    return aiApiClient.post('/analyze', data);
   },
   getInsights: async (timeRange?: { start: number; end: number }) => {
-    const response = await aiApi.get('/insights', {
-      params: timeRange,
-    });
-    return response.data;
+    return aiApiClient.get('/insights', { params: timeRange });
   },
 };
+
+// Export the clients for direct use if needed
+export { apiClient, aiApiClient };
 

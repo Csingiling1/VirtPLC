@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Suspense, lazy } from "react";
 import { AuthProvider } from "@/contexts/AuthContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 // Lazy load components for better performance
 const LandingPage = lazy(() => import("./pages/LandingPage"));
@@ -20,9 +21,23 @@ const AIAssistant = lazy(() => import("./pages/AIAssistant"));
 const DashboardBuilder = lazy(() => import("./pages/DashboardBuilder"));
 const Dashboards = lazy(() => import("./pages/Dashboards"));
 const DeviceManager = lazy(() => import("./pages/DeviceManager"));
+const Documentation = lazy(() => import("./pages/Documentation"));
+const APIReference = lazy(() => import("./pages/APIReference"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 3,
+      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+      staleTime: 5 * 60 * 1000, // 5 minutes
+      gcTime: 10 * 60 * 1000, // 10 minutes
+    },
+    mutations: {
+      retry: 1,
+    },
+  },
+});
 
 // Loading component
 const LoadingSpinner = () => (
@@ -31,70 +46,96 @@ const LoadingSpinner = () => (
   </div>
 );
 
+// Error fallback component
+const ErrorFallback = () => (
+  <ErrorBoundary>
+    <div className="min-h-screen flex items-center justify-center p-4">
+      <div className="text-center">
+        <h1 className="text-2xl font-bold text-destructive mb-4">
+          Application Error
+        </h1>
+        <p className="text-muted-foreground mb-4">
+          Something went wrong. Please refresh the page or contact support.
+        </p>
+        <button
+          onClick={() => window.location.reload()}
+          className="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90"
+        >
+          Refresh Page
+        </button>
+      </div>
+    </div>
+  </ErrorBoundary>
+);
+
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <AuthProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Suspense fallback={<LoadingSpinner />}>
-            <Routes>
-              <Route path="/" element={<LandingPage />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Register />} />
-              <Route path="/dashboard" element={
-                <ProtectedRoute>
-                  <Dashboard />
-                </ProtectedRoute>
-              } />
-              <Route path="/factory-view" element={
-                <ProtectedRoute>
-                  <FactoryView />
-                </ProtectedRoute>
-              } />
-              <Route path="/monitoring" element={
-                <ProtectedRoute>
-                  <Monitoring />
-                </ProtectedRoute>
-              } />
-              <Route path="/history" element={
-                <ProtectedRoute>
-                  <History />
-                </ProtectedRoute>
-              } />
-              <Route path="/status" element={
-                <ProtectedRoute>
-                  <Status />
-                </ProtectedRoute>
-              } />
-              <Route path="/ai-assistant" element={
-                <ProtectedRoute>
-                  <AIAssistant />
-                </ProtectedRoute>
-              } />
-              <Route path="/dashboard-builder" element={
-                <ProtectedRoute>
-                  <DashboardBuilder />
-                </ProtectedRoute>
-              } />
-              <Route path="/dashboards" element={
-                <ProtectedRoute>
-                  <Dashboards />
-                </ProtectedRoute>
-              } />
-              <Route path="/device-manager" element={
-                <ProtectedRoute>
-                  <DeviceManager />
-                </ProtectedRoute>
-              } />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </Suspense>
-        </BrowserRouter>
-      </TooltipProvider>
-    </AuthProvider>
-  </QueryClientProvider>
+  <ErrorBoundary fallback={<ErrorFallback />}>
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <Suspense fallback={<LoadingSpinner />}>
+              <Routes>
+                <Route path="/" element={<LandingPage />} />
+                <Route path="/login" element={<Login />} />
+                <Route path="/register" element={<Register />} />
+                <Route path="/documentation" element={<Documentation />} />
+                <Route path="/api-reference" element={<APIReference />} />
+                <Route path="/dashboard" element={
+                  <ProtectedRoute>
+                    <Dashboard />
+                  </ProtectedRoute>
+                } />
+                <Route path="/factory" element={
+                  <ProtectedRoute>
+                    <FactoryView />
+                  </ProtectedRoute>
+                } />
+                <Route path="/monitoring" element={
+                  <ProtectedRoute>
+                    <Monitoring />
+                  </ProtectedRoute>
+                } />
+                <Route path="/history" element={
+                  <ProtectedRoute>
+                    <History />
+                  </ProtectedRoute>
+                } />
+                <Route path="/status" element={
+                  <ProtectedRoute>
+                    <Status />
+                  </ProtectedRoute>
+                } />
+                <Route path="/ai-assistant" element={
+                  <ProtectedRoute>
+                    <AIAssistant />
+                  </ProtectedRoute>
+                } />
+                <Route path="/dashboard-builder" element={
+                  <ProtectedRoute>
+                    <DashboardBuilder />
+                  </ProtectedRoute>
+                } />
+                <Route path="/dashboards" element={
+                  <ProtectedRoute>
+                    <Dashboards />
+                  </ProtectedRoute>
+                } />
+                <Route path="/device-manager" element={
+                  <ProtectedRoute>
+                    <DeviceManager />
+                  </ProtectedRoute>
+                } />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </Suspense>
+          </BrowserRouter>
+        </TooltipProvider>
+      </AuthProvider>
+    </QueryClientProvider>
+  </ErrorBoundary>
 );
 
 export default App;

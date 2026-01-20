@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { api } from '@/lib/api';
+import { apiClient } from '@/lib/api';
 
 interface ApiError {
     isNetworkError?: boolean;
@@ -35,6 +35,7 @@ interface AuthContextType {
     user: User | null;
     login: (email: string, password: string) => Promise<void>;
     register: (userData: RegisterData) => Promise<void>;
+    handleOAuth2Success: () => Promise<void>;
     logout: () => void;
     isAuthenticated: boolean;
     isLoading: boolean;
@@ -73,16 +74,25 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         if (token) {
             validateToken(token);
         } else {
-            setIsLoading(false);
+            // Check if we just completed OAuth2 login
+            const urlParams = new URLSearchParams(window.location.search);
+            const isOAuth2Success = urlParams.has('oauth2_success') ||
+                window.location.pathname === '/oauth2/success';
+
+            if (isOAuth2Success) {
+                handleOAuth2Success();
+            } else {
+                setIsLoading(false);
+            }
         }
     }, []);
 
     const validateToken = async (token: string) => {
         try {
-            const response = await api.post('/api/auth/validate', {}, {
+            const response = await apiClient.post('/api/auth/validate', {}, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            setUser(response.data.user);
+            setUser(response.user);
         } catch (error) {
             localStorage.removeItem('authToken');
         } finally {
@@ -90,16 +100,41 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
     };
 
-    const login = async (email: string, password: string) => {
+    const handleOAuth2Success = async () => {
         try {
-            const response = await api.post('/api/auth/login', { email, password });
-            const { token, user: userData } = response.data;
+            const response = await apiClient.get('/api/auth/oauth2/success');
+            const { token, user: userData } = response;
 
             localStorage.setItem('authToken', token);
             setUser(userData);
 
-            // Set default axios header for future requests
-            api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+            // Clean up URL and redirect to dashboard
+            window.history.replaceState({}, document.title, '/dashboard');
+            // Use window.location.href to ensure proper redirect after OAuth2
+            window.location.href = '/dashboard';
+        } catch (error: unknown) {
+            console.error('OAuth2 success handling error:', error);
+            const err = error as ApiError;
+            if (err.response?.status === 401) {
+                // OAuth2 session expired or invalid
+                window.location.href = '/login?error=oauth2';
+            } else {
+                window.location.href = '/login?error=oauth2';
+            }
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const login = async (email: string, password: string) => {
+        try {
+            const response = await apiClient.post('/api/auth/login', { email, password });
+            const { token, user: userData } = response;
+
+            localStorage.setItem('authToken', token);
+            setUser(userData);
+
+            // The apiClient handles authorization headers automatically
         } catch (error: unknown) {
             console.error('Login error:', error);
 
@@ -143,14 +178,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     const register = async (userData: RegisterData) => {
         try {
-            const response = await api.post('/api/auth/register', userData);
-            const { token, user: newUser } = response.data;
+            const response = await apiClient.post('/api/auth/register', userData);
+            const { token, user: newUser } = response;
 
             localStorage.setItem('authToken', token);
             setUser(newUser);
 
-            // Set default axios header for future requests
-            api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+            // The apiClient handles authorization headers automatically
         } catch (error: unknown) {
             console.error('Registration error:', error);
 
@@ -190,7 +224,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     const logout = () => {
         localStorage.removeItem('authToken');
-        delete api.defaults.headers.common['Authorization'];
+        // The apiClient automatically handles authorization headers from localStorage
         setUser(null);
     };
 
@@ -198,6 +232,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         user,
         login,
         register,
+        handleOAuth2Success,
         logout,
         isAuthenticated: !!user,
         isLoading,

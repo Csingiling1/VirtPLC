@@ -1,14 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Layout from '@/components/Layout';
 import StatusCard from '@/components/StatusCard';
-import { dataApi, api } from '@/lib/api';
+import { dataApi } from '@/lib/api';
 import { SensorData } from '@/types';
-import { Activity, Gauge, ThermometerSun, AlertCircle, CheckCircle, Building, Factory, MapPin, Server, Settings, Database } from 'lucide-react';
+import { Activity, Gauge, ThermometerSun, AlertCircle, CheckCircle, Building, Factory, MapPin, Server, Settings, Database, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
+import { useAsyncOperation } from '@/hooks/useAsyncOperation';
 
 interface HierarchicalSensorData {
   tenants: Array<{
@@ -41,57 +42,63 @@ interface HierarchicalSensorData {
 
 const Dashboard = () => {
   const [sensorData, setSensorData] = useState<HierarchicalSensorData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
   const { user } = useAuth();
   const navigate = useNavigate();
 
+  const fetchSensorData = useCallback(async () => {
+    const data = await dataApi.getHierarchical();
+
+    // Filter data by user's manufacturer if not admin
+    let filteredData = data;
+    if (user && user.role !== 'ADMIN' && user.manufacturer) {
+      const userManufacturerId = user.manufacturer.manufacturerId;
+
+      filteredData = {
+        ...data,
+        tenants: data.tenants.map((tenant: any) => ({
+          ...tenant,
+          manufacturers: tenant.manufacturers.filter(
+            (m: any) => m.id === userManufacturerId
+          )
+        })).filter((tenant: any) => tenant.manufacturers.length > 0)
+      };
+    }
+
+    setSensorData(filteredData);
+    return filteredData;
+  }, [user]);
+
+  const {
+    execute: executeFetch,
+    isLoading,
+    error,
+    reset: resetError
+  } = useAsyncOperation(fetchSensorData, {
+    onError: (error) => {
+      console.error('Failed to fetch sensor data:', error);
+      toast({
+        title: "Connection Error",
+        description: "Failed to fetch sensor data. Please try again.",
+        variant: "destructive",
+      });
+    },
+    onSuccess: () => {
+      resetError();
+    }
+  });
+
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        // Fetch hierarchical sensor data from backend
-        const sensorData = await dataApi.getHierarchical();
+    // Initial fetch
+    executeFetch();
 
-        // Filter data by user's manufacturer if not admin
-        let filteredData = sensorData;
-        if (user && user.role !== 'ADMIN' && user.manufacturer) {
-          const userManufacturerId = user.manufacturer.manufacturerId;
-
-          filteredData = {
-            ...sensorData,
-            tenants: sensorData.tenants.map((tenant: any) => ({
-              ...tenant,
-              manufacturers: tenant.manufacturers.filter(
-                (m: any) => m.id === userManufacturerId
-              )
-            })).filter((tenant: any) => tenant.manufacturers.length > 0)
-          };
-        }
-
-        setSensorData(filteredData);
-        setIsLoading(false);
-      } catch (error) {
-        console.error('Failed to fetch data:', error);
-
-        const errorMessage = "Failed to fetch sensor data. Please try again.";
-
-        if (isLoading) {
-          // Only show toast on initial load failure
-          toast({
-            title: "Connection Error",
-            description: errorMessage,
-            variant: "destructive",
-          });
-        }
-        setIsLoading(false);
-      }
-    };
-
-    fetchData();
-    const interval = setInterval(fetchData, 2000);
+    // Set up polling
+    const interval = setInterval(() => {
+      executeFetch();
+    }, 2000);
 
     return () => clearInterval(interval);
-  }, [toast, isLoading, user]);
+  }, [executeFetch]);
 
   if (isLoading) {
     return (
@@ -124,6 +131,34 @@ const Dashboard = () => {
                 : 'Real-time factory monitoring and control'}
           </p>
         </div>
+
+        {/* System Status Indicator */}
+        {sensorData && (
+          <Card className="mb-6">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2">
+                <Server className="h-5 w-5" />
+                System Status
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Badge variant="default" className="px-3 py-1">
+                    <CheckCircle className="h-4 w-4 mr-1" />
+                    Online
+                  </Badge>
+                  <span className="text-sm text-muted-foreground">
+                    Real-time monitoring active
+                  </span>
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  Last updated: {new Date().toLocaleTimeString()}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {sensorData?.tenants ? (
           <div className="space-y-8">

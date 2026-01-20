@@ -13,7 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import Layout from "@/components/Layout";
-import { api } from "@/lib/api";
+import { apiClient } from "@/lib/api";
 import {
     DndContext,
     DragEndEvent,
@@ -353,14 +353,14 @@ const DashboardBuilder = () => {
         const fetchData = async () => {
             setLoading(true);
             try {
-                const [devicesRes, factoriesRes, signalsRes] = await Promise.all([
-                    api.get('/api/simulator/devices'),
-                    api.get('/api/mcp/factories'),
-                    api.get('/api/simulator/signals')
+                const [devices, factories, signals] = await Promise.all([
+                    apiClient.get('/simulator/devices'),
+                    apiClient.get('/mcp/factories'),
+                    apiClient.get('/simulator/signals')
                 ]);
 
                 // Transform device data to match frontend interface
-                const transformedDevices = (devicesRes.data || []).map((device: any) => ({
+                const transformedDevices = (devices || []).map((device: any) => ({
                     id: device.id,
                     name: device.name,
                     type: device.deviceType,
@@ -639,7 +639,7 @@ const DashboardBuilder = () => {
 
     const sendSignalToPLC = useCallback(async (signalId: string, value: any) => {
         try {
-            await api.post('/api/simulator/signals/send', { signalId, value });
+            await apiClient.post('/simulator/signals/send', { signalId, value });
             console.log('Signal sent to PLC:', { signalId, value });
         } catch (error) {
             console.error('Failed to send signal:', error);
@@ -667,10 +667,10 @@ const DashboardBuilder = () => {
 
         try {
             if (currentDashboard?.id) {
-                await api.put(`/api/dashboards/${currentDashboard.id}`, dashboard);
+                await apiClient.put(`/dashboards/${currentDashboard.id}`, dashboard);
             } else {
-                const response = await api.post('/api/dashboards', dashboard);
-                setCurrentDashboard(response.data);
+                const response = await apiClient.post('/dashboards', dashboard);
+                setCurrentDashboard(response);
             }
             // Refresh saved dashboards
             loadSavedDashboards();
@@ -681,8 +681,8 @@ const DashboardBuilder = () => {
 
     const loadSavedDashboards = useCallback(async () => {
         try {
-            const response = await api.get('/api/dashboards');
-            setSavedDashboards(response.data || []);
+            const response = await apiClient.get('/dashboards');
+            setSavedDashboards(response || []);
         } catch (error) {
             console.error('Failed to load dashboards:', error);
         }

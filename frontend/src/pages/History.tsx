@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { CalendarIcon, Download } from 'lucide-react';
 import { format, subDays, startOfDay, endOfDay } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { dataApi, api } from '@/lib/api';
+import { dataApi, apiClient } from '@/lib/api';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { useToast } from '@/hooks/use-toast';
 
@@ -43,14 +43,30 @@ const History = () => {
         const hierarchicalData = await dataApi.getHierarchical();
         const deviceList: DeviceInfo[] = [];
 
+        if (!hierarchicalData?.tenants || !Array.isArray(hierarchicalData.tenants)) {
+          console.warn('No tenants in hierarchical data:', hierarchicalData);
+          return;
+        }
+
         hierarchicalData.tenants.forEach((tenant: any) => {
+          if (!tenant?.manufacturers || !Array.isArray(tenant.manufacturers)) return;
+
           tenant.manufacturers.forEach((manufacturer: any) => {
+            if (!manufacturer?.factories || !Array.isArray(manufacturer.factories)) return;
+
             manufacturer.factories.forEach((factory: any) => {
+              if (!factory?.plcs || !Array.isArray(factory.plcs)) return;
+
               factory.plcs.forEach((plc: any) => {
+                if (!plc?.sensors || !Array.isArray(plc.sensors)) return;
+
                 plc.sensors.forEach((sensor: any) => {
+                  const deviceId = sensor.deviceId || sensor.id;
+                  if (!deviceId) return;
+
                   deviceList.push({
-                    deviceId: sensor.deviceId || sensor.id,
-                    name: `${plc.name} - ${sensor.name}`,
+                    deviceId,
+                    name: `${plc.name || 'Unknown PLC'} - ${sensor.name || 'Unknown Sensor'}`,
                     plcId: plc.id,
                     plcName: plc.name
                   });
@@ -60,6 +76,7 @@ const History = () => {
           });
         });
 
+        console.log('Found devices:', deviceList.length);
         setDevices(deviceList);
         if (deviceList.length > 0) {
           setSelectedDevice(deviceList[0].deviceId);
@@ -102,15 +119,19 @@ const History = () => {
       const endTime = dateRange.to.getTime();
 
       // Query TimescaleDB through backend for device historical data
-      const response = await api.get(`/api/data/device/${selectedDevice}/history`, {
+      const response = await apiClient.get(`/api/data/device/${selectedDevice}/history`, {
         params: { startTime, endTime }
       });
 
-      setHistoricalData(response.data);
+      // Backend returns array directly, apiClient.get returns response.data which is the array
+      const dataArray = Array.isArray(response) ? response : [];
+
+      console.log('Loaded historical data points:', dataArray.length);
+      setHistoricalData(dataArray);
 
       toast({
         title: "Success",
-        description: `Loaded ${response.data.length} data points`,
+        description: `Loaded ${dataArray.length} data points`,
       });
     } catch (error: any) {
       console.error('Failed to fetch historical data:', error);
@@ -129,9 +150,12 @@ const History = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [dateRange.from, dateRange.to, selectedDevice, toast, api]);
+  }, [dateRange.from, dateRange.to, selectedDevice, toast]);
 
   const formatChartData = () => {
+    if (!Array.isArray(historicalData)) {
+      return [];
+    }
     return historicalData.map(data => ({
       timestamp: format(new Date(data.timestamp), 'MM/dd HH:mm:ss'),
       value: data.value,
@@ -160,8 +184,8 @@ const History = () => {
                     <SelectValue placeholder="Choose a device" />
                   </SelectTrigger>
                   <SelectContent>
-                    {devices.map((device) => (
-                      <SelectItem key={device.deviceId} value={device.deviceId}>
+                    {devices.map((device, index) => (
+                      <SelectItem key={`${device.deviceId}-${index}`} value={device.deviceId}>
                         {device.name}
                       </SelectItem>
                     ))}
@@ -172,7 +196,7 @@ const History = () => {
               <div className="flex flex-wrap gap-4 items-end">
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Start Date</label>
-                  <Popover>
+                  <Popover key="start-date-popover">
                     <PopoverTrigger asChild>
                       <Button
                         variant="outline"
@@ -199,7 +223,7 @@ const History = () => {
 
                 <div className="space-y-2">
                   <label className="text-sm font-medium">End Date</label>
-                  <Popover>
+                  <Popover key="end-date-popover">
                     <PopoverTrigger asChild>
                       <Button
                         variant="outline"
