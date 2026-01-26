@@ -1,3 +1,28 @@
+/*
+VirtPLC Collector Service
+
+This service subscribes to MQTT topics and persists enriched device data to TimescaleDB.
+It handles both real-time PLC data and simulated factory data, providing high-performance
+time-series data ingestion with automatic batching and error handling.
+
+Architecture:
+  MQTT Broker (factory/processed) → Collector Service → TimescaleDB
+
+Supported Data Types:
+  - UNREAL: Unreal Engine factory simulation data (conveyors, placers)
+  - sensor: PLC sensor data with signal configurations
+
+Environment Variables:
+  TIMESCALE_HOST     - TimescaleDB hostname (default: timescale)
+  TIMESCALE_PORT     - TimescaleDB port (default: 5432)
+  TIMESCALE_USER     - Database username (default: virtplc)
+  TIMESCALE_PASSWORD - Database password (default: changeme)
+  TIMESCALE_DB       - Database name (default: virtplc_ts)
+  MQTT_BROKER        - MQTT broker hostname (default: mqtt)
+  MQTT_PORT          - MQTT broker port (default: 1883)
+  MQTT_USERNAME      - MQTT username (optional)
+  MQTT_PASSWORD      - MQTT password (optional)
+*/
 package main
 
 import (
@@ -12,20 +37,25 @@ import (
 	_ "github.com/lib/pq"
 )
 
+// DeviceData represents the enriched data structure received from Node-RED
+// via MQTT. It contains device telemetry along with quality metrics and
+// processing metadata added by the Node-RED enrichment pipeline.
 type DeviceData struct {
-	DeviceID       string                 `json:"device_id"`
-	Type           string                 `json:"type"`
-	Timestamp      float64                `json:"timestamp"`
-	Data           map[string]interface{} `json:"data"`
-	Metadata       map[string]interface{} `json:"metadata"`
-	ProcessedAt    string                 `json:"processed_at,omitempty"`
-	NodeRedVersion string                 `json:"node_red_version,omitempty"`
-	TopicOriginal  string                 `json:"topic_original,omitempty"`
-	DataQuality    map[string]interface{} `json:"data_quality,omitempty"`
-	Category       string                 `json:"category,omitempty"`
-	Priority       string                 `json:"priority,omitempty"`
+	DeviceID       string                 `json:"device_id"`        // Unique device identifier
+	Type           string                 `json:"type"`             // Device type (UNREAL or sensor)
+	Timestamp      float64                `json:"timestamp"`        // Unix timestamp (seconds since epoch)
+	Data           map[string]interface{} `json:"data"`             // Raw telemetry data (RPM, position, etc.)
+	Metadata       map[string]interface{} `json:"metadata"`         // Additional device metadata
+	ProcessedAt    string                 `json:"processed_at,omitempty"`    // Node-RED processing timestamp
+	NodeRedVersion string                 `json:"node_red_version,omitempty"` // Node-RED version info
+	TopicOriginal  string                 `json:"topic_original,omitempty"`   // Original MQTT topic
+	DataQuality    map[string]interface{} `json:"data_quality,omitempty"`     // Quality validation results
+	Category       string                 `json:"category,omitempty"`         // Data category
+	Priority       string                 `json:"priority,omitempty"`         // Message priority
 }
 
+// main initializes the collector service, establishes connections to
+// TimescaleDB and MQTT broker, and sets up message handlers.
 func main() {
 	// Database configuration
 	dbHost := getEnv("TIMESCALE_HOST", "timescale")
@@ -73,9 +103,13 @@ func main() {
 
 	log.Printf("Connected to MQTT broker")
 
-	// Subscribe to Collector data (from Node-RED)
+	// Subscribe to enriched data from Node-RED
+	// The collector/ingest topic receives data that has already been validated
+	// and enriched by Node-RED, including quality metrics and metadata.
 	client.Subscribe("collector/ingest", 0, func(client MQTT.Client, msg MQTT.Message) {
 		log.Printf("DEBUG: Received MQTT message: %s", string(msg.Payload()))
+		
+		// Parse incoming JSON message
 		var data DeviceData
 		if err := json.Unmarshal(msg.Payload(), &data); err != nil {
 			log.Printf("Failed to parse MQTT message: %v", err)
@@ -84,7 +118,7 @@ func main() {
 		log.Printf("DEBUG: Parsed device_id=%s type=%s timestamp=%f", data.DeviceID, data.Type, data.Timestamp)
 		log.Printf("DEBUG: Data map: %+v", data.Data)
 
-		// Process and store data
+		// Process and persist to TimescaleDB
 		if err := processAndStore(db, data); err != nil {
 			log.Printf("Failed to process and store data: %v", err)
 		} else {
@@ -92,10 +126,19 @@ func main() {
 		}
 	})
 
-	// Keep running
-	select {}
-}
-
+// connectDatabase establishes a connection to TimescaleDB using PostgreSQL driver.
+// It verifies the connection with a ping before returning.
+//
+// Parameters:
+//   - host: Database hostname
+//   - port: Database port
+//   - user: Database username
+//   - password: Database password
+//   - dbname: Database name
+//
+// Returns:
+//   - *sql.DB: Database connection handle
+//   - error: Connection error if any
 func connectDatabase(host, port, user, password, dbname string) (*sql.DB, error) {
 	connStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
 		host, port, user, password, dbname)
@@ -103,6 +146,27 @@ func connectDatabase(host, port, user, password, dbname string) (*sql.DB, error)
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
 		return nil, err
+	}
+// processAndStore extracts relevant fields from DeviceData and inserts them
+// into TimescaleDB's plc_data hypertable. It handles different device types
+// (UNREAL vs sensor) and extracts type-specific fields into dedicated columns.
+//
+// Data Mapping:
+//   - UNREAL devices: RPM, position, and state fields extracted
+//   - sensor devices: Signal value extracted from signal_config
+//   - All types: Full data and metadata stored as JSONB
+//
+// Parameters:
+//   - db: Database connection handle
+//   - data: Enriched device data from Node-RED
+//
+// Returns:
+//   - error: Database insertion error if any
+func processAndStore(db *sql.DB, data DeviceData) error {
+	timestamp := time.Unix(int64(data.Timestamp), 0)
+
+	// Enrich metadata with Node-RED processing information
+	// This preserves all enrichment data added by the Node-RED pipeline
 	}
 
 	if err := db.Ping(); err != nil {
@@ -167,6 +231,15 @@ func processAndStore(db *sql.DB, data DeviceData) error {
 		}
 		if isReadyVal, ok := data.Data["is_ready"].(bool); ok {
 			inOperation = &isReadyVal  // Map is_ready to in_operation column
+// getEnv retrieves an environment variable with a fallback default value.
+// This is used for configuration with sensible defaults for development.
+//
+// Parameters:
+//   - key: Environment variable name
+//   - defaultValue: Value to return if environment variable is not set
+//
+// Returns:
+//   - string: Environment variable value or default
 		}
 	} else if data.Type == "sensor" {
 		// Handle sensor data - extract value from signal_config and store in rpm column

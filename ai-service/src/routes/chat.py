@@ -782,3 +782,58 @@ async def chat_stream(request: ChatRequest):
         stream_func(request.message),
         media_type="text/event-stream"
     )
+
+
+@router.post("/claude")
+async def chat_with_claude(request: ChatRequest) -> ChatResponse:
+    """
+    Chat endpoint specifically for Claude AI model.
+    Provides direct access to Claude without the complex tool-calling system.
+    """
+    try:
+        logger.info(f"Processing Claude chat request: {request.message[:100]}...")
+
+        # Claude system prompt - more conversational and helpful
+        claude_system_prompt = """You are Claude, an AI assistant specialized in industrial IoT systems and data analysis.
+
+You have access to a VirtPLC system with:
+- Real-time sensor data from industrial equipment
+- Time-series database with historical data
+- PLC control systems and automation
+- Data visualization capabilities
+
+Help users with:
+- Analyzing sensor data and trends
+- Troubleshooting industrial equipment
+- Optimizing manufacturing processes
+- Predictive maintenance insights
+- Data visualization recommendations
+
+Be conversational, helpful, and provide actionable insights. If users need specific data queries, suggest what information would be helpful to retrieve."""
+
+        # Generate response using Claude
+        response_text = await claude_client.generate_text(
+            prompt=request.message,
+            system_prompt=claude_system_prompt
+        )
+
+        # Create response
+        response = ChatResponse(
+            response=response_text,
+            session_id=request.session_id or 1,
+            metadata={
+                "model": "claude",
+                "provider": "anthropic",
+                "system_prompt": "industrial_iot_specialist"
+            }
+        )
+
+        logger.info(f"Claude response generated, length: {len(response_text)}")
+        return response
+
+    except Exception as e:
+        logger.error(f"Error in Claude chat: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Claude service error: {str(e)}"
+        )

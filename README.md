@@ -4,28 +4,58 @@ An Accenture Challenge - Full-Stack IIoT Platform with Multi-Tenant Architecture
 
 ## Overview
 
-Complete Industrial IoT platform providing real-time PLC data collection, AI-powered analytics, and multi-tenant SaaS deployment capabilities. Features MQTT-based data pipeline with Node-RED enrichment, TimescaleDB for time-series storage, and Kubernetes-ready multi-tenant isolation.
+VirtPLC is a comprehensive Industrial IoT platform providing real-time PLC data collection, AI-powered analytics, and multi-tenant SaaS deployment capabilities. The system features an MQTT-based data pipeline with Node-RED enrichment, TimescaleDB for time-series storage, and Kubernetes-ready multi-tenant isolation.
+
+**Key Capabilities:**
+- 🏭 Real-time industrial data collection from PLCs and IoT devices
+- 📊 AI-powered natural language queries and analytics
+- 🔄 High-performance data pipeline with automatic enrichment
+- 🏢 Multi-tenant SaaS architecture with complete isolation
+- 📈 Advanced time-series data storage and analysis
+- 🎨 Modern web-based HMI and dashboards
 
 ## Project Structure
 
 ```
-IgnitionEdge/          # Ignition Edge Gateway files
-├── config/            # Gateway configuration
-├── projects/          # HMI projects
-└── tags/              # Tag definitions
-
-PLCLogic/              # PLC control logic
-├── ladder/            # Ladder logic files
-└── structured/        # Structured text programs
-
-TimeBaseDB/            # TimeBaseDB configuration
-└── config/            # Database and retention policies
-
-Docs/                  # Documentation
-├── Setup.md           # Installation guide
-├── HMI-Design.md      # HMI layout specifications
-├── Tag-Configuration.md  # Tag definitions
-└── Integration.md     # Backend integration guide
+VirtPLC/
+├── ai-service/           # AI/ML service (FastAPI + Ollama)
+│   ├── src/             # Python source code
+│   ├── tests/           # Unit and integration tests
+│   └── README.md        # AI service documentation
+├── backend/             # REST API (Spring Boot)
+│   ├── src/             # Java source code
+│   └── README.md        # Backend API documentation
+├── collector/           # MQTT to TimescaleDB ingestion (Go)
+│   ├── main.go          # Main collector service
+│   └── README.md        # Collector documentation
+├── frontend/            # Web UI (React + TypeScript + Vite)
+│   ├── src/             # React components and pages
+│   └── README.md        # Frontend documentation
+├── HMI/                 # Ignition HMI integration
+│   └── README.md        # HMI setup guide
+├── nodered/             # Data enrichment pipeline
+│   ├── flows/           # Node-RED flow configurations
+│   └── README.md        # Pipeline documentation
+├── simulator/           # PLC/factory simulator
+│   └── README.md        # Simulator documentation
+├── nginx/               # Reverse proxy and API gateway
+│   └── README.md        # NGINX configuration guide
+├── monitoring/          # Observability stack (Prometheus, Grafana)
+│   └── README.md        # Monitoring setup guide
+├── kubernetes/          # K8s multi-tenant deployment
+│   ├── namespaces.yaml  # Namespace configurations
+│   ├── services.yaml    # Service definitions
+│   └── README.md        # Kubernetes deployment guide
+├── infra/               # Infrastructure as Code
+│   ├── helm/            # Helm charts
+│   └── k8s/             # Kubernetes manifests
+├── docs/                # Comprehensive documentation
+│   ├── deployment/      # Deployment guides
+│   ├── testing/         # Testing documentation
+│   └── README.md        # Documentation index
+├── scripts/             # Utility and maintenance scripts
+│   └── README.md        # Scripts documentation
+└── docker-compose.yml   # Local development setup
 ```
 
 ## Quick Start

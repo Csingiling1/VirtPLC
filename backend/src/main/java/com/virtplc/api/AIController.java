@@ -15,12 +15,13 @@ public class AIController {
     private AIService aiService;
 
     @PostMapping("/chat")
-    public ResponseEntity<Map<String, Object>> chat(@RequestBody Map<String, String> request) {
+    public ResponseEntity<Map<String, Object>> chat(@RequestBody Map<String, Object> request) {
         try {
-            String message = request.get("message");
-            String context = request.get("context");
+            String message = (String) request.get("message");
+            String context = (String) request.get("context");
+            String model = (String) request.getOrDefault("model", "ollama");
 
-            Map<String, Object> response = aiService.chat(message, context);
+            Map<String, Object> response = aiService.chat(message, context, model);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of(

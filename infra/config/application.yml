@@ -1,0 +1,148 @@
+# VirtPLC Microservice Configuration
+# This file demonstrates centralized configuration management
+# In production, this would be managed by Spring Cloud Config Server
+
+# Common configuration shared across all services
+spring:
+  application:
+    name: virtplc-platform
+
+  # Centralized logging configuration
+  logging:
+    level:
+      com.virtplc: INFO
+      org.springframework.security: DEBUG
+    pattern:
+      console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+      file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
+# Service discovery (Eureka alternative with Consul or Kubernetes)
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+
+# Circuit breaker configuration
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10000
+        permitted-number-of-calls-in-half-open-state: 3
+        sliding-window-size: 10
+    instances:
+      ai-service:
+        base-config: default
+      simulator:
+        base-config: default
+        failure-rate-threshold: 60
+
+  retry:
+    configs:
+      default:
+        max-attempts: 3
+        wait-duration: 500
+    instances:
+      ai-service-retry:
+        base-config: default
+
+# Centralized monitoring and metrics
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+  health:
+    circuitbreakers:
+      enabled: true
+
+# Database connection pooling (HikariCP)
+spring:
+  datasource:
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      idle-timeout: 300000
+      max-lifetime: 1200000
+      connection-timeout: 20000
+
+# Redis cluster configuration
+data:
+  redis:
+    cluster:
+      nodes:
+        - localhost:6379
+        - localhost:6380
+        - localhost:6381
+    timeout: 2000ms
+
+# Message queue configuration
+rabbitmq:
+  addresses: localhost:5672,localhost:5673
+  username: ${RABBITMQ_USER:virtplc}
+  password: ${RABBITMQ_PASSWORD:changeme}
+  virtual-host: /
+  connection-timeout: 60000
+
+# External service URLs (environment-specific)
+services:
+  ai-service:
+    url: http://localhost:3001
+  simulator:
+    url: http://localhost:5000
+  backend:
+    url: http://localhost:8080
+
+# Security configuration
+security:
+  jwt:
+    secret: ${JWT_SECRET:your-super-secret-key-change-in-production}
+    expiration: 86400000  # 24 hours
+  oauth2:
+    providers:
+      google:
+        client-id: ${GOOGLE_CLIENT_ID}
+        client-secret: ${GOOGLE_CLIENT_SECRET}
+
+# Feature flags for gradual rollouts
+features:
+  ai-analytics: true
+  real-time-monitoring: true
+  predictive-maintenance: false
+  advanced-dashboards: true
+
+# Environment-specific overrides
+---
+spring:
+  profiles: production
+
+services:
+  ai-service:
+    url: https://ai.virtplc.com
+  simulator:
+    url: https://simulator.virtplc.com
+  backend:
+    url: https://api.virtplc.com
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus,circuitbreakers
+
+---
+spring:
+  profiles: staging
+
+services:
+  ai-service:
+    url: https://ai-staging.virtplc.com
+  simulator:
+    url: https://simulator-staging.virtplc.com
+  backend:
+    url: https://api-staging.virtplc.com

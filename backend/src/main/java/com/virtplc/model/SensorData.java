@@ -26,6 +26,8 @@ public class SensorData {
     private Boolean conveyor1Run;
     private Double sensor1Value;
     private Boolean sensor2Value;
+    private Double placer1Position;
+    private Boolean placer1Run;
     private String systemStatus;
     private Integer quality;
 }

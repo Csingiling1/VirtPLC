@@ -54,6 +54,27 @@ cors:
     - "*"
   allow-credentials: true
 
+# OAuth2 Configuration
+security:
+  oauth2:
+    client:
+      registration:
+        google:
+          client-id: ${GOOGLE_CLIENT_ID:}
+          client-secret: ${GOOGLE_CLIENT_SECRET:}
+          scope: openid,email,profile
+          redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+        microsoft:
+          client-id: ${MICROSOFT_CLIENT_ID:}
+          client-secret: ${MICROSOFT_CLIENT_SECRET:}
+          scope: openid,email,profile
+          redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+        ignition:
+          client-id: ${IGNITION_CLIENT_ID:}
+          client-secret: ${IGNITION_CLIENT_SECRET:}
+          scope: openid,email,profile
+          redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+
 logging:
   level:
     com.virtplc: DEBUG
@@ -82,6 +103,16 @@ management:
       enabled: true
     db:
       enabled: true
+
+# OpenAPI/Swagger Configuration
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operationsSorter: method
+    tagsSorter: alpha
+  show-actuator: true
 
 # Custom Metrics Configuration
 metrics:

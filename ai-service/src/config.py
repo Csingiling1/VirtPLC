@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     # Server
     host: str = Field(default="0.0.0.0", env="HOST")
     port: int = Field(default=3001, env="PORT")
+    grpc_port: int = Field(default=9091, env="GRPC_PORT")
     ws_port: int = Field(default=3002, env="WS_PORT")
     environment: str = Field(default="development", env="ENVIRONMENT")
     

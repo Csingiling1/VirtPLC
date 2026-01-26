@@ -133,10 +133,44 @@ CREATE INDEX IF NOT EXISTS idx_plcs_factory_id ON plcs (factory_id);
 CREATE INDEX IF NOT EXISTS idx_sensors_sensor_id ON sensors (sensor_id);
 CREATE INDEX IF NOT EXISTS idx_sensors_plc_id ON sensors (plc_id);
 
--- Create indexes
-CREATE INDEX IF NOT EXISTS idx_users_email ON users (email);
-CREATE INDEX IF NOT EXISTS idx_users_company_id ON users (company_id);
-CREATE INDEX IF NOT EXISTS idx_companies_domain ON companies (domain);
+-- Devices table
+CREATE TABLE IF NOT EXISTS devices
+(
+    id BIGSERIAL PRIMARY KEY,
+    device_id VARCHAR(255) NOT NULL UNIQUE,
+    device_name VARCHAR(255) NOT NULL,
+    device_type VARCHAR(255) NOT NULL,
+    manufacturer_id VARCHAR(255),
+    factory_id VARCHAR(255),
+    plc_id VARCHAR(255),
+    description VARCHAR(1000),
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    data_timeout_seconds INTEGER NOT NULL DEFAULT 300,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ
+);
+
+-- Device mappings table
+CREATE TABLE IF NOT EXISTS device_mappings
+(
+    id BIGSERIAL PRIMARY KEY,
+    device_id BIGINT NOT NULL REFERENCES devices(id),
+    field_name VARCHAR(255) NOT NULL,
+    field_type VARCHAR(255) NOT NULL,
+    value_path VARCHAR(255),
+    status_path VARCHAR(255),
+    unit VARCHAR(255),
+    multiplier DOUBLE PRECISION NOT NULL DEFAULT 1.0,
+    value_offset DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_devices_device_id ON devices (device_id);
+CREATE INDEX IF NOT EXISTS idx_devices_device_type ON devices (device_type);
+CREATE INDEX IF NOT EXISTS idx_device_mappings_device_id ON device_mappings (device_id);
+CREATE INDEX IF NOT EXISTS idx_device_mappings_field_name ON device_mappings (field_name);
 
 -- Initialize TimescaleDB hypertable for sensor data
 -- This script creates the hypertable for time-series optimization

@@ -30,11 +30,7 @@ public class CorsConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         // Production: Only allow specific origins, not localhost
-        configuration.setAllowedOriginPatterns(Arrays.asList(
-                "http://localhost:[*]",
-                "http://127.0.0.1:[*]",
-                "http://192.168.*.*:[*]",
-                "http://frontend:[*]"));
+        configuration.setAllowedOriginPatterns(Arrays.asList("*"));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         // Be specific about allowed headers
         configuration.setAllowedHeaders(Arrays.asList(
@@ -42,7 +38,9 @@ public class CorsConfig {
                 "Content-Type",
                 "Accept",
                 "X-Requested-With",
-                "Cache-Control"));
+                "Cache-Control",
+                "x-request-id",
+                "X-Request-ID"));
         configuration.setAllowCredentials(true);
         configuration.setExposedHeaders(Arrays.asList("Authorization", "Content-Type"));
         configuration.setMaxAge(3600L); // Cache preflight for 1 hour

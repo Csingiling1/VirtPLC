@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VirtPLC API Documentation</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 50px;
+        }
+        .header h1 {
+            font-size: 3em;
+            margin-bottom: 10px;
+            font-weight: 300;
+        }
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+        .api-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 30px;
+            margin-bottom: 50px;
+        }
+        .api-card {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            text-decoration: none;
+            color: inherit;
+            display: block;
+        }
+        .api-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+        }
+        .api-card h3 {
+            color: #333;
+            margin-top: 0;
+            margin-bottom: 15px;
+            font-size: 1.5em;
+        }
+        .api-card p {
+            color: #666;
+            margin-bottom: 20px;
+            line-height: 1.6;
+        }
+        .api-card .tech-stack {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+        .tech-badge {
+            background: #f0f0f0;
+            color: #666;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 500;
+        }
+        .api-link {
+            display: inline-flex;
+            align-items: center;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-decoration: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 500;
+            transition: opacity 0.3s ease;
+        }
+        .api-link:hover {
+            opacity: 0.9;
+        }
+        .api-link::after {
+            content: "→";
+            margin-left: 8px;
+            transition: transform 0.3s ease;
+        }
+        .api-link:hover::after {
+            transform: translateX(3px);
+        }
+        .architecture-section {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            margin-top: 50px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+        .architecture-section h2 {
+            color: #333;
+            margin-top: 0;
+            margin-bottom: 20px;
+            font-size: 2em;
+        }
+        .arch-diagram {
+            text-align: center;
+            margin: 30px 0;
+        }
+        .arch-diagram img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        .footer {
+            text-align: center;
+            color: white;
+            margin-top: 50px;
+            opacity: 0.8;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 VirtPLC API Documentation</h1>
+            <p>Industrial IoT Platform for Factory Automation and AI-Powered Analytics</p>
+        </div>
+
+        <div class="api-grid">
+            <div class="api-card">
+                <h3>🔧 Backend API</h3>
+                <p>Spring Boot REST API providing authentication, device management, data ingestion, and dashboard functionality for the VirtPLC platform.</p>
+                <div class="tech-stack">
+                    <span class="tech-badge">Spring Boot 3.2</span>
+                    <span class="tech-badge">Java 21</span>
+                    <span class="tech-badge">JWT</span>
+                    <span class="tech-badge">PostgreSQL</span>
+                    <span class="tech-badge">MQTT</span>
+                </div>
+                <a href="/swagger-ui/index.html" class="api-link">View Documentation</a>
+            </div>
+
+            <div class="api-card">
+                <h3>🤖 AI Service API</h3>
+                <p>FastAPI-based AI service for predictive analytics, machine learning models, and intelligent factory monitoring using Ollama and MCP.</p>
+                <div class="tech-stack">
+                    <span class="tech-badge">FastAPI</span>
+                    <span class="tech-badge">Python 3.11</span>
+                    <span class="tech-badge">Ollama</span>
+                    <span class="tech-badge">WebSocket</span>
+                    <span class="tech-badge">gRPC</span>
+                </div>
+                <a href="/ai/docs" class="api-link">View Documentation</a>
+            </div>
+
+            <div class="api-card">
+                <h3>📊 Simulator API</h3>
+                <p>PLC simulator service that generates realistic factory data for testing and development purposes.</p>
+                <div class="tech-stack">
+                    <span class="tech-badge">Python</span>
+                    <span class="tech-badge">FastAPI</span>
+                    <span class="tech-badge">WebSocket</span>
+                    <span class="tech-badge">MQTT</span>
+                </div>
+                <a href="/simulator/docs" class="api-link">View Documentation</a>
+            </div>
+
+            <div class="api-card">
+                <h3>📈 Data Collector</h3>
+                <p>Go-based service for collecting and processing time-series data from PLC devices via MQTT and storing in TimescaleDB.</p>
+                <div class="tech-stack">
+                    <span class="tech-badge">Go 1.23</span>
+                    <span class="tech-badge">MQTT</span>
+                    <span class="tech-badge">TimescaleDB</span>
+                    <span class="tech-badge">Prometheus</span>
+                </div>
+                <a href="/collector/metrics" class="api-link">View Metrics</a>
+            </div>
+        </div>
+
+        <div class="architecture-section">
+            <h2>🏗️ Microservice Architecture</h2>
+            <p>The VirtPLC platform follows a modern microservice architecture designed for scalability, resilience, and maintainability:</p>
+
+            <div class="arch-diagram">
+                <img src="/docs/ARCHITECTURE_DIAGRAM.md" alt="VirtPLC Architecture Diagram" style="display: none;">
+                <div style="border: 2px dashed #ddd; padding: 40px; border-radius: 8px; background: #f9f9f9;">
+                    <h3>Architecture Overview</h3>
+                    <ul style="text-align: left; max-width: 600px; margin: 0 auto;">
+                        <li><strong>API Gateway:</strong> Nginx reverse proxy with rate limiting</li>
+                        <li><strong>Authentication:</strong> JWT-based with OAuth2 support</li>
+                        <li><strong>Data Layer:</strong> PostgreSQL + TimescaleDB for time-series</li>
+                        <li><strong>Messaging:</strong> RabbitMQ MQTT for real-time data</li>
+                        <li><strong>Caching:</strong> Redis for session management and performance</li>
+                        <li><strong>Monitoring:</strong> Prometheus metrics across all services</li>
+                        <li><strong>AI/ML:</strong> Ollama models with MCP for intelligent analytics</li>
+                    </ul>
+                </div>
+            </div>
+
+            <h3>Key Features:</h3>
+            <ul style="text-align: left; max-width: 800px; margin: 0 auto;">
+                <li><strong>Scalability:</strong> Services can be scaled independently based on load</li>
+                <li><strong>Resilience:</strong> Circuit breakers and health checks prevent cascade failures</li>
+                <li><strong>Observability:</strong> Comprehensive logging, metrics, and tracing</li>
+                <li><strong>Security:</strong> JWT authentication, CORS, and secure communication</li>
+                <li><strong>Real-time:</strong> WebSocket and MQTT for live data streaming</li>
+                <li><strong>AI Integration:</strong> Machine learning models for predictive maintenance</li>
+            </ul>
+        </div>
+
+        <div class="footer">
+            <p>&copy; 2024 VirtPLC. Built for Industrial IoT and Smart Manufacturing.</p>
+        </div>
+    </div>
+</body>
+</html>

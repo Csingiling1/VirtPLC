@@ -31,7 +31,65 @@ Each computer uses different subnets:
 
 ## Deployment Instructions
 
-### Step 1: PLC Setup
+### Automated Deployment (Recommended)
+
+The `deploy-essen-demo.sh` script automates the entire deployment process with machine detection, IP configuration, and service orchestration.
+
+#### Prerequisites
+- Docker and Docker Compose installed on all machines
+- Network connectivity between all machines
+- At least 16GB RAM recommended for AI PC
+
+#### Quick Start
+1. **Clone the repository** on each machine:
+   ```bash
+   git clone <repository-url>
+   cd VirtPLC/essen-demo
+   ```
+
+2. **Run the deployment script** on each machine:
+   ```bash
+   ./deploy-essen-demo.sh
+   ```
+
+3. **Follow the interactive prompts**:
+   - Select your machine type (or let it auto-detect)
+   - Enter IP addresses of other machines
+   - Confirm deployment
+
+#### Machine Types Supported
+- **Windows Machine**: Deploys Data Services (PostgreSQL + TimescaleDB) + PLC Simulator
+- **Main AI PC**: Deploys full application stack (Backend, Frontend, AI, Redis, Ollama)
+- **PLC Machine**: Deploys industrial control services (Ignition, RabbitMQ, Node-RED)
+
+#### What the Script Does
+- Auto-detects your machine type and local IP
+- Prompts for IP addresses of other machines
+- Generates environment files with proper configurations
+- Creates required Docker networks
+- Deploys services in the correct order
+- Provides access URLs and monitoring commands
+
+#### Environment Variables Generated
+The script creates `.env.{machine_type}` files with all necessary configuration:
+
+```bash
+# Example .env.ai file
+JWT_SECRET=your-essen-demo-secret-key-change-in-production
+MQTT_USERNAME=virtplc
+MQTT_PASSWORD=virtplc123
+NODE_RED_CREDENTIAL_SECRET=your-nodered-secret-key
+
+# Network Configuration
+WINDOWS_IP=192.168.1.102
+HISTORIAN_IP=192.168.1.103
+PLC_IP=192.168.1.100
+MAIN_IP=192.168.1.101
+```
+
+### Manual Deployment (Alternative)
+
+If you prefer manual deployment or need custom configuration:
 On the PLC machine:
 
 ```bash
@@ -156,6 +214,26 @@ ping <other_computer_ip>
 # Test service ports
 telnet <service_ip> <port>
 ```
+
+### Automated Script Troubleshooting
+
+1. **IP Detection Issues**:
+   - If auto-detection fails, manually specify IP addresses when prompted
+   - Check network interface: `ip addr show` (Linux) or `ipconfig` (Windows)
+
+2. **Service Startup Failures**:
+   - Check generated `.env.*` files for correct IP configurations
+   - Verify Docker networks were created: `docker network ls`
+   - Review service logs: `docker-compose -f docker-compose.{type}.yml logs -f`
+
+3. **Network Connectivity**:
+   - Test inter-machine connectivity: `ping <other_machine_ip>`
+   - Ensure firewalls allow required ports
+   - Check Docker network connectivity: `docker network inspect virtplc_data_network`
+
+4. **Permission Issues**:
+   - Make script executable: `chmod +x deploy-essen-demo.sh`
+   - Run with appropriate user permissions for Docker
 
 ### Common Issues
 

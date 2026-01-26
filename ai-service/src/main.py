@@ -27,30 +27,71 @@ async def lifespan(app: FastAPI):
     """Startup and shutdown events"""
     # Startup
     logger.info("Starting VirtPLC AI Service (Python)")
-    
+
     # Initialize database
     engine = get_engine()
     Base.metadata.create_all(bind=engine)
     logger.info("Database initialized")
-    
+
     # Initialize MCP
     try:
         await mcp_client.initialize()
     except Exception as e:
         logger.warning(f"MCP initialization failed: {e}")
-    
+
+    # Start gRPC server
+    # from .services.grpc_service import create_grpc_server
+    # grpc_server = await create_grpc_server(
+    #     host=settings.host,
+    #     port=settings.grpc_port
+    # )
+    # await grpc_server.start()
+    # logger.info(f"gRPC server started on port {settings.grpc_port}")
+
+    # Store grpc_server for shutdown
+    # app.state.grpc_server = grpc_server
+
     yield
-    
+
     # Shutdown
     logger.info("Shutting down AI Service")
+    # await grpc_server.stop(grace=5.0)
     await mcp_client.close()
-
-
 # Create FastAPI app
 app = FastAPI(
-    title="VirtPLC AI Service",
-    description="AI-powered predictive analysis for factory monitoring",
+    title="VirtPLC AI Service API",
+    description="""
+    AI-powered analytics service for industrial IoT and factory automation.
+
+    ## Features
+
+    * **Predictive Analytics**: Machine learning models for equipment failure prediction
+    * **Real-time Analysis**: WebSocket-based live data processing and insights
+    * **MCP Integration**: Model Context Protocol for AI agent communication
+    * **Ollama Models**: Local LLM deployment for privacy-preserving AI
+    * **Factory Data Analysis**: Specialized algorithms for manufacturing data
+
+    ## Authentication
+
+    All endpoints require JWT authentication via Bearer token in the Authorization header.
+
+    ## WebSocket Endpoints
+
+    Real-time communication channels for:
+    * Live chat with AI assistants
+    * Real-time analytics streaming
+    * Factory data monitoring alerts
+    """,
     version="1.0.0",
+    contact={
+        "name": "VirtPLC AI Team",
+        "email": "ai@virtplc.com",
+        "url": "https://github.com/Csingiling1/VirtPLC"
+    },
+    license_info={
+        "name": "MIT License",
+        "url": "https://opensource.org/licenses/MIT"
+    },
     lifespan=lifespan
 )
 
@@ -67,6 +108,16 @@ app.add_middleware(
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
+    grpc_status = "unknown"
+    try:
+        # Check if gRPC server is running
+        if hasattr(app.state, 'grpc_server') and app.state.grpc_server:
+            grpc_status = "running"
+        else:
+            grpc_status = "not_started"
+    except Exception:
+        grpc_status = "error"
+
     return {
         "status": "healthy",
         "timestamp": datetime.utcnow().isoformat(),
@@ -74,7 +125,13 @@ async def health_check():
         "services": {
             "mcp": "connected" if mcp_client.enabled else "disabled",
             "database": "connected" if mcp_client.enabled else "disconnected",
-            "ollama": settings.ollama_host
+            "ollama": settings.ollama_host,
+            "grpc": grpc_status,
+            "ports": {
+                "http": settings.port,
+                "grpc": settings.grpc_port,
+                "websocket": settings.ws_port
+            }
         }
     }
 

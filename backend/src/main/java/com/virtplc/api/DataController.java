@@ -37,6 +37,13 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.http.HttpMethod;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.annotation.Propagation;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
  * REST controller for sensor data and time-series queries.
@@ -45,6 +52,7 @@ import org.springframework.transaction.annotation.Propagation;
 @RestController
 @RequestMapping("/api/data")
 @RequiredArgsConstructor
+@Tag(name = "Data API", description = "Endpoints for retrieving PLC and sensor data")
 public class DataController {
 
     private final DataService dataService;
@@ -61,6 +69,11 @@ public class DataController {
      * Get latest sensor readings from all devices.
      */
     @GetMapping("/latest")
+    @Operation(summary = "Get latest sensor data", description = "Retrieves the most recent sensor readings from all connected PLC devices")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Latest sensor data retrieved successfully", content = @Content(mediaType = "application/json", schema = @Schema(implementation = SensorData.class))),
+            @ApiResponse(responseCode = "500", description = "Internal server error")
+    })
     public ResponseEntity<SensorData> getLatestData(HttpServletRequest request) {
         log.debug("GET /api/data/latest");
 
@@ -73,10 +86,16 @@ public class DataController {
      * Get historical data for a specific device
      */
     @GetMapping("/device/{deviceId}/history")
+    @Operation(summary = "Get device historical data", description = "Retrieves historical time-series data for a specific PLC device within the specified time range")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Historical data retrieved successfully", content = @Content(mediaType = "application/json")),
+            @ApiResponse(responseCode = "400", description = "Invalid request parameters"),
+            @ApiResponse(responseCode = "500", description = "Internal server error")
+    })
     public ResponseEntity<List<Map<String, Object>>> getDeviceHistory(
-            @PathVariable String deviceId,
-            @RequestParam Long startTime,
-            @RequestParam Long endTime) {
+            @Parameter(description = "Device ID to retrieve data for", required = true, example = "PLC001") @PathVariable String deviceId,
+            @Parameter(description = "Start time in milliseconds since epoch", required = true, example = "1705536000000") @RequestParam Long startTime,
+            @Parameter(description = "End time in milliseconds since epoch", required = true, example = "1705622400000") @RequestParam Long endTime) {
         log.info("GET /api/data/device/{}/history?startTime={}&endTime={}", deviceId, startTime, endTime);
 
         // Input validation to prevent injection attacks

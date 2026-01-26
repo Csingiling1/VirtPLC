@@ -1,0 +1,62 @@
+{
+    "dashboard": {
+        "id": null,
+        "title": "VirtPLC Application Logs",
+        "tags": [
+            "virtplc",
+            "logs"
+        ],
+        "timezone": "browser",
+        "panels": [
+            {
+                "id": 1,
+                "title": "Application Logs",
+                "type": "logs",
+                "targets": [
+                    {
+                        "expr": "{namespace=\"virtplc\"} | json",
+                        "legendFormat": ""
+                    }
+                ],
+                "gridPos": {
+                    "h": 16,
+                    "w": 24,
+                    "x": 0,
+                    "y": 0
+                },
+                "options": {
+                    "showTime": true,
+                    "showLabels": false,
+                    "showCommonLabels": false,
+                    "wrapLogMessage": true,
+                    "prettifyLogMessage": true,
+                    "enableLogDetails": true,
+                    "dedupStrategy": "none",
+                    "sortOrder": "Descending"
+                }
+            }
+        ],
+        "time": {
+            "from": "now-15m",
+            "to": "now"
+        },
+        "timepicker": {},
+        "templating": {
+            "list": [
+                {
+                    "name": "service",
+                    "type": "query",
+                    "query": "label_values(container_label_com_docker_compose_service)",
+                    "datasource": "Prometheus"
+                }
+            ]
+        },
+        "annotations": {
+            "list": []
+        },
+        "refresh": "5s",
+        "schemaVersion": 27,
+        "version": 0,
+        "links": []
+    }
+}

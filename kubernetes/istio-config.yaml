@@ -1,0 +1,172 @@
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: virtplc-gateway
+  namespace: virtplc
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+    - port:
+        number: 80
+        name: http
+        protocol: HTTP
+      hosts:
+        - "*"
+    - port:
+        number: 443
+        name: https
+        protocol: HTTPS
+      tls:
+        mode: SIMPLE
+        credentialName: virtplc-tls
+      hosts:
+        - "api.virtplc.com"
+        - "ai.virtplc.com"
+        - "simulator.virtplc.com"
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: virtplc-backend
+  namespace: virtplc
+spec:
+  hosts:
+    - "api.virtplc.com"
+  gateways:
+    - virtplc-gateway
+  http:
+    - match:
+        - uri:
+            prefix: "/api"
+      route:
+        - destination:
+            host: virtplc-backend
+            port:
+              number: 8080
+    - match:
+        - uri:
+            prefix: "/swagger-ui"
+      route:
+        - destination:
+            host: virtplc-backend
+            port:
+              number: 8080
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: virtplc-ai-service
+  namespace: virtplc
+spec:
+  hosts:
+    - "ai.virtplc.com"
+  gateways:
+    - virtplc-gateway
+  http:
+    - match:
+        - uri:
+            prefix: "/ai"
+      route:
+        - destination:
+            host: virtplc-ai-service
+            port:
+              number: 3001
+    - match:
+        - uri:
+            prefix: "/docs"
+      route:
+        - destination:
+            host: virtplc-ai-service
+            port:
+              number: 3001
+---
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: virtplc-backend-dr
+  namespace: virtplc
+spec:
+  host: virtplc-backend
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 100
+      http:
+        http2MaxRequests: 1000
+        maxRequestsPerConnection: 10
+    outlierDetection:
+      consecutive5xxErrors: 3
+      interval: 10s
+      baseEjectionTime: 30s
+---
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: virtplc-ai-service-dr
+  namespace: virtplc
+spec:
+  host: virtplc-ai-service
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 50
+      http:
+        http2MaxRequests: 500
+        maxRequestsPerConnection: 5
+    outlierDetection:
+      consecutive5xxErrors: 5
+      interval: 15s
+      baseEjectionTime: 60s
+---
+apiVersion: networking.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: default
+  namespace: virtplc
+spec:
+  mtls:
+    mode: PERMISSIVE
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: virtplc-backend-auth
+  namespace: virtplc
+spec:
+  selector:
+    matchLabels:
+      app: virtplc-backend
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals: ["cluster.local/ns/virtplc/sa/virtplc-frontend"]
+      to:
+        - operation:
+            methods: ["GET", "POST", "PUT", "DELETE"]
+            paths: ["/api/*"]
+---
+apiVersion: telemetry.istio.io/v1alpha1
+kind: Telemetry
+metadata:
+  name: virtplc-telemetry
+  namespace: virtplc
+spec:
+  metrics:
+    - providers:
+        - name: prometheus
+      overrides:
+        - match:
+            metric: REQUEST_COUNT
+            mode: CLIENT_AND_SERVER
+          tagOverrides:
+            request_operation:
+              value: "istio_operation_id"
+  tracing:
+    - providers:
+        - name: jaeger
+          port: 9411
+  accessLogging:
+    - providers:
+        - name: envoy

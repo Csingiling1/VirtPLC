@@ -23,7 +23,7 @@ services:
       - main_network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -137,7 +137,7 @@ services:
       args:
         - VITE_WS_URL=ws://localhost:3002
         - VITE_AI_API_URL=http://localhost/ai
-        - VITE_API_BASE_URL=http://localhost/api
+        - VITE_API_BASE_URL=http://backend:8080
     container_name: virtplc-frontend
     expose:
       - "5173"   # Vite dev server (internal only, accessed via nginx)
@@ -146,14 +146,17 @@ services:
     volumes:
       - ./frontend:/app
       - /app/node_modules
-    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5173"]
+    environment:
+      - VITE_WS_URL=ws://localhost:3002
+      - VITE_AI_API_URL=http://localhost/ai
+      - VITE_API_BASE_URL=http://localhost
     depends_on:
       - backend
       - ai-service
     networks:
       - main_network
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:5173"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:5173"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -209,11 +212,13 @@ services:
     ports:
       - "3001:3001"   # REST API
       - "3002:3002"   # WebSocket
+      - "9093:9091"   # gRPC API (internal port 9091, external 9093)
       - "9090:9090"   # Prometheus metrics
     environment:
       - ENVIRONMENT=production
       - LOG_LEVEL=DEBUG
       - PORT=3001
+      - GRPC_PORT=9091
       - WS_PORT=3002
       - BACKEND_API_URL=http://backend:8080
       - MCP_ENABLED=true

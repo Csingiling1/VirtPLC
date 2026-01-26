@@ -102,6 +102,58 @@ public class AuthService {
         return Optional.empty();
     }
 
+    @Transactional
+    public User registerOAuth2User(String email, String firstName, String lastName, String provider) {
+        log.debug("Attempting to register OAuth2 user: {} from provider: {}", email, provider);
+
+        // Check if user already exists
+        Optional<User> existingUser = userRepository.findByEmail(email);
+        if (existingUser.isPresent()) {
+            log.debug("OAuth2 user already exists: {}", email);
+            return existingUser.get();
+        }
+
+        // Create a default company for OAuth2 users
+        String companyDomain = email.split("@")[1] + "-oauth2";
+        Company company = companyRepository.findByDomain(companyDomain)
+                .orElseGet(() -> {
+                    log.debug("Creating new OAuth2 company: {} for domain: {}", provider + " Users", companyDomain);
+                    Company newCompany = Company.builder()
+                            .name(provider + " Users")
+                            .domain(companyDomain)
+                            .displayName(provider + " OAuth2 Users")
+                            .active(true)
+                            .build();
+                    return companyRepository.save(newCompany);
+                });
+
+        // Create user - first user of company becomes ADMIN, others become
+        // MANUFACTURER_ADMIN
+        long companyUserCount = userRepository.countByCompanyId(company.getId());
+        User.Role userRole = (companyUserCount == 0) ? User.Role.ADMIN : User.Role.MANUFACTURER_ADMIN;
+
+        User user = User.builder()
+                .email(email)
+                .password(passwordEncoder.encode("oauth2-" + System.currentTimeMillis())) // Random password for OAuth2
+                                                                                          // users
+                .firstName(firstName)
+                .lastName(lastName)
+                .role(userRole)
+                .company(company)
+                .manufacturer(null)
+                .active(true)
+                .build();
+
+        User savedUser = userRepository.save(user);
+        log.info("Registered new OAuth2 user: {} from provider: {} for company: {} with role: {}", email, provider,
+                company.getName(), userRole);
+        return savedUser;
+    }
+
+    public Optional<User> findByEmail(String email) {
+        return userRepository.findByEmail(email);
+    }
+
     public String generateToken(User user) {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + jwtExpiration);

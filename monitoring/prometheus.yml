@@ -1,0 +1,68 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  # - "first_rules.yml"
+  # - "second_rules.yml"
+
+scrape_configs:
+  # The job name is added as a label `job=<job_name>` to any timeseries scraped from this config.
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # Backend service metrics
+  - job_name: "virtplc-backend"
+    static_configs:
+      - targets: ["virtplc-backend:9090"]
+    scrape_interval: 10s
+    metrics_path: "/actuator/prometheus"
+
+  # AI Service metrics
+  - job_name: "virtplc-ai-service"
+    static_configs:
+      - targets: ["virtplc-ai-service:9090"]
+    scrape_interval: 10s
+
+  # Collector metrics
+  - job_name: "virtplc-collector"
+    static_configs:
+      - targets: ["virtplc-collector:9100"]
+    scrape_interval: 15s
+
+  # PostgreSQL metrics
+  - job_name: "postgres"
+    static_configs:
+      - targets: ["virtplc-postgres:9187"]
+    scrape_interval: 30s
+
+  # Redis metrics
+  - job_name: "redis"
+    static_configs:
+      - targets: ["virtplc-redis:9121"]
+    scrape_interval: 30s
+
+  # RabbitMQ metrics
+  - job_name: "rabbitmq"
+    static_configs:
+      - targets: ["virtplc-rabbitmq:15692"]
+    scrape_interval: 30s
+
+  # Node metrics (for Docker host)
+  - job_name: "node"
+    static_configs:
+      - targets: ["host.docker.internal:9100"]
+    scrape_interval: 30s
+
+  # TimescaleDB metrics (if available)
+  - job_name: "timescaledb"
+    static_configs:
+      - targets: ["virtplc-timescale:9187"]
+    scrape_interval: 30s
+
+  # Nginx metrics
+  - job_name: "nginx"
+    static_configs:
+      - targets: ["virtplc-nginx:9113"]
+    scrape_interval: 30s

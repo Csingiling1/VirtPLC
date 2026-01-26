@@ -1,0 +1,111 @@
+syntax = "proto3";
+
+package virtplc.ai;
+
+import "google/protobuf/timestamp.proto";
+
+option java_multiple_files = true;
+option java_package = "com.virtplc.grpc.ai";
+option java_outer_classname = "AIServiceProto";
+
+// Python package
+option py_generic_services = true;
+
+service AIService {
+  // Analyze PLC data for anomalies and predictions
+  rpc AnalyzeData(AnalyzeRequest) returns (AnalysisResponse);
+
+  // Stream real-time analysis
+  rpc StreamAnalysis(stream DataPoint) returns (stream AnalysisResult);
+
+  // Get AI model status and metrics
+  rpc GetModelStatus(ModelStatusRequest) returns (ModelStatusResponse);
+
+  // Train/update AI models
+  rpc TrainModel(TrainRequest) returns (TrainResponse);
+}
+
+message DataPoint {
+  string device_id = 1;
+  string type = 2;
+  google.protobuf.Timestamp timestamp = 3;
+  map<string, Value> data = 4;
+  map<string, Value> metadata = 5;
+  optional double rpm = 6;
+  optional double position_x = 7;
+  optional double position_y = 8;
+  optional bool is_on = 9;
+  optional bool in_operation = 10;
+}
+
+message Value {
+  oneof value {
+    string string_value = 1;
+    int64 int_value = 2;
+    double double_value = 3;
+    bool bool_value = 4;
+  }
+}
+
+message AnalyzeRequest {
+  repeated DataPoint data_points = 1;
+  string analysis_type = 2; // "anomaly", "prediction", "classification"
+  map<string, string> parameters = 3;
+}
+
+message AnalysisResponse {
+  repeated Prediction predictions = 1;
+  repeated Anomaly anomalies = 2;
+  double confidence_score = 3;
+  google.protobuf.Timestamp analyzed_at = 4;
+}
+
+message Prediction {
+  string device_id = 1;
+  string prediction_type = 2;
+  double value = 3;
+  double confidence = 4;
+  google.protobuf.Timestamp predicted_for = 5;
+}
+
+message Anomaly {
+  string device_id = 1;
+  string anomaly_type = 2;
+  double severity = 3;
+  string description = 4;
+  google.protobuf.Timestamp detected_at = 5;
+}
+
+message AnalysisResult {
+  string device_id = 1;
+  google.protobuf.Timestamp timestamp = 2;
+  Prediction prediction = 3;
+  Anomaly anomaly = 4;
+}
+
+message ModelStatusRequest {
+  string model_name = 1;
+}
+
+message ModelStatusResponse {
+  string model_name = 1;
+  string status = 2; // "training", "ready", "error"
+  double accuracy = 3;
+  google.protobuf.Timestamp last_trained = 4;
+  string version = 5;
+  map<string, double> metrics = 6;
+}
+
+message TrainRequest {
+  string model_name = 1;
+  string algorithm = 2;
+  repeated DataPoint training_data = 3;
+  map<string, string> hyperparameters = 4;
+}
+
+message TrainResponse {
+  bool success = 1;
+  string message = 2;
+  string model_version = 3;
+  map<string, double> metrics = 4;
+}
