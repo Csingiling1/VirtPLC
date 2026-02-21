@@ -5,6 +5,8 @@ import anthropic
 import logging
 from src.config import settings
 
+logger = logging.getLogger(__name__)
+
 class ClaudeClient:
     """
     An asynchronous client for interacting with the Anthropic Claude API.
