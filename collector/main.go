@@ -126,6 +126,10 @@ func main() {
 		}
 	})
 
+	log.Println("Collector service started. Press Ctrl+C to exit.")
+	select {} // Keep the service running
+}
+
 // connectDatabase establishes a connection to TimescaleDB using PostgreSQL driver.
 // It verifies the connection with a ping before returning.
 //
@@ -147,6 +151,15 @@ func connectDatabase(host, port, user, password, dbname string) (*sql.DB, error)
 	if err != nil {
 		return nil, err
 	}
+
+	if err := db.Ping(); err != nil {
+		return nil, err
+	}
+
+	log.Printf("Connected to TimescaleDB")
+	return db, nil
+}
+
 // processAndStore extracts relevant fields from DeviceData and inserts them
 // into TimescaleDB's plc_data hypertable. It handles different device types
 // (UNREAL vs sensor) and extracts type-specific fields into dedicated columns.
@@ -162,20 +175,6 @@ func connectDatabase(host, port, user, password, dbname string) (*sql.DB, error)
 //
 // Returns:
 //   - error: Database insertion error if any
-func processAndStore(db *sql.DB, data DeviceData) error {
-	timestamp := time.Unix(int64(data.Timestamp), 0)
-
-	// Enrich metadata with Node-RED processing information
-	// This preserves all enrichment data added by the Node-RED pipeline
-	}
-
-	if err := db.Ping(); err != nil {
-		return nil, err
-	}
-
-	log.Printf("Connected to TimescaleDB")
-	return db, nil
-}
 
 func processAndStore(db *sql.DB, data DeviceData) error {
 	timestamp := time.Unix(int64(data.Timestamp), 0)
@@ -231,15 +230,6 @@ func processAndStore(db *sql.DB, data DeviceData) error {
 		}
 		if isReadyVal, ok := data.Data["is_ready"].(bool); ok {
 			inOperation = &isReadyVal  // Map is_ready to in_operation column
-// getEnv retrieves an environment variable with a fallback default value.
-// This is used for configuration with sensible defaults for development.
-//
-// Parameters:
-//   - key: Environment variable name
-//   - defaultValue: Value to return if environment variable is not set
-//
-// Returns:
-//   - string: Environment variable value or default
 		}
 	} else if data.Type == "sensor" {
 		// Handle sensor data - extract value from signal_config and store in rpm column
@@ -275,4 +265,12 @@ func getEnv(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
-}
+}// getEnv retrieves an environment variable with a fallback default value.
+// This is used for configuration with sensible defaults for development.
+//
+// Parameters:
+//   - key: Environment variable name
+//   - defaultValue: Value to return if environment variable is not set
+//
+// Returns:
+//   - string: Environment variable value or default
