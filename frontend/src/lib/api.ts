@@ -1,4 +1,4 @@
-import { ApiClient } from './apiClient.ts';
+import { ApiClient } from './apiClient';
 import { SimulatorDevice, SignalConfig, SensorData, AIChatResponse } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
