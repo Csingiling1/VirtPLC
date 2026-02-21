@@ -140,8 +140,6 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - ANALYSIS_INTERVAL=5000
-    volumes:
-      - ../ai-service:/app
     depends_on:
       ollama:
         condition: service_started
